@@ -247,7 +247,7 @@ void VulkanBaseApp::mainLoop() {
         glfwPollEvents();
         fullscreenCheck();
 
-        if(swapChainInvalidated){
+        if(swapChainInvalidated || swapChain.isOutOfDate()){
             swapChainInvalidated = false;
             recreateSwapChain();
         }
@@ -258,6 +258,7 @@ void VulkanBaseApp::mainLoop() {
         if(!paused) {
             checkAppInputs();
             notifyPluginsOfNewFrameStart();
+            waitForNextFrame();
             newFrame();
             drawFrame();
             presentFrame();
@@ -415,18 +416,16 @@ void VulkanBaseApp::createSyncObjects() {
     }
 }
 
-void VulkanBaseApp::drawFrame() {
+void VulkanBaseApp::waitForNextFrame(){
     if(swapChainInvalidated) return;
-    frameCount++;
     inFlightFences[currentFrame].wait();
-    auto imageIndex = swapChain.acquireNextImage(imageAcquired[currentFrame]);
-    if(swapChain.isOutOfDate()) {
-        swapChainInvalidated = true;
-    //    recreateSwapChain();
-        return;
-    }
+    currentImageIndex = swapChain.acquireNextImage(imageAcquired[currentFrame]);
+}
 
-    currentImageIndex = imageIndex;
+void VulkanBaseApp::drawFrame() {
+    frameCount++;
+
+    auto imageIndex = currentImageIndex;
 
     if(inFlightImages[imageIndex]){
         inFlightImages[imageIndex]->wait();
@@ -438,25 +437,53 @@ void VulkanBaseApp::drawFrame() {
     update(time);
     calculateFPS(time);
 
-    VkPipelineStageFlags flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    static std::vector<VkPipelineStageFlags> waitStages_;
+    static std::vector<VkSemaphore> waitSemaphores_;
+    static std::vector<VkSemaphore> signalSemaphores_;
+
+    waitStages_.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    waitSemaphores_.push_back(imageAcquired[currentFrame].semaphore);
+    signalSemaphores_.push_back(renderingFinished[currentFrame].semaphore);
+
+    if(!waitSemaphores.empty()) {
+        for(int i = 0; i < waitSemaphores.size(); i++){
+            const auto& stages = waitStages[i];
+            const auto& semaphores = waitSemaphores[i];
+            ASSERT(semaphores.size() == swapChainImageCount);
+            waitStages_.push_back(stages[imageIndex]);
+            waitSemaphores_.push_back(semaphores[imageIndex]);
+        }
+    }
+
+    if(!signalSemaphores.empty()) {
+        for(int i = 0; i < waitSemaphores.size(); i++){
+            const auto& semaphores = signalSemaphores[i];
+            ASSERT(semaphores.size() == swapChainImageCount);
+            signalSemaphores_.push_back(semaphores[imageIndex]);
+        }
+    }
 
     uint32_t commandBufferCount;
     auto commandBuffers = buildCommandBuffers(imageIndex, commandBufferCount);
 
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &imageAcquired[currentFrame].handle;
-    submitInfo.pWaitDstStageMask = &flags;
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    submitInfo.pNext = queueSubmitNextChain;
+    submitInfo.waitSemaphoreCount = COUNT(waitSemaphores_);
+    submitInfo.pWaitSemaphores = waitSemaphores_.data();
+    submitInfo.pWaitDstStageMask = waitStages_.data();
     submitInfo.commandBufferCount = commandBufferCount;
     submitInfo.pCommandBuffers = commandBuffers;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &renderingFinished[currentFrame].handle;
+    submitInfo.signalSemaphoreCount = COUNT(signalSemaphores_);
+    submitInfo.pSignalSemaphores = signalSemaphores_.data();
 
     inFlightFences[currentFrame].reset();
 
     ERR_GUARD_VULKAN(vkQueueSubmit(device.queues.graphics, 1, &submitInfo, inFlightFences[currentFrame]));
+
+    waitStages_.clear();
+    waitSemaphores_.clear();
+    signalSemaphores_.clear();
 }
 
 void VulkanBaseApp::presentFrame() {

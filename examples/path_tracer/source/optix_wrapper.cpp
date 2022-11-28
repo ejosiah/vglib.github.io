@@ -4,36 +4,62 @@
 
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*cbdata */)
 {
-    spdlog::error("[{:2d}][{:12s}]{}", level, tag, message);
+    switch(level){
+        case 4:
+            spdlog::info("[{:2d}][{:12s}]{}", level, tag, message);
+            break;
+        case 3:
+            spdlog::warn("[{:2d}][{:12s}]{}", level, tag, message);
+            break;
+        case 2:
+            spdlog::error("[{:2d}][{:12s}]{}", level, tag, message);
+            break;
+        case 1:
+            spdlog::critical("[{:2d}][{:12s}]{}", level, tag, message);
+            break;
+        default:
+            break; // log off
+    }
 }
 
-CUdevice OptixWrapper::cudaDevice = 0;
-CUcontext OptixWrapper::cudaCtx = nullptr;
-CUstream OptixWrapper::cudaStream = nullptr;
-OptixDeviceContext OptixWrapper::optixDevice = nullptr;
 
-void OptixWrapper::init() {
-    auto cuRes = cuInit(0);
+OptixContext::OptixContext(){
+        auto cuRes = cuInit(0);
     if(cuRes != CUDA_SUCCESS){
         spdlog::error("unable to initialize cuda");
         throw std::runtime_error{"unable to initialize cuda"};
     }
 
-    cuRes = cuCtxCreate(&cudaCtx, CU_CTX_SCHED_SPIN, cudaDevice);
+    cuRes = cuCtxCreate(&m_cudaCtx, CU_CTX_SCHED_SPIN, m_cudaDevice);
     if(cuRes != CUDA_SUCCESS){
         spdlog::error("unable to initialize cuda context");
         throw std::runtime_error{"unable to initialize cuda context"};
     }
 
-    cuRes = cuStreamCreate(&cudaStream, CU_STREAM_DEFAULT);
+    cuRes = cuStreamCreate(&m_cudaStream, CU_STREAM_DEFAULT);
     if(cuRes != CUDA_SUCCESS){
         spdlog::error("unable to initialize cuda stream");
         throw std::runtime_error{"unable to initialize cuda stream"};
     }
 
     OPTIX_CHECK(optixInit());
-    OPTIX_CHECK(optixDeviceContextCreate(cudaCtx, nullptr, &optixDevice));
-    OPTIX_CHECK(optixDeviceContextSetLogCallback(optixDevice, context_log_cb, nullptr, 4));
+    OPTIX_CHECK(optixDeviceContextCreate(m_cudaCtx, nullptr, &m_optixDevice));
+    OPTIX_CHECK(optixDeviceContextSetLogCallback(m_optixDevice, context_log_cb, nullptr, 4));
 
     spdlog::info("Optix successfully initialized");
 }
+
+OptixContext::~OptixContext() {
+    optixDeviceContextDestroy( m_optixDevice );
+
+    auto cuRes = cuStreamDestroy(m_cudaStream);
+    if(cuRes != CUDA_SUCCESS){
+        spdlog::error("unable to destroy cuda stream");
+    }
+
+    cuRes = cuCtxDestroy_v2(m_cudaCtx);
+    if(cuRes != CUDA_SUCCESS){
+        spdlog::error("unable to destroy cuda context");
+    }
+}
+

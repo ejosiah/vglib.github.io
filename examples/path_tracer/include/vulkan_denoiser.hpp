@@ -1,10 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "VulkanDevice.h"
-#include "VulkanBuffer.h"
-#include "Texture.h"
-
+#include "vulkan_cuda_interop.hpp"
+#include "VulkanImage.h"
 #include "optix_wrapper.hpp"
 #include <optix_denoiser_tiling.h>
 #include <spdlog/spdlog.h>
@@ -12,17 +10,17 @@
 #include <vector>
 #include <memory>
 
-class Denoiser{
+class VulkanDenoiser{
 public:
     struct Data{
         uint32_t width{};
         uint32_t height{};
-        float* color{};
-        float* albedo{};
-        float* normal{};
-        std::vector<float*> outputs;
-        std::vector<float*> aovs;
-        float* flow{};
+        cuda::Buffer color;
+        cuda::Buffer albedo;
+        cuda::Buffer normal;
+        std::vector<cuda::Buffer> outputs;
+        std::vector<cuda::Buffer> aovs;
+        cuda::Buffer flow;
     };
 
     struct Settings{
@@ -35,21 +33,34 @@ public:
         OptixDenoiserAlphaMode alphaMode{OPTIX_DENOISER_ALPHA_MODE_COPY};
     };
 
-    Denoiser(std::shared_ptr<OptixContext> context, const Data& data, const Settings& settings);
+    VulkanDenoiser(std::shared_ptr<OptixContext> context, Data data, const Settings& settings);
 
-    ~Denoiser();
+    ~VulkanDenoiser();
+
+    void update(VkCommandBuffer commandBuffer, const VulkanImage& color,
+                const VulkanImage& albedo, const VulkanImage& normal,
+                const std::vector<std::reference_wrapper<VulkanImage>>& aovs = {}) const;
+
+    void updateColor(VkCommandBuffer commandBuffer, const VulkanImage& color) const;
+
+    void updateAlbedo(VkCommandBuffer commandBuffer, const VulkanImage& albedo) const;
+
+    void updateNormal(VkCommandBuffer commandBuffer, const VulkanImage& normal) const;
+
+    void updateAovs(VkCommandBuffer commandBuffer, const std::vector<std::reference_wrapper<VulkanImage>>& aovs) const ;
 
     void exec();
 
-    void getResults();
+    void copyOutputTo(VkCommandBuffer commandBuffer, const VulkanImage& image);
 
-//    void update(const Data& data);
-
+    const Data& data() const {
+        return m_data;
+    }
 
 private:
     std::shared_ptr<OptixContext> m_context{};
     OptixDenoiser m_denoiser{};
-    std::vector<float *> m_host_outputs;
+    std::vector<cuda::Buffer> m_host_outputs;
     uint32_t m_tileWidth{};
     uint32_t m_tileHeight{};
     uint32_t m_overlap{};
@@ -62,13 +73,15 @@ private:
     std::vector<OptixDenoiserLayer> m_layers;
     OptixDenoiserGuideLayer m_guideLayer{};
     OptixDenoiserParams m_params{};
+    Data m_data;
 };
 
-Denoiser::Denoiser(std::shared_ptr<OptixContext> context, const Data &data, const Denoiser::Settings& settings) :
- m_context{std::move(context)}
- {
+VulkanDenoiser::VulkanDenoiser(std::shared_ptr<OptixContext> context, Data data, const VulkanDenoiser::Settings& settings) :
+        m_context{std::move(context)},
+        m_data{ data }
+{
     ASSERT(data.color)
-    ASSERT(data.outputs.size() >= 1)
+    ASSERT(!data.outputs.empty())
     ASSERT(data.width != 0)
     ASSERT(data.height != 0)
     ASSERT_MSG(!data.normal || data.albedo, "Currently albedo is required if normal input is given")
@@ -95,7 +108,7 @@ Denoiser::Denoiser(std::shared_ptr<OptixContext> context, const Data &data, cons
     OptixDenoiserModelKind modelKind = OPTIX_DENOISER_MODEL_KIND_HDR;
     OPTIX_CHECK(optixDenoiserCreate(m_context->m_optixDevice, modelKind, &options, &m_denoiser));
 
-    // allocate device memory for denoiser
+    // allocate device memory for VulkanDenoiser
     OptixDenoiserSizes denoiserSizes;
 
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(m_denoiser, m_tileWidth, m_tileHeight, &denoiserSizes));
@@ -132,24 +145,27 @@ Denoiser::Denoiser(std::shared_ptr<OptixContext> context, const Data &data, cons
     ) );
 
     OptixDenoiserLayer layer{};
-    layer.input = createOptixImage2D(data.width, data.height, data.color);
-    layer.output = createOptixImage2D(data.width, data.height);
+    layer.input = data.color.toOptixImage2D(data.width, data.height);
+    layer.output = m_host_outputs.front().toOptixImage2D(data.width, data.height);
     m_layers.push_back(layer);
 
     if(data.albedo){
-        m_guideLayer.albedo = createOptixImage2D(data.width, data.height, data.albedo);
+
+        m_guideLayer.albedo = data.albedo.toOptixImage2D(data.width, data.height);
+
     }
     if(data.normal){
-        m_guideLayer.normal = createOptixImage2D(data.width, data.height, data.normal);
+
+        m_guideLayer.normal = data.normal.toOptixImage2D(data.width, data.height);
     }
 
     for(auto i = 0u; i < data.aovs.size(); i++){
-        layer.input = createOptixImage2D(data.width, data.height, data.aovs[i]);
+        layer.input = data.aovs[i].toOptixImage2D(data.width, data.height);
         layer.output = createOptixImage2D(outScale * data.width, outScale * data.height);
         m_layers.push_back(layer);
     }
 
-    // setup denoiser
+    // setup VulkanDenoiser
     OPTIX_CHECK(optixDenoiserSetup(m_denoiser,
                                    nullptr,
                                    m_tileWidth + 2 * m_overlap,
@@ -159,16 +175,16 @@ Denoiser::Denoiser(std::shared_ptr<OptixContext> context, const Data &data, cons
                                    m_scratch,
                                    m_scratchSize));
 
-     m_params.denoiseAlpha    = (OptixDenoiserAlphaMode)settings.alphaMode;
-     m_params.hdrIntensity    = m_intensity;
-     m_params.hdrAverageColor = m_avgColor;
-     m_params.blendFactor     = 0.0f;
-     m_params.temporalModeUsePreviousLayers = 0;
+    m_params.denoiseAlpha    = (OptixDenoiserAlphaMode)settings.alphaMode;
+    m_params.hdrIntensity    = m_intensity;
+    m_params.hdrAverageColor = m_avgColor;
+    m_params.blendFactor     = 0.0f;
+    m_params.temporalModeUsePreviousLayers = 0;
 
-     spdlog::info("denoiser successfully initialized");
+    spdlog::info("VulkanDenoiser successfully initialized");
 }
 
-Denoiser::~Denoiser() {
+VulkanDenoiser::~VulkanDenoiser() {
     optixDenoiserDestroy( m_denoiser );
     CUDA_CHECK( cudaFree(reinterpret_cast<void*>(m_intensity)) );
     CUDA_CHECK( cudaFree(reinterpret_cast<void*>(m_avgColor)) );
@@ -182,10 +198,38 @@ Denoiser::~Denoiser() {
         CUDA_CHECK( cudaFree(reinterpret_cast<void*>(layer.output.data) ) );
         CUDA_CHECK( cudaFree(reinterpret_cast<void*>(layer.previousOutput.data) ) );
     }
-    spdlog::info("denoiser disposed");
+    spdlog::info("VulkanDenoiser disposed");
 }
 
-void Denoiser::exec() {
+void VulkanDenoiser::update(VkCommandBuffer commandBuffer, const VulkanImage &color, const VulkanImage &albedo,
+                            const VulkanImage &normal,
+                            const std::vector<std::reference_wrapper<VulkanImage>> &aovs) const {
+    color.copyToBuffer(commandBuffer, m_data.color.buf);
+    albedo.copyToBuffer(commandBuffer, m_data.albedo.buf);
+    normal.copyToBuffer(commandBuffer, m_data.normal.buf);
+    updateAovs(commandBuffer, aovs);
+}
+
+void VulkanDenoiser::updateColor(VkCommandBuffer commandBuffer, const VulkanImage &color) const {
+    color.copyToBuffer(commandBuffer, m_data.color.buf);
+}
+
+void VulkanDenoiser::updateAlbedo(VkCommandBuffer commandBuffer, const VulkanImage &albedo) const {
+    albedo.copyToBuffer(commandBuffer, m_data.albedo.buf);
+}
+
+void VulkanDenoiser::updateNormal(VkCommandBuffer commandBuffer, const VulkanImage &normal) const {
+    normal.copyToBuffer(commandBuffer, m_data.normal.buf);
+}
+
+void VulkanDenoiser::updateAovs(VkCommandBuffer commandBuffer,
+                                const std::vector<std::reference_wrapper<VulkanImage>> &aovs) const {
+    for(int i = 0; i < aovs.size(); i++){
+        aovs[i].get().copyToBuffer(commandBuffer, m_data.aovs[i].buf);
+    }
+}
+
+void VulkanDenoiser::exec() {
     if(m_intensity){
         OPTIX_CHECK( optixDenoiserComputeIntensity(
                 m_denoiser,
@@ -209,7 +253,7 @@ void Denoiser::exec() {
     }
 
 #if 0
-    OPTIX_CHECK( optixDenoiserInvoke(
+        OPTIX_CHECK( optixDenoiserInvoke(
             m_denoiser,
             nullptr, // CUDA stream
             &m_params,
@@ -225,20 +269,20 @@ void Denoiser::exec() {
     ) );
 #else
     OPTIX_CHECK( optixUtilDenoiserInvokeTiled(
-                    m_denoiser,
-                    nullptr, // CUDA stream
-                    &m_params,
-                    m_state,
-                    m_stateSize,
-                    &m_guideLayer,
-                    m_layers.data(),
-                    static_cast<unsigned int>( m_layers.size() ),
-                    m_scratch,
-                    m_scratchSize,
-                    m_overlap,
-                    m_tileWidth,
-                    m_tileHeight
-                    ) );
+            m_denoiser,
+            nullptr, // CUDA stream
+            &m_params,
+            m_state,
+            m_stateSize,
+            &m_guideLayer,
+            m_layers.data(),
+            static_cast<unsigned int>( m_layers.size() ),
+            m_scratch,
+            m_scratchSize,
+            m_overlap,
+            m_tileWidth,
+            m_tileHeight
+    ) );
 #endif
 
     cudaDeviceSynchronize();
@@ -249,19 +293,9 @@ void Denoiser::exec() {
         spdlog::error(msg);
         throw std::runtime_error( msg );
     }
-    spdlog::info("denoiser successfully executed");
+    spdlog::debug("VulkanDenoiser successfully executed");
 }
 
-void Denoiser::getResults() {
-    const uint64_t frame_byte_size = m_layers[0].output.width*m_layers[0].output.height*sizeof(float4);
-    for( size_t i=0; i < m_layers.size(); i++ )
-    {
-        CUDA_CHECK( cudaMemcpy(
-                m_host_outputs[i],
-                reinterpret_cast<void*>( m_layers[i].output.data ),
-                frame_byte_size,
-                cudaMemcpyDeviceToHost
-        ) );
-    }
-    spdlog::info("denoiser results transferred to host");
+void VulkanDenoiser::copyOutputTo(VkCommandBuffer commandBuffer, const VulkanImage &image) {
+    image.copyFromBuffer(commandBuffer, m_host_outputs[0].buf);
 }

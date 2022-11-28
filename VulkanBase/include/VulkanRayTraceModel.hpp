@@ -240,6 +240,8 @@ namespace rt{
 
         ~AccelerationStructureBuilder();
 
+        void dispose();
+
         AccelerationStructureBuilder& operator=(AccelerationStructureBuilder&& source) noexcept;
 
         std::vector<InstanceGroup> add(const std::vector<MeshObjectInstance>& drawableInstances, VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
@@ -291,6 +293,8 @@ namespace rt{
         VkPhysicalDeviceAccelerationStructurePropertiesKHR getAccelerationStructureProperties() const;
 
         void ensureAlignmentScratchBufferSize(VkAccelerationStructureBuildSizesInfoKHR& info) const;
+
+        const AccelerationStructure& topLevelAs() const;
 
 
     private:

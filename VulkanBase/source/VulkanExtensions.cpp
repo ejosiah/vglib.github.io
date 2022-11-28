@@ -13,6 +13,7 @@ static PFN_vkGetAccelerationStructureDeviceAddressKHR pfn_vkGetAccelerationStruc
 static PFN_vkGetRayTracingShaderGroupHandlesKHR pfn_vkGetRayTracingShaderGroupHandlesKHR = nullptr;
 static PFN_vkCreateRayTracingPipelinesKHR pfn_vkCreateRayTracingPipelinesKHR = nullptr;
 static PFN_vkSetDebugUtilsObjectNameEXT pfn_vkSetDebugUtilsObjectNameEXT = nullptr;
+static PFN_vkGetSemaphoreWin32HandleKHR pfn_vkGetSemaphoreWin32HandleKHR = nullptr;
 
 #ifdef WIN32
 static PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR = nullptr;
@@ -36,10 +37,10 @@ namespace ext {
         pfn_vkDestroyAccelerationStructureKHR = procAddress<PFN_vkDestroyAccelerationStructureKHR>(instance, "vkDestroyAccelerationStructureKHR");
         pfn_vkCreateRayTracingPipelinesKHR = procAddress<PFN_vkCreateRayTracingPipelinesKHR>(instance, "vkCreateRayTracingPipelinesKHR");
         pfn_vkGetRayTracingShaderGroupHandlesKHR = procAddress<PFN_vkGetRayTracingShaderGroupHandlesKHR>(instance, "vkGetRayTracingShaderGroupHandlesKHR");
-        pfn_vkGetRayTracingShaderGroupHandlesKHR = procAddress<PFN_vkGetRayTracingShaderGroupHandlesKHR>(instance, "vkGetRayTracingShaderGroupHandlesKHR");
 
 #ifdef WIN32
         pfn_vkGetMemoryWin32HandleKHR = procAddress<PFN_vkGetMemoryWin32HandleKHR>(instance, "vkGetMemoryWin32HandleKHR");
+        pfn_vkGetSemaphoreWin32HandleKHR = procAddress<PFN_vkGetSemaphoreWin32HandleKHR>(instance, "vkGetSemaphoreWin32HandleKHR");
 #endif
 
     }
@@ -152,3 +153,12 @@ VKAPI_ATTR VkResult  VKAPI_CALL vkGetMemoryWin32HandleKHR(
         return pfn_vkGetMemoryWin32HandleKHR(device, pGetWin32HandleInfo, pHandle);
 }
 #endif
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetSemaphoreWin32HandleKHR(
+        VkDevice                                    device,
+        const VkSemaphoreGetWin32HandleInfoKHR*     pGetWin32HandleInfo,
+        HANDLE*                                     pHandle){
+    assert(pfn_vkGetSemaphoreWin32HandleKHR);
+    return pfn_vkGetSemaphoreWin32HandleKHR(device, pGetWin32HandleInfo, pHandle);
+}
+

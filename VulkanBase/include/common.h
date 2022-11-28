@@ -86,6 +86,11 @@ constexpr std::chrono::seconds ONE_SECOND = std::chrono::seconds(1);
 #define BYTE_SIZE(sequence) static_cast<VkDeviceSize>(sizeof(sequence[0]) * sequence.size())
 
 #define ASSERT(expr) if(!(expr)){ assert(expr); throw std::runtime_error(__FILE__ "(" LINE_STRING "): " #expr " not true"); }
+#define ASSERT_MSG(expr, msg)               \
+if(!(expr)){                                \
+    assert(expr);                           \
+    throw std::runtime_error(msg);          \
+}
 
 #ifndef UNUSED_VARIABLE
 #   define UNUSED_VARIABLE(x) ((void)x)

@@ -22,6 +22,7 @@ layout(set = 0, binding = 0) uniform accelerationStructure topLevelAs;
 layout(set = 0, binding = 1) uniform CameraProperties{
     mat4 viewInverse;
     mat4 projInverse;
+    mat4 view_projection;
 } cam;
 layout(set = 0, binding = 2, rgba32f) uniform image2D image;
 layout(set = 0, binding = 3) uniform sampler2D envMap;
@@ -33,6 +34,10 @@ layout(set = 4, binding = 2) uniform sampler2D pConditionalVCdf;
 layout(set = 4, binding = 3) uniform sampler1D pMarginal;
 layout(set = 4, binding = 4) uniform sampler1D pMarginalCdf;
 
+layout(set = 5, binding = 0, rgba32f) uniform image2D albedoGuide;
+layout(set = 5, binding = 1, rgba32f) uniform image2D normalGuide;
+layout(set = 5, binding = 2, rgba32f) uniform image2D flowGuide;
+
 #include "scene_push_constants.glsl"
 
 layout(location = 0) rayPayload HitData hitData;
@@ -42,6 +47,9 @@ vec3 loadEnvColor(vec3 direction);
 vec3 getRadiance(Ray ray);
 
 Ray generateRay(vec2 offset);
+
+void updateDenoiserGuideData(int bounce, HitData hitData);
+
 
 const float Tmin = 0;
 const float Tmax = FLT_MAX;
@@ -81,16 +89,38 @@ Ray generateRay(vec2 offset){
     return Ray(origin, direction, transmission);
 }
 
+void updateDenoiserGuideData(uint bounce, HitData hitData){
+    ivec2 id = ivec2(gl_LaunchID.xy);
+    if(bounce == 0){
+        if(hitData.hit){
+            imageStore(albedoGuide, id, vec4(hitData.surface.albedo, 1));
+            imageStore(normalGuide, id, vec4(0.5 * hitData.surface.sN + 0.5, 1));
+
+//            vec4 pos = cam.view_projection * vec4(hitData.surface.x, 1);
+//            pos.xyz /= pos.w;
+//            pos.xy = (.5 * pos.xy + .5) * vec2(gl_LaunchSize);
+//
+//            vec2 prevPos = imageLoad(flowGuide, id).xy;
+//            vec2 v = pos.xy - prevPos;
+            imageStore(flowGuide, id, vec4(hitData.surface.x, 0));
+        }else{
+            imageStore(albedoGuide, id, vec4(0));
+            imageStore(normalGuide, id, vec4(0));
+            imageStore(flowGuide, id, vec4(0));
+        }
+    }
+}
+
 vec3 getRadiance(Ray ray){
     vec3 Lo = vec3(0);
     vec3 throughput = vec3(1);
     for(uint bounce = 0; bounce < maxBounces; bounce++){
         traceRay(topLevelAs, gl_RayFlagsNoOpaque, mask, 0, 0, 0, ray.origin, Tmin, ray.direction, Tmax, 0);
+        updateDenoiserGuideData(bounce, hitData);
         if(!hitData.hit){
             Lo += throughput * loadEnvColor(ray.direction);
             break;
         }
-
         throughput *= hitData.transmission;
 
         if(isBlack(throughput)){

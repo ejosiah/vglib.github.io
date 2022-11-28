@@ -1,8 +1,4 @@
 #include "Texture.h"
-#ifndef STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#include  <stb_image.h>
-#endif
 #include <fmt/format.h>
 #include <glm/glm.hpp>
 #include "sampling.hpp"
@@ -14,6 +10,14 @@
 #include <ImfTiledOutputFile.h>
 #include <ImfNamespace.h>
 #include <ImfRgbaFile.h>
+
+#ifndef STBI_MSC_SECURE_CRT
+#define STBI_MSC_SECURE_CRT
+#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif // STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+#endif // STBI_MSC_SECURE_CRT
 
 namespace IMF = OPENEXR_IMF_NAMESPACE;
 using namespace IMF;
@@ -173,6 +177,8 @@ void textures::exr(const VulkanDevice &device, Texture &texture, std::string_vie
 
 void textures::create(const VulkanDevice &device, Texture &texture, VkImageType imageType, VkFormat format, void *data,
                       Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode, uint32_t sizeMultiplier, VkImageTiling tiling) {
+
+    texture.format = format;
     VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * sizeMultiplier;
 
     VulkanBuffer stagingBuffer = device.createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, imageSize);
@@ -248,6 +254,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
                       Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode, uint32_t sizeMultiplier,
                       VkImageTiling tiling) {
 
+    texture.format = format;
     VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * sizeMultiplier;
 
     VkImageCreateInfo imageCreateInfo{};
@@ -272,6 +279,63 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
     texture.depth = dimensions.z;
     texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    VkImageSubresourceRange subresourceRange;
+    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = 1;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount = 1;
+
+    auto imageViewType = getImageViewType(imageType);
+    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);  // FIXME derive image view type
+
+    if(!texture.sampler.handle) {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = addressMode;
+        samplerInfo.addressModeV = addressMode;
+        samplerInfo.addressModeW = addressMode;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+        texture.sampler = device.createSampler(samplerInfo);
+    }
+
+}
+
+void textures::createExportable(const VulkanDevice &device, Texture &texture, VkImageType imageType, VkFormat format,
+                      Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode, uint32_t sizeMultiplier,
+                      VkImageTiling tiling) {
+
+    texture.format = format;
+    VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * sizeMultiplier;
+
+    VkImageCreateInfo imageCreateInfo{};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = imageType;
+    imageCreateInfo.format = format;
+    imageCreateInfo.extent = { static_cast<uint32_t>(dimensions.x), static_cast<uint32_t>(dimensions.y), dimensions.z};
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = tiling;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    auto& commandPool = device.commandPoolFor(*device.findFirstActiveQueue());
+
+    texture.image = device.createExportableImage(imageCreateInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+    texture.image.size = imageSize;
+    texture.width = dimensions.x;
+    texture.height = dimensions.y;
+    texture.depth = dimensions.z;
+    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_GENERAL);
 
     VkImageSubresourceRange subresourceRange;
     subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -651,4 +715,85 @@ void textures::createDistribution(const VulkanDevice &device, Texture &source, D
     pMarginalBuffer.unmap();
     pMarginalCdfBuffer.unmap();
     stageBuffer.unmap();
+}
+
+
+void saveAsPing(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
+    throw std::runtime_error{"ping save not yet implemented!"};
+}
+
+void saveAsBmp(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
+    throw std::runtime_error{"bmp save not yet implemented!"};
+}
+
+void saveAsJpg(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
+    throw std::runtime_error{"jpg save not yet implemented!"};
+}
+
+void saveAsHdr(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
+    int comp = data.sizeAs<float>()/(width * height);
+    ASSERT(comp >= 1 && comp <= 4);
+    if(comp == 1){
+        ASSERT(format == VK_FORMAT_R32_SFLOAT);
+    }
+    if(comp == 2){
+        ASSERT(format == VK_FORMAT_R32G32_SFLOAT);
+    }
+    if(comp == 3){
+        ASSERT(format == VK_FORMAT_R32G32B32_SFLOAT);
+    }
+    if(comp == 4){
+        ASSERT(format == VK_FORMAT_R32G32B32A32_SFLOAT);
+    }
+
+    stbi_write_hdr(path.c_str(), width, height, comp, reinterpret_cast<const float*>(data.map()));
+    data.unmap();
+}
+
+void saveAsExr(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
+    throw std::runtime_error{"exr save not yet implemented!"};
+}
+
+void textures::save(const VulkanDevice &device, Texture &texture,  FileFormat fileFormat, const std::string& path) {
+    ASSERT(texture.format != VK_FORMAT_UNDEFINED)
+    int width = texture.width;
+    int height = texture.height;
+    VulkanBuffer buffer = device.createStagingBuffer(texture.image.size);
+
+    device.graphicsCommandPool().oneTimeCommand([&](auto cb){
+        VkBufferImageCopy region{
+            0, 0, 0,
+            {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+            {0, 0, 0},
+            {texture.width, texture.height, 1}
+        };
+        vkCmdCopyImageToBuffer(cb, texture.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+    });
+
+    save(device, buffer, texture.format, fileFormat, path, width, height);
+}
+
+void textures::save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format,
+                    const std::string& path, int width, int height){
+    switch(format) {
+        case FileFormat::PNG : {
+            saveAsPing(imageFormat, path, width, height, buffer);
+            break;
+            case FileFormat::BMP:
+                saveAsBmp(imageFormat, path, width, height, buffer);
+            break;
+            case FileFormat::JPG:
+                saveAsJpg(imageFormat, path, width, height, buffer);
+            break;
+            case FileFormat::HDR:
+                saveAsHdr(imageFormat, path, width, height, buffer);
+            break;
+            case FileFormat::EXR:
+                saveAsExr(imageFormat, path, width, height, buffer);
+            break;
+            default:
+                throw std::runtime_error{"unsupported file format"};
+
+        }
+    }
 }

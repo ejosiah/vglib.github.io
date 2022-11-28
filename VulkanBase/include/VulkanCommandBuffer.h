@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "synchronization.hpp"
 
 struct VulkanCommandPool{
 
@@ -92,7 +93,8 @@ struct VulkanCommandPool{
     }
 
     template<typename Command>
-    inline void oneTimeCommand(Command&& command) const {
+    inline void oneTimeCommand(Command&& command, const WaitSemaphores& waitSemaphores = {},
+                               const std::vector<VkSemaphore>& signalSemaphores = {}) const {
         auto commandBuffer = allocateCommandBuffers().front();
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -106,6 +108,11 @@ struct VulkanCommandPool{
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
+        submitInfo.waitSemaphoreCount = waitSemaphores.size();
+        submitInfo.pWaitDstStageMask = waitSemaphores.stages.data();
+        submitInfo.pWaitSemaphores = waitSemaphores.semaphores.data();
+        submitInfo.signalSemaphoreCount = COUNT(signalSemaphores);
+        submitInfo.pSignalSemaphores = signalSemaphores.data();
 
         ERR_GUARD_VULKAN(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
         vkQueueWaitIdle(queue);

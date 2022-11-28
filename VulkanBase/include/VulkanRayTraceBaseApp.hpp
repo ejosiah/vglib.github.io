@@ -30,6 +30,8 @@ protected:
 
     std::tuple<uint32_t, uint32_t> getShaderGroupHandleSizingInfo() const;
 
+    void accelerationStructureBuildBarrier(VkCommandBuffer commandBuffer);
+
     Canvas canvas;
 
     rt::AccelerationStructureBuilder rtBuilder;

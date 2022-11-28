@@ -135,4 +135,5 @@ struct Model {
     std::vector<rt::MeshObjectInstance>* instances;
 
     bool* invalidateSwapChain;
+    bool denoise{false};
 };

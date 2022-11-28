@@ -110,11 +110,9 @@ struct VulkanBuffer{
 
 #ifdef WIN32
     HANDLE getHandle(VkDevice device) const {
-        VmaAllocationInfo info;
-        vmaGetAllocationInfo(allocator, allocation, &info);
-        auto memory = info.deviceMemory;
+
         VkMemoryGetWin32HandleInfoKHR getMemoryInfo{VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR};
-        getMemoryInfo.memory = info.deviceMemory;
+        getMemoryInfo.memory = allocationInfo().deviceMemory;
         getMemoryInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 
         HANDLE handle;
@@ -138,12 +136,24 @@ struct VulkanBuffer{
     }
 #endif
 
+
+    [[nodiscard]]
+    inline VmaAllocationInfo allocationInfo() const {
+        VmaAllocationInfo info;
+        vmaGetAllocationInfo(allocator, allocation, &info);
+        return info;
+    }
+
     operator VkBuffer() const {
         return buffer;
     }
 
     operator VkBuffer*() {
         return &buffer;
+    }
+
+    operator bool() const {
+        return buffer != VK_NULL_HANDLE;
     }
 
     void* map() const {
@@ -192,7 +202,7 @@ struct VulkanBuffer{
     }
 
     template<typename T>
-    VkDeviceSize sizeAs(){
+    VkDeviceSize sizeAs() const {
         return size/sizeof(T);
     }
 

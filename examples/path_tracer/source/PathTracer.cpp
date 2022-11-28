@@ -21,9 +21,16 @@ PathTracer::PathTracer(const Settings& settings) : VulkanRayTraceBaseApp("refere
     fileManager.addSearchPathFront(R"(C:\Users\Josiah Ebhomenye\OneDrive\media\models)");
 
 
+    timelineFeatures = VkPhysicalDeviceTimelineSemaphoreFeatures{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
+        &enabledDescriptorIndexingFeatures,
+        VK_TRUE
+    };
+
     rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
     rayQueryFeatures.rayQuery = VK_TRUE;
-    rayQueryFeatures.pNext = &enabledDescriptorIndexingFeatures;
+    rayQueryFeatures.pNext = &timelineFeatures;
+
     syncFeatures = VkPhysicalDeviceSynchronization2Features{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
         &rayQueryFeatures,
@@ -33,6 +40,8 @@ PathTracer::PathTracer(const Settings& settings) : VulkanRayTraceBaseApp("refere
 }
 
 void PathTracer::initApp() {
+    optix = std::make_shared<OptixContext>();
+    initDenoiser();
     loadEnvironmentMap();
     initCamera();
     initCanvas();
@@ -59,8 +68,56 @@ void PathTracer::initApp() {
         }
         if(keyEvent.getCode() == F11){
             gui.takeScreenShot = true;
+
         }
     });
+}
+
+void PathTracer::initDenoiser() {
+    textures::create(device, rayTracedTexture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
+                     {swapChain.width(), swapChain.height(), 1}, VK_SAMPLER_ADDRESS_MODE_REPEAT, sizeof(float));
+    device.graphicsCommandPool().oneTimeCommand([&](auto cb){
+        rayTracedTexture.image.transitionLayout(cb, VK_IMAGE_LAYOUT_GENERAL, DEFAULT_SUB_RANGE, VK_ACCESS_NONE, VK_ACCESS_NONE, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_NONE);
+    });
+    textures::create(device, denoiserGuide.albedo, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, {swapChain.width(), swapChain.height(), 1},
+                     VK_SAMPLER_ADDRESS_MODE_REPEAT, sizeof(float));
+    textures::create(device, denoiserGuide.normal, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, {swapChain.width(), swapChain.height(), 1},
+                     VK_SAMPLER_ADDRESS_MODE_REPEAT, sizeof(float));
+    textures::create(device, denoiserGuide.flow, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, {swapChain.width(), swapChain.height(), 1},
+                     VK_SAMPLER_ADDRESS_MODE_REPEAT, sizeof(float));
+    
+    denoiserGuide.albedo.image.transitionLayout(device.graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
+    denoiserGuide.normal.image.transitionLayout(device.graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
+    denoiserGuide.flow.image.transitionLayout(device.graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
+    
+    device.graphicsCommandPool().oneTimeCommand([&](auto cb){
+        VkClearColorValue clearValue{0.f, 0.f, 0.f, 0.f};
+        VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        vkCmdClearColorImage(cb, denoiserGuide.albedo.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &range);
+        vkCmdClearColorImage(cb, denoiserGuide.normal.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &range);
+        vkCmdClearColorImage(cb, denoiserGuide.flow.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &range);
+    });
+
+    VkDeviceSize size = rayTracedTexture.image.size;
+    auto bufferUsage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    cuda::Buffer colorBuffer{ device, device.createExportableBuffer(bufferUsage, VMA_MEMORY_USAGE_CPU_TO_GPU, size)};
+    cuda::Buffer normalBuffer{ device, device.createExportableBuffer(bufferUsage, VMA_MEMORY_USAGE_CPU_TO_GPU, size)};
+    cuda::Buffer albedoBuffer{ device, device.createExportableBuffer(bufferUsage, VMA_MEMORY_USAGE_CPU_TO_GPU, size)};
+
+    std::vector<cuda::Buffer> outputs;
+    outputs.emplace_back(device, device.createExportableBuffer(bufferUsage, VMA_MEMORY_USAGE_CPU_TO_GPU, size));
+
+     VulkanDenoiser::Data data = VulkanDenoiser::Data{
+            static_cast<uint32_t>(swapChain.width()),
+            static_cast<uint32_t>(swapChain.height()),
+            colorBuffer,
+            albedoBuffer,
+            normalBuffer,
+            outputs,
+    };
+    VulkanDenoiser::Settings settings{};
+    denoiser = std::make_unique<VulkanDenoiser>( optix, data, settings);
+    denoiseSemaphore = cuda::Semaphore{device};
 }
 
 void PathTracer::loadEnvironmentMap() {
@@ -254,8 +311,8 @@ void PathTracer::createCornellBox(phong::VulkanDrawableInfo info) {
     auto center = (min + max) * 0.5f;
     glm::mat4 xform = glm::translate(glm::mat4{1}, center);
     auto sphere = primitives::sphere(1000, 1000, radius, xform, color::white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-//    meshes[6].vertices = sphere.vertices;
-//    meshes[6].indices = sphere.indices;
+    meshes[6].vertices = sphere.vertices;
+    meshes[6].indices = sphere.indices;
 
 
     meshes[7].name = "TallBox";
@@ -337,6 +394,7 @@ void PathTracer::createDescriptorPool() {
             }
     };
     descriptorPool = device.createDescriptorPool(maxSets, poolSizes, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
+    device.setName<VK_OBJECT_TYPE_DESCRIPTOR_POOL>("path_tracer", descriptorPool.pool);
 
 }
 
@@ -435,10 +493,30 @@ void PathTracer::createDescriptorSetLayouts() {
                 .shaderStages(ALL_RAY_TRACE_STAGES)
                 .immutableSamplers(envMapDistribution.sampler)
             .createLayout();
+
+    denoiserGuideSetLayout =
+        device.descriptorSetLayoutBuilder()
+            .name("denoiser_guide")
+            .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+            .binding(1)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+            .binding(2)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+            .createLayout();
+
 }
 
 void PathTracer::updateDescriptorSets(){
-    auto sets = descriptorPool.allocate( { raytrace.descriptorSetLayout, raytrace.instanceDescriptorSetLayout, raytrace.vertexDescriptorSetLayout, sceneDescriptorSetLayout, envMapDescriptorSetLayout });
+    auto sets = descriptorPool.allocate( { raytrace.descriptorSetLayout, raytrace.instanceDescriptorSetLayout,
+                                           raytrace.vertexDescriptorSetLayout, sceneDescriptorSetLayout, envMapDescriptorSetLayout,
+                                           denoiserGuideSetLayout});
     raytrace.descriptorSet = sets[0];
     device.setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("raytrace_base", raytrace.descriptorSet);
 
@@ -453,6 +531,9 @@ void PathTracer::updateDescriptorSets(){
     
     envMapDescriptorSet = sets[4];
     device.setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("environment_map", envMapDescriptorSet);
+    
+    denoiserGuideSet = sets[5];
+    device.setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("denoiser_guide", envMapDescriptorSet);
 
 
     auto writes = initializers::writeDescriptorSets<11>();
@@ -607,11 +688,55 @@ void PathTracer::updateDescriptorSets(){
     writes[4].pImageInfo = &mCdfImageInfo;
 
     device.updateDescriptorSets(writes);
+    
+    // update denoiser set
+    writes = initializers::writeDescriptorSets<3>();
+
+    writes[0].dstSet = denoiserGuideSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writes[0].descriptorCount = 1;
+    VkDescriptorImageInfo dgAlbedoInfo{VK_NULL_HANDLE, denoiserGuide.albedo.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    writes[0].pImageInfo = &dgAlbedoInfo;
+
+    writes[1].dstSet = denoiserGuideSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writes[1].descriptorCount = 1;
+    VkDescriptorImageInfo dgNormalInfo{VK_NULL_HANDLE, denoiserGuide.normal.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    writes[1].pImageInfo = &dgNormalInfo;
+
+    writes[2].dstSet = denoiserGuideSet;
+    writes[2].dstBinding = 2;
+    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writes[2].descriptorCount = 1;
+    VkDescriptorImageInfo dgFlowInfo{VK_NULL_HANDLE, denoiserGuide.flow.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    writes[2].pImageInfo = &dgFlowInfo;
+
+    device.updateDescriptorSets(writes);
 }
 
 void PathTracer::createCommandPool() {
+    static int count = 0;
     commandPool = device.createCommandPool(*device.queueFamilyIndex.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    commandBuffers = commandPool.allocateCommandBuffers(swapChainImageCount);
+    commandBuffers = commandPool.allocateCommandBuffers(swapChainImageCount * commandBufferGroups);
+
+    raytraceFinished.resize(swapChainImageCount);
+
+    std::vector<VkSemaphore> semaphores;
+    std::vector<VkPipelineStageFlags> stages(swapChainImageCount, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    for(int i = 0; i < swapChainImageCount; i++){
+        auto index = i * commandBufferGroups;
+        spdlog::info("render_{} raytrace_{}", index, index+1);
+        device.setName<VK_OBJECT_TYPE_COMMAND_BUFFER>(fmt::format("render_{}", index), commandBuffers[index]);
+        device.setName<VK_OBJECT_TYPE_COMMAND_BUFFER>(fmt::format("raytrace_{}", index + 1), commandBuffers[index+1]);
+        raytraceFinished[i] = device.createSemaphore();
+        device.setName<VK_OBJECT_TYPE_SEMAPHORE>(fmt::format("ray_trace_finished_{}", i), raytraceFinished[i].semaphore);
+        semaphores.push_back(raytraceFinished[i]);
+    }
+
+    waitSemaphores.push_back(semaphores);
+    waitStages.push_back(stages);
 }
 
 void PathTracer::createPipelineCache() {
@@ -632,19 +757,10 @@ void PathTracer::initCanvas() {
     };
     canvas.init();
     canvas.setConstants(&m.sceneConstants.exposure);
-    textures::create(device, rayTracedTexture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, {swapChain.width(), swapChain.height(), 1});
-    device.graphicsCommandPool().oneTimeCommand([&](auto cb){
-       rayTracedTexture.image.transitionLayout(cb, VK_IMAGE_LAYOUT_GENERAL, DEFAULT_SUB_RANGE, VK_ACCESS_NONE, VK_ACCESS_NONE, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_NONE);
-    });
-
-    VkDeviceSize  size = width * height * 4;
-    auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    guide.albedo = device.createExportableBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, size);
-
 }
 
 void PathTracer::createInverseCam() {
-    inverseCamProj = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(glm::mat4) * 2);
+    inverseCamProj = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(glm::mat4) * 3);
 }
 
 void PathTracer::createRayTracingPipeline() {
@@ -752,7 +868,9 @@ void PathTracer::createRayTracingPipeline() {
     shaderGroups.push_back(shaderTablesDesc.addHitGroup(eOcclusionPrimary));
 
     raytrace.layout = device.createPipelineLayout({ raytrace.descriptorSetLayout, raytrace.instanceDescriptorSetLayout
-                                                    , raytrace.vertexDescriptorSetLayout, sceneDescriptorSetLayout, envMapDescriptorSetLayout }, {{ALL_RAY_TRACE_STAGES, 0, sizeof(m.sceneConstants)}});
+                                                    , raytrace.vertexDescriptorSetLayout, sceneDescriptorSetLayout,
+                                                    envMapDescriptorSetLayout, denoiserGuideSetLayout }
+                                                    , {{ALL_RAY_TRACE_STAGES, 0, sizeof(m.sceneConstants)}});
     VkRayTracingPipelineCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR };
     createInfo.stageCount = COUNT(stages);
     createInfo.pStages = stages.data();
@@ -782,7 +900,8 @@ void PathTracer::rayTrace(VkCommandBuffer commandBuffer) {
     if(m.sceneConstants.adaptiveSampling == 0){
         m.sceneConstants.numSamples = glm::clamp(m.sceneConstants.numSamples, 1u, 100u);
     }
-    std::vector<VkDescriptorSet> sets{ raytrace.descriptorSet, raytrace.instanceDescriptorSet, raytrace.vertexDescriptorSet, sceneDescriptorSet, envMapDescriptorSet  };
+    accelerationStructureBuildBarrier(commandBuffer);
+    std::vector<VkDescriptorSet> sets{ raytrace.descriptorSet, raytrace.instanceDescriptorSet, raytrace.vertexDescriptorSet, sceneDescriptorSet, envMapDescriptorSet, denoiserGuideSet  };
     assert(raytrace.pipeline);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, raytrace.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, raytrace.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -790,8 +909,70 @@ void PathTracer::rayTrace(VkCommandBuffer commandBuffer) {
     vkCmdTraceRaysKHR(commandBuffer, bindingTables.rayGen, bindingTables.miss, bindingTables.closestHit,
                       bindingTables.callable, swapChain.extent.width, swapChain.extent.height, 1);
 
-    transferImage(commandBuffer);
+    if(!shouldDenoise){
+        transferImage(commandBuffer);
+    }
 
+}
+
+void PathTracer::denoise() {
+    auto commandBuffer = commandBuffers[currentImageIndex * commandBufferGroups + 2];
+    auto beginInfo = initializers::commandBufferBeginInfo();
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    denoiser->update(commandBuffer,
+                     rayTracedTexture.image,
+                     denoiserGuide.albedo.image,
+                     denoiserGuide.normal.image);
+    vkEndCommandBuffer(commandBuffer);
+
+    auto waitValue = fenceValue;
+    denoiseTimelineInfo.waitSemaphoreValueCount = 1;
+    denoiseTimelineInfo.pWaitSemaphoreValues = &waitValue;
+    denoiseTimelineInfo.signalSemaphoreValueCount = 1;
+    fenceValue++;
+    denoiseTimelineInfo.pSignalSemaphoreValues = &fenceValue;
+
+    VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    submitInfo.pNext = &denoiseTimelineInfo;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = denoiseSemaphore.vk;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    vkQueueSubmit(device.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE);
+
+    // Wait for Vulkan to copy image to denoise buffers
+    cudaExternalSemaphoreWaitParams waitParams{};
+    waitParams.flags = 0;
+    waitParams.params.fence.value = fenceValue;
+    cudaWaitExternalSemaphoresAsync(&denoiseSemaphore.cu, &waitParams, 1, nullptr);
+    denoiser->exec();
+
+    cudaExternalSemaphoreSignalParams signalParams{};
+    signalParams.flags = 0;
+    signalParams.params.fence.value = ++fenceValue;
+    cudaSignalExternalSemaphoresAsync(&denoiseSemaphore.cu, &signalParams, 1, optix->m_cudaStream);
+
+
+    commandBuffer = commandBuffers[currentImageIndex * commandBufferGroups + 3];
+    beginInfo = initializers::commandBufferBeginInfo();
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    denoiser->copyOutputTo(commandBuffer, rayTracedTexture.image);
+    transferImage(commandBuffer);
+    vkEndCommandBuffer(commandBuffer);
+
+    denoiseTimelineInfo.waitSemaphoreValueCount = 1;
+    denoiseTimelineInfo.signalSemaphoreValueCount = 0;
+    denoiseTimelineInfo.pWaitSemaphoreValues = &fenceValue;
+
+    submitInfo.pNext = &denoiseTimelineInfo;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = denoiseSemaphore.vk;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = raytraceFinished[currentImageIndex];
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    vkQueueSubmit(device.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE);
 }
 
 void PathTracer::transferImage(VkCommandBuffer commandBuffer) {
@@ -812,6 +993,28 @@ void PathTracer::transferImage(VkCommandBuffer commandBuffer) {
 
     vkCmdCopyImage(commandBuffer, rayTracedTexture.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
             , canvas.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+    if(gui.takeScreenShot){
+        VkBufferImageCopy region{
+                0, 0, 0,
+                {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                {0, 0, 0},
+                {swapChain.width(), swapChain.height(), 1}
+        };
+        vkCmdCopyImageToBuffer(commandBuffer, rayTracedTexture.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, denoiser->data().color.buf,
+                               1, &region);
+
+        vkCmdCopyImageToBuffer(commandBuffer, denoiserGuide.albedo.image,
+                               VK_IMAGE_LAYOUT_GENERAL, denoiser->data().albedo.buf,
+                               1, &region);
+
+        vkCmdCopyImageToBuffer(commandBuffer, denoiserGuide.normal.image,
+                               VK_IMAGE_LAYOUT_GENERAL, denoiser->data().normal.buf,
+                               1, &region);
+
+
+    }
     transferToRenderBarrier(commandBuffer);
 }
 
@@ -901,6 +1104,7 @@ void PathTracer::onSwapChainDispose() {
 void PathTracer::onSwapChainRecreation() {
     m.sceneConstants.currentSample = 0;
     camera->onResize(width, height);
+    initDenoiser();
     initCanvas();
 
     // FIXME memory barrier required, between this and raytrace stage
@@ -915,7 +1119,7 @@ void PathTracer::onSwapChainRecreation() {
 
 VkCommandBuffer *PathTracer::buildCommandBuffers(uint32_t imageIndex, uint32_t &numCommandBuffers) {
     numCommandBuffers = 1;
-    auto& commandBuffer = commandBuffers[imageIndex];
+    auto& commandBuffer = commandBuffers[imageIndex * commandBufferGroups];
 
     VkCommandBufferBeginInfo beginInfo = initializers::commandBufferBeginInfo();
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
@@ -939,7 +1143,7 @@ VkCommandBuffer *PathTracer::buildCommandBuffers(uint32_t imageIndex, uint32_t &
 
     vkCmdEndRenderPass(commandBuffer);
 
-    rayTrace(commandBuffer);
+//    rayTrace(commandBuffer);
 
     vkEndCommandBuffer(commandBuffer);
 
@@ -960,8 +1164,10 @@ void PathTracer::update(float time) {
     inverseCamProj.map<glm::mat4>([&](auto ptr){
         auto view = glm::inverse(cam.view);
         auto proj = glm::inverse(cam.proj);
+        auto viewProjection = proj * view;
         *ptr = view;
         *(ptr+1) = proj;
+        *(ptr+2) = viewProjection;
     });
 
     auto lights = reinterpret_cast<Light*>(lightsBuffer.map());
@@ -974,14 +1180,51 @@ void PathTracer::update(float time) {
 
 void PathTracer::newFrame(){
     camera->newFrame();
+
+    auto commandBuffer = commandBuffers[currentImageIndex * commandBufferGroups + 1];
+    VkCommandBufferBeginInfo beginInfo = initializers::commandBufferBeginInfo();
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    rayTrace(commandBuffer);
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+
+    if(!shouldDenoise) {
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = raytraceFinished[currentImageIndex];
+    }else{
+        fenceValue++;
+        denoiseTimelineInfo.waitSemaphoreValueCount = 0;
+        denoiseTimelineInfo.signalSemaphoreValueCount = 1;
+        denoiseTimelineInfo.pSignalSemaphoreValues = &fenceValue;
+        submitInfo.pNext = &denoiseTimelineInfo;
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = denoiseSemaphore.vk;
+    }
+
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(device.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE);
+
+    if(shouldDenoise){
+        denoise();
+    }
+
 }
 
 void PathTracer::endFrame() {
-    m.sceneConstants.currentSample =
-            glm::clamp(m.sceneConstants.currentSample, 0u,   m.sceneConstants.numSamples - 1);
-    m.sceneConstants.currentSample++;
-    if(camera->moved()){
-        m.sceneConstants.currentSample = 0;
+    shouldDenoise = m.denoise && m.sceneConstants.adaptiveSampling != 1;
+
+    if(m.sceneConstants.adaptiveSampling == 1) {
+        m.sceneConstants.currentSample =
+                glm::clamp(m.sceneConstants.currentSample, 0u, m.sceneConstants.numSamples - 1);
+        m.sceneConstants.currentSample++;
+        shouldDenoise = m.denoise && ((m.sceneConstants.currentSample + 1) % denoiseAfterFrames) == 0;
+
+        if (camera->moved()) {
+            m.sceneConstants.currentSample = 0;
+        }
     }
     gui.endFrame();
 
@@ -1010,14 +1253,22 @@ void PathTracer::endFrame() {
         });
     }
 
+    if(shouldDenoise){
+        spdlog::debug("applying denoiser on sample {}", m.sceneConstants.currentSample);
+    }
+
+    static int saveId = 0;
     if(gui.takeScreenShot){
         gui.takeScreenShot = false;
-        threadPool.async([=]{
-            // TODO take screen shot;
-            device.graphicsCommandPool().oneTimeCommand([&](auto cb){
-
-            });
-
+        threadPool.async([&] {
+            auto path = fmt::format("c:/temp/path_traced_image_{}.hdr", saveId);
+            auto albedoPath = fmt::format("c:/temp/path_traced_image_albedo_{}.hdr", saveId);
+            auto normalPath = fmt::format("c:/temp/path_traced_image_normal_{}.hdr", saveId);
+            textures::save(device, denoiser->data().color.buf, VK_FORMAT_R32G32B32A32_SFLOAT, FileFormat::HDR, path, width, height);
+            textures::save(device, denoiser->data().albedo.buf, VK_FORMAT_R32G32B32A32_SFLOAT, FileFormat::HDR, albedoPath, width, height);
+            textures::save(device, denoiser->data().normal.buf, VK_FORMAT_R32G32B32A32_SFLOAT, FileFormat::HDR, normalPath, width, height);
+            spdlog::info("image saved to {}", path);
+            saveId++;
         });
     }
 }
@@ -1038,8 +1289,10 @@ void PathTracer::onPause() {
     VulkanBaseApp::onPause();
 }
 
+#include "denoiser_test.hpp"
 
 int main(){
+//    testCudaInterop();
     try{
 
         Settings settings;
@@ -1051,6 +1304,7 @@ int main(){
 
         settings.deviceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
         settings.deviceExtensions.push_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
+        settings.deviceExtensions.push_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
         settings.deviceExtensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
 
 #ifdef WIN32

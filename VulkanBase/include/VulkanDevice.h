@@ -4,6 +4,7 @@
 #include "Settings.hpp"
 #include "VulkanBuffer.h"
 #include "VulkanRAII.h"
+#include "VulkanSemaphore.hpp"
 #include "VulkanPipelineLayout.h"
 #include "VulkanDescriptorSet.h"
 #include "VulkanCommandBuffer.h"
@@ -548,6 +549,18 @@ struct VulkanDevice{
 
     }
 
+    [[nodiscard]] inline VulkanImage createExportableImage(const VkImageCreateInfo& createInfo, VmaMemoryUsage usage = VMA_MEMORY_USAGE_GPU_ONLY) const {
+        assert(logicalDevice);
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        VkImage image;
+        VmaAllocation allocation;
+        vmaCreateImage(exportableMemoryAllocator, &createInfo, &allocInfo, &image, &allocation, nullptr);
+
+        return VulkanImage{ logicalDevice, exportableMemoryAllocator, image, createInfo.format, allocation, createInfo.initialLayout, createInfo.extent };
+
+    }
+
     inline VulkanSampler createSampler(const VkSamplerCreateInfo& createInfo) const {
         assert(logicalDevice);
         VkSampler sampler;
@@ -569,6 +582,25 @@ struct VulkanDevice{
         VkSemaphore semaphore;
         ERR_GUARD_VULKAN(vkCreateSemaphore(logicalDevice, &createInfo, nullptr, &semaphore));
         return VulkanSemaphore { logicalDevice, semaphore };
+    }
+
+    [[nodiscard]] inline VulkanSemaphore createTimelineSemaphore(uint64_t initialValue = 0u, VkSemaphoreCreateFlags flags = 0) const {
+        assert(logicalDevice);
+        VkSemaphoreTypeCreateInfo typeInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
+        typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        typeInfo.initialValue = initialValue;
+
+        VkExportSemaphoreCreateInfo exportInfo{
+            VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
+            &typeInfo,
+            VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT};
+
+        VkSemaphoreCreateInfo createInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &exportInfo, flags};
+
+        VkSemaphore semaphore;
+        ERR_GUARD_VULKAN(vkCreateSemaphore(logicalDevice, &createInfo, nullptr, &semaphore));
+        return VulkanSemaphore { logicalDevice, semaphore };
+
     }
 
     [[nodiscard]] inline VulkanRenderPass createRenderPass(

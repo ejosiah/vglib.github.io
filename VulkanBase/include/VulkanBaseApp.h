@@ -190,6 +190,8 @@ protected:
 
     virtual void endFrame();
 
+    void waitForNextFrame();
+
     /**
      * Renders the current image on the swap chain and then sends it for presentation
      * subclasses can override this for custom drawing routines
@@ -310,6 +312,10 @@ protected:
     std::vector<VulkanFence> inFlightFences;
     std::vector<VulkanFence*> inFlightImages;
 
+    std::vector<std::vector<VkPipelineStageFlags>> waitStages;
+    std::vector<std::vector<VkSemaphore>> waitSemaphores;
+    std::vector<std::vector<VkSemaphore>> signalSemaphores;
+
     std::vector<const char*> instanceExtensions;
     std::vector<const char*> validationLayers;
     std::vector<const char*> deviceExtensions{
@@ -349,6 +355,8 @@ protected:
 
     std::deque<Proc> idleProcs;
     par::ThreadPool threadPool{1};
+
+    void* queueSubmitNextChain{};
 
 private:
     static VulkanBaseApp* appInstance;

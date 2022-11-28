@@ -27,6 +27,10 @@ rt::AccelerationStructureBuilder& rt::AccelerationStructureBuilder::operator=(Ac
 }
 
 rt::AccelerationStructureBuilder::~AccelerationStructureBuilder() {
+    dispose();
+}
+
+void rt::AccelerationStructureBuilder::dispose() {
     if(m_device && m_tlas.as.handle) {
         vkDestroyAccelerationStructureKHR(*m_device, m_tlas.as.handle, nullptr);
         for (auto &input : m_blas) {
@@ -400,4 +404,8 @@ void rt::AccelerationStructureBuilder::ensureAlignmentScratchBufferSize(
         VkAccelerationStructureBuildSizesInfoKHR &info) const {
     auto props = getAccelerationStructureProperties();
     info.buildScratchSize = alignedSize(info.buildScratchSize, props.minAccelerationStructureScratchOffsetAlignment);
+}
+
+const rt::AccelerationStructure &rt::AccelerationStructureBuilder::topLevelAs() const {
+    return m_tlas.as;
 }

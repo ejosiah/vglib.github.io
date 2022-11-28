@@ -48,7 +48,8 @@ public:
 
         _dirty |= ImGui::Checkbox("Accumulate", &accumulate);
         _model->sceneConstants.adaptiveSampling = int(accumulate);
-
+        ImGui::SameLine();
+        ImGui::Checkbox("denoise", &_model->denoise);
 
         ImGui::Indent(-16);
         ImGui::Separator();

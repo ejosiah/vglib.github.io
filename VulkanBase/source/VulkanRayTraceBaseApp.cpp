@@ -38,6 +38,7 @@ void VulkanRayTraceBaseApp::postVulkanInit() {
 }
 
 void VulkanRayTraceBaseApp::clearAccelerationStructure() {
+    rtBuilder.dispose();
     rtBuilder = rt::AccelerationStructureBuilder{&device};
 }
 
@@ -110,4 +111,32 @@ VulkanRayTraceBaseApp::~VulkanRayTraceBaseApp() {
 void VulkanRayTraceBaseApp::framebufferReady() {
     canvas = std::move(Canvas{this, VK_IMAGE_USAGE_STORAGE_BIT});
     canvas.init();
+}
+
+void VulkanRayTraceBaseApp::accelerationStructureBuildBarrier(VkCommandBuffer commandBuffer) {
+//    VkBufferMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2};
+//    barrier.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+//    barrier.dstStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+//    barrier.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+//    barrier.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+//    barrier.buffer = rtBuilder.topLevelAs().buffer;
+//    barrier.offset = 0;
+//    barrier.size = rtBuilder.topLevelAs().buffer.size;
+//
+//    VkDependencyInfo dependency{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+//    dependency.bufferMemoryBarrierCount = 1;
+//    dependency.pBufferMemoryBarriers = &barrier;
+//    vkCmdPipelineBarrier2(commandBuffer, &dependency);
+
+    VkBufferMemoryBarrier barrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+    barrier.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+    barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+    barrier.buffer = rtBuilder.topLevelAs().buffer;
+    barrier.offset = 0;
+    barrier.size = rtBuilder.topLevelAs().buffer.size;
+    vkCmdPipelineBarrier(commandBuffer,
+                         VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                         0, 0, VK_NULL_HANDLE,
+                         1, &barrier, 0, VK_NULL_HANDLE);
 }

@@ -1,15 +1,20 @@
 #pragma once
 
-#include  <stb_image.h>
 #include "common.h"
 #include "VulkanImage.h"
 #include "VulkanDevice.h"
 #include "VulkanBuffer.h"
+#include  <stb_image.h>
+
+enum class FileFormat {
+    PNG, BMP, TGA, JPG, HDR, EXR
+};
 
 struct Texture{
     VulkanImage image;
     VulkanImageView imageView;
     VulkanSampler sampler;
+    VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageAspectFlags aspectMask{VK_IMAGE_ASPECT_COLOR_BIT};
     uint32_t width{0};
     uint32_t height{0};
@@ -57,6 +62,10 @@ namespace textures{
                 , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
 
     void create(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format
+            , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
+            , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
+
+    void createExportable(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format
             , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
             , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
 
@@ -109,4 +118,8 @@ namespace textures{
     Texture distanceMap(const VulkanDevice& device, Texture& source, int depth, bool invert = true);
 
     void createDistribution(const VulkanDevice& device, Texture& source, Distribution2DTexture& distribution, float scale = 0.25f);
+
+    void save(const VulkanDevice& device, Texture& texture, FileFormat format, const std::string& path);
+
+    void save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format, const std::string& path, int width, int height);
 }

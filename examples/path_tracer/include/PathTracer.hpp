@@ -4,7 +4,8 @@
 
 #include "Model.hpp"
 #include "Gui.hpp"
-#include <taskflow/taskflow.hpp>
+#include "vulkan_cuda_interop.hpp"
+#include "vulkan_denoiser.hpp"
 
 enum ShaderIndex{
     eRayGen = 0,
@@ -34,6 +35,12 @@ struct Sphere{
     float radius;
 };
 
+struct DenoiserGuide{
+    Texture albedo;
+    Texture normal;
+    Texture flow;
+};
+
 
 class PathTracer : public VulkanRayTraceBaseApp {
 public:
@@ -41,6 +48,8 @@ public:
 
 protected:
     void initApp() final;
+
+    void initDenoiser();
 
     void loadEnvironmentMap();
 
@@ -73,6 +82,8 @@ protected:
     void createPostProcessPipeline();
 
     void rayTrace(VkCommandBuffer commandBuffer);
+
+    void denoise();
 
     void transferImage(VkCommandBuffer commandBuffer);
 
@@ -148,17 +159,28 @@ protected:
             VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_CALLABLE_BIT_KHR;
 
     std::vector<rt::MeshObjectInstance> instances;
-    tf::Executor executor;
     std::future<void> dragonLoad{};
     Light cornellLight;
     VkPhysicalDeviceSynchronization2Features syncFeatures;
+    VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures;
     VkPhysicalDeviceRayQueryFeaturesKHR  rayQueryFeatures{};
     VkPhysicalDeviceFeatures2 features2;
     Texture rayTracedTexture;
     Texture gBuffer;
 
-    struct {
-        VulkanBuffer albedo;
-        VulkanBuffer normal;
-    } guide;
+    VulkanDescriptorSetLayout denoiserGuideSetLayout;
+    VkDescriptorSet denoiserGuideSet;
+
+    DenoiserGuide denoiserGuide;
+    cuda::Semaphore denoiseSemaphore;
+    std::vector<VulkanSemaphore> raytraceFinished;
+    std::unique_ptr<VulkanDenoiser> denoiser;
+    VkTimelineSemaphoreSubmitInfo denoiseTimelineInfo{
+            VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO
+    };
+    uint32_t denoiseAfterFrames = 1000;
+    uint32_t commandBufferGroups = 4;   // render, raytrace, pre_denoise, post_denoise
+    bool shouldDenoise = false;
+    uint64_t fenceValue{0};
+    std::shared_ptr<OptixContext> optix;
 };
