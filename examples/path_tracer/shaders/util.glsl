@@ -114,7 +114,7 @@ void othonormalBasis(out vec3 tangent, out vec3 binormal, inout vec3 normal){
     tangent = cross(normal, binormal);
 }
 
-vec3 sphericalDirection(float sin0, float cos0, float phi, vec3 x, vec3, vec3 y, vec3 z){
+vec3 sphericalDirection(float sin0, float cos0, float phi, vec3 x, vec3 y, vec3 z){
     return sin0 * cos(phi) * x + sin0 * sin(phi) * y + cos0 * z;
 }
 

@@ -47,6 +47,7 @@ void PathTracer::initApp() {
     initCanvas();
     createInverseCam();
     createDescriptorPool();
+    loadMediums();
     loadModel();
     initLights();
     loadDragon();
@@ -160,6 +161,19 @@ void PathTracer::initLights() {
     m.lights = reinterpret_cast<Light*>(lightsBuffer.map());
     m.numLights = lights.size();
     m.sceneConstants.numLights = 0;
+}
+
+void PathTracer::loadMediums() {
+    std::vector<Medium> mediums;
+
+    Medium medium{glm::vec3(10), glm::vec3(90), 0.f};
+    mediums.push_back(medium);
+
+
+    mediumBuffer = device.createCpuVisibleBuffer(mediums.data(), BYTE_SIZE(mediums),
+                                                  VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+    m.mediums = reinterpret_cast<Medium*>(mediumBuffer.map());
 }
 
 void PathTracer::loadModel() {
@@ -311,8 +325,8 @@ void PathTracer::createCornellBox(phong::VulkanDrawableInfo info) {
     auto center = (min + max) * 0.5f;
     glm::mat4 xform = glm::translate(glm::mat4{1}, center);
     auto sphere = primitives::sphere(1000, 1000, radius, xform, color::white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    meshes[6].vertices = sphere.vertices;
-    meshes[6].indices = sphere.indices;
+//    meshes[6].vertices = sphere.vertices;
+//    meshes[6].indices = sphere.indices;
 
 
     meshes[7].name = "TallBox";
@@ -843,7 +857,6 @@ void PathTracer::createRayTracingPipeline() {
         &m.specializationConstants
     };
 
-    std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups;
     stages[eRayGen].pSpecializationInfo = &specializationInfo;
     stages[eClosestHit].pSpecializationInfo = &specializationInfo;
     stages[eVolumeHit].pSpecializationInfo = &specializationInfo;
@@ -852,8 +865,8 @@ void PathTracer::createRayTracingPipeline() {
     stages[eGlassOcclusion].pSpecializationInfo = &specializationInfo;
     stages[eOcclusionVolumeAnyHit].pSpecializationInfo = &specializationInfo;
 
-    dispose(raytrace.layout);
 
+    std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups;
     shaderGroups.push_back(shaderTablesDesc.rayGenGroup(eRayGen));
 
     shaderGroups.push_back(shaderTablesDesc.addMissGroup(eMiss));
@@ -867,6 +880,9 @@ void PathTracer::createRayTracingPipeline() {
     shaderGroups.push_back(shaderTablesDesc.addHitGroup(eOcclusionVolumeHit, VK_SHADER_UNUSED_KHR, eOcclusionVolumeAnyHit));
     shaderGroups.push_back(shaderTablesDesc.addHitGroup(eOcclusionPrimary));
 
+    shaderTablesDesc.hitGroups[static_cast<int>(HitShaders::volume)].addRecord(device.getAddress(mediumBuffer));
+
+    dispose(raytrace.layout);
     raytrace.layout = device.createPipelineLayout({ raytrace.descriptorSetLayout, raytrace.instanceDescriptorSetLayout
                                                     , raytrace.vertexDescriptorSetLayout, sceneDescriptorSetLayout,
                                                     envMapDescriptorSetLayout, denoiserGuideSetLayout }
@@ -1222,6 +1238,11 @@ void PathTracer::endFrame() {
         m.sceneConstants.currentSample++;
         shouldDenoise = m.denoise && ((m.sceneConstants.currentSample + 1) % denoiseAfterFrames) == 0;
 
+        if(m.denoise && m.sceneConstants.currentSample >= m.sceneConstants.numSamples){
+            m.denoise = false;
+            shouldDenoise = true;
+        }
+
         if (camera->moved()) {
             m.sceneConstants.currentSample = 0;
         }
@@ -1264,9 +1285,9 @@ void PathTracer::endFrame() {
             auto path = fmt::format("c:/temp/path_traced_image_{}.hdr", saveId);
             auto albedoPath = fmt::format("c:/temp/path_traced_image_albedo_{}.hdr", saveId);
             auto normalPath = fmt::format("c:/temp/path_traced_image_normal_{}.hdr", saveId);
-            textures::save(device, denoiser->data().color.buf, VK_FORMAT_R32G32B32A32_SFLOAT, FileFormat::HDR, path, width, height);
-            textures::save(device, denoiser->data().albedo.buf, VK_FORMAT_R32G32B32A32_SFLOAT, FileFormat::HDR, albedoPath, width, height);
-            textures::save(device, denoiser->data().normal.buf, VK_FORMAT_R32G32B32A32_SFLOAT, FileFormat::HDR, normalPath, width, height);
+            textures::save(device, rayTracedTexture, FileFormat::HDR, path);
+            textures::save(device, denoiserGuide.albedo, FileFormat::HDR, albedoPath);
+            textures::save(device, denoiserGuide.normal, FileFormat::HDR, normalPath);
             spdlog::info("image saved to {}", path);
             saveId++;
         });
@@ -1283,6 +1304,7 @@ void PathTracer::cleanup() {
     }
     lightsBuffer.unmap();
     threadPool.shutdown();
+    mediumBuffer.unmap();
 }
 
 void PathTracer::onPause() {

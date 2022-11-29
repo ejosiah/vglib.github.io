@@ -18,6 +18,15 @@ enum HitGroup : int {
     Glass = 2,
 };
 
+enum HitShaders : int {
+    primary = 0,
+    volume,
+    glass,
+    occlusionPrimary,
+    occlusionVolume,
+    occlusionGlass
+};
+
 enum LightFlags : uint32_t {
     None = 0x0,
     DeltaPosition = 0x1,
@@ -72,6 +81,12 @@ struct Material{
     float ior = 0;
     float opacity = 1;
     float illum = 1;
+};
+
+struct Medium{
+    alignas(16) glm::vec3 absorptionCoeff{0};
+    alignas(16) glm::vec3 scatteringCoeff{0};
+    float g{0};
 };
 
 struct Model {
@@ -136,4 +151,6 @@ struct Model {
 
     bool* invalidateSwapChain;
     bool denoise{false};
+
+    Medium* mediums{};
 };

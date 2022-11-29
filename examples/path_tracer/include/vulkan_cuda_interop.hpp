@@ -46,18 +46,6 @@ namespace cuda {
             CUDA_CHECK(cudaExternalMemoryGetMappedBuffer(&cudaPtr, externalMemoryBuffer, &cudaExternalMemoryBufferDesc));
         }
 
-        ~Buffer(){
-#ifdef WIN32
-//            CloseHandle(handle); TODO manage handle from VulkanBuffer
-#else
-            if(handle != -1){
-                close(handle);
-                handle = -1;
-            }
-#endif
-            dispose(buf);
-        }
-
         OptixImage2D toOptixImage2D(uint32_t width, uint32_t height) const {
             OptixImage2D oi{};
             oi.data = (CUdeviceptr)cudaPtr;

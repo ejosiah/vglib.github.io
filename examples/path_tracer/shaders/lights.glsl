@@ -3,6 +3,7 @@
 
 #include "scene_push_constants.glsl"
 #include "eval_brdf.glsl"
+#include "medium.glsl"
 
 layout(location = 1) rayPayload OcclusionData occData;
 
@@ -199,7 +200,7 @@ vec3 evalLightContribution(inout HitData hitData, vec3 wo){
     return lightContribution;
 }
 
-vec3 evalLightContributionWithTranmission(inout HitData hitData, vec3 wo){
+vec3 evalLightContributionWithTranmission(inout HitData hitData, vec3 wo, float g){
     vec3 lightContribution = vec3(0);
     Surface surface = hitData.surface;
 
@@ -208,7 +209,9 @@ vec3 evalLightContributionWithTranmission(inout HitData hitData, vec3 wo){
     if(sampleLightRIS(hitData.rngState, surface, light, lightWeight)){
         if(lightWeight != 0){
             vec3 wi = normalize(light.x - surface.x);
-            lightContribution = light.radiance * evalBrdf(surface, wo, wi) * lightWeight * visibility(light, surface);
+            float scatteringPdf = HG_p(g, wo, wi);
+            vec3 F = vec3(scatteringPdf);
+            lightContribution = light.radiance * F * lightWeight * visibility(light, surface);
         }
     }
 

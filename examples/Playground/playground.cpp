@@ -24,80 +24,38 @@
 #include <array>
 #include "spectrum/spectrum.hpp"
 #include "openexr_eval.h"
+#include "FirstPersonCamera.h"
 
+void flow(){
+    auto fieldOfView = 60.0f;
+    auto aspectRatio = 1024.f/720.f;
 
-#define OPTIX_CHECK(call)                                                                                              \
-  do                                                                                                                   \
-  {                                                                                                                    \
-    OptixResult res = call;                                                                                            \
-    if(res != OPTIX_SUCCESS)                                                                                           \
-    {                                                                                                                  \
-      std::stringstream ss;                                                                                            \
-      ss << "Optix call (" << #call << " ) failed with code " << res << " (" __FILE__ << ":" << __LINE__ << ")\n";     \
-      std::cerr << ss.str().c_str() << std::endl;                                                                      \
-      throw std::runtime_error(ss.str().c_str());                                                                      \
-    }                                                                                                                  \
-  } while(false)
+    Camera camera;
+    camera.proj = glm::perspective(fieldOfView, 1.f, 0.001f, 1000.f);
+    camera.view = glm::lookAt(glm::vec3(0, 0, 2), glm::vec3(0), {0, 1, 0});
 
-#define CUDA_CHECK(call)                                                                                               \
-  do                                                                                                                   \
-  {                                                                                                                    \
-    cudaError_t error = call;                                                                                          \
-    if(error != cudaSuccess)                                                                                           \
-    {                                                                                                                  \
-      std::stringstream ss;                                                                                            \
-      ss << "CUDA call (" << #call << " ) failed with code " << error << " (" __FILE__ << ":" << __LINE__ << ")\n";    \
-      throw std::runtime_error(ss.str().c_str());                                                                      \
-    }                                                                                                                  \
-  } while(false)
+    glm::vec4 p0{2, 3, -4, 1};
+    glm::vec4 p1{2, 3, -2, 1};
+    glm::vec4 p2{2, 3, -1, 1};
 
+    p0 = camera.proj * camera.view * p0;
+    p1 = camera.proj * camera.view * p1;
+    p2 = camera.proj * camera.view * p2;
 
-#define IX(i, j, N) ((i) * N + (j))
+    fmt::print("{}\n", p0);
+    fmt::print("{}\n", p1);
+    fmt::print("{}\n", p2);
 
-const float PI = 3.14159265358979323846264338327950288;
-using namespace glm;
+    fmt::print("\napplying perspective division..\n");
 
-using Real = float;
+    p0 /= p0.w;
+    p1 /= p1.w;
+    p2 /= p2.w;
 
-static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*cbdata */)
-{
-    std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
+    fmt::print("{}\n", p0);
+    fmt::print("{}\n", p1);
+    fmt::print("{}\n", p2);
 }
-
-void cudaCheck(){
-    auto cuRes = cuInit(0);
-    if(cuRes != CUDA_SUCCESS){
-        fmt::print("Error initializing cuda");
-        return;
-    }
-    CUdevice device = 0;
-    CUcontext cudaCtx;
-    cuRes = cuCtxCreate(&cudaCtx, CU_CTX_SCHED_SPIN, device);
-    if(cuRes != CUDA_SUCCESS){
-        fmt::print("Error creating cuda context");
-        return;
-    }
-
-    // PERF Use CU_STREAM_NON_BLOCKING if there is any work running in parallel on multiple streams.
-    CUstream cudaStream;
-    cuRes = cuStreamCreate(&cudaStream, CU_STREAM_DEFAULT);
-    if(cuRes != CUDA_SUCCESS)
-    {
-        fmt::print("ERROR: initOptiX() cuStreamCreate() failed: {}\n", cuRes);
-        return;
-    }
-
-
-    fmt::print("Cuda available");
-
-    OptixDeviceContext m_optixDevice;
-    OPTIX_CHECK(optixInit());
-    OPTIX_CHECK(optixDeviceContextCreate(cudaCtx, nullptr, &m_optixDevice));
-    OPTIX_CHECK(optixDeviceContextSetLogCallback(m_optixDevice, context_log_cb, nullptr, 4));
-
-    fmt::print("\nOptix initialized");
-}
-
 
 #define toKelvin(celsius) (celsius)
 
@@ -387,5 +345,5 @@ void searchTest(){
 }
 
 int main(){
-    printRaytracingProps();
+    flow();
 }

@@ -15,6 +15,7 @@ struct Ray{
     vec3 origin;
     vec3 direction;
     vec3 transmission;
+    int medium;
 };
 
 struct Light{
@@ -209,6 +210,7 @@ void reset(inout HitData hitData){
     hitData.ray.origin = vec3(0);
     hitData.ray.direction = vec3(0);
     hitData.ray.transmission = vec3(1);
+    hitData.ray.medium = -1;
     hitData.surface.volume = false;
     hitData.surface.inside = false;
     hitData.surface.emission = vec3(0);

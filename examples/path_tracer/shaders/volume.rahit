@@ -4,6 +4,7 @@
 #extension GL_EXT_ray_query : require
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_buffer_reference2 : require
 
 #include "ray_tracing_lang.glsl"
 #include "ray_query_lang.glsl"
@@ -12,6 +13,15 @@
 #include "util.glsl"
 #include "sampling.glsl"
 #include "scene_push_constants.glsl"
+#include "medium.glsl"
+
+layout(buffer_reference, buffer_reference_align=8) buffer MediumBuffer{
+    Medium at[];
+};
+layout(shaderRecord, std430) buffer SBT {
+    MediumBuffer mediums;
+};
+
 
 layout(set = 0, binding = 0) uniform accelerationStructure topLevelAs;
 
@@ -66,11 +76,32 @@ void main(){
             return;
         }
 
-        float density = surface.opacity;
-        float dist = rayQueryGetIntersectionT(rQuery, true);
-        float hitDistance = (-1/density) * log(1 - rand(hitData.rngState));
+        int mediumId = 0;
+        Medium medium = mediums.at[mediumId];
+        vec3 tc = medium.ac + medium.sc;
+        int channel = int(rand(hitData.rngState) * 3);
 
-        if(hitDistance > dist){
+        if(tc[channel] == 0){
+            hitData.transmission = vec3(1);
+            ignoreIntersection;
+            return;
+        }
+
+        float dist = rayQueryGetIntersectionT(rQuery, true);
+        float hitDistance = (-1/tc[channel]) * log(1 - rand(hitData.rngState));
+        vec3 Tr =  exp(-tc * hitDistance);
+
+        bool noHit = hitDistance > dist;
+        vec3 density = noHit ? Tr : tc * Tr;
+        float pdf = dot(density, vec3(1)) / 3;
+        if(pdf == 0){
+            while(isBlack(Tr)){};   // crash shader, transimission shouldn't be black
+            pdf = 1;
+        }
+
+        hitData.transmission = noHit ? (Tr / pdf) : (Tr * medium.sc / pdf);
+
+        if(noHit){
             ignoreIntersection;
             return;
         }
@@ -78,10 +109,14 @@ void main(){
         hitData.hit = true;
         hitData.surface = surface;
         hitData.ray.origin = surface.x;
+        hitData.ray.medium = mediumId;
         hitData.surface.gN = vec3(1, 0, 0);
         hitData.surface.sN = vec3(1, 0, 0);
-        hitData.ray.direction = uniformSampleSphere(randomVec3(hitData.rngState));
-        hitData.transmission = surface.albedo * vec3(exp(-density * hitDistance));
+
+        vec3 wi;
+        vec2 u = randomVec2(hitData.rngState);
+        HG_sample_P(medium.g, wo, wi, u);
+        hitData.ray.direction = wi;
         terminateRay;
     }
 

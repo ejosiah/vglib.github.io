@@ -2,6 +2,7 @@
 #include "VulkanRayTraceBaseApp.hpp"
 #include "shader_binding_table.hpp"
 
+
 #include "Model.hpp"
 #include "Gui.hpp"
 #include "vulkan_cuda_interop.hpp"
@@ -52,6 +53,8 @@ protected:
     void initDenoiser();
 
     void loadEnvironmentMap();
+
+    void loadMediums();
 
     void loadModel();
 
@@ -178,9 +181,11 @@ protected:
     VkTimelineSemaphoreSubmitInfo denoiseTimelineInfo{
             VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO
     };
-    uint32_t denoiseAfterFrames = 1000;
+    uint32_t denoiseAfterFrames = 100;
     uint32_t commandBufferGroups = 4;   // render, raytrace, pre_denoise, post_denoise
     bool shouldDenoise = false;
     uint64_t fenceValue{0};
     std::shared_ptr<OptixContext> optix;
+
+    VulkanBuffer mediumBuffer;
 };

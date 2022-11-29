@@ -4,6 +4,12 @@
 #include "constants.glsl"
 #include "util.glsl"
 
+struct Medium{
+    vec3 ac;    // absorption coefficient
+    vec3 sc;    // scattering coefficient
+    float g;
+};
+
 float phaseHG(float cos0, float g){
     float denom = 1 + g * g + 2 * g * cos0;
     return INV_4PI * (1 - g * g) / (denom * sqrt(denom));

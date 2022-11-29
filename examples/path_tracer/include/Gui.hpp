@@ -48,8 +48,14 @@ public:
 
         _dirty |= ImGui::Checkbox("Accumulate", &accumulate);
         _model->sceneConstants.adaptiveSampling = int(accumulate);
+
         ImGui::SameLine();
-        ImGui::Checkbox("denoise", &_model->denoise);
+
+        if(_model->sceneConstants.currentSample < _model->sceneConstants.numSamples) {
+            ImGui::Checkbox("denoise", &_model->denoise);
+        }else{
+            _model->denoise = ImGui::Button("denoise");
+        }
 
         ImGui::Indent(-16);
         ImGui::Separator();
@@ -122,7 +128,7 @@ public:
             ImGui::Indent(16);
             static std::array<const char*, 4> items{ "Floor", "Short box", "Tall box", "Dragon" };
             auto size = _model->dragonReady ? items.size() : items.size() - 1;
-            ImGui::Combo("Select", &selectedObj, items.data(), size);
+            ImGui::Combo("Select", &selectedObj, items.data(),size);
 
 
 
@@ -155,9 +161,17 @@ public:
                 _dirty |= ImGui::SliderFloat("roughness", &material->roughness, 0, 1);
             }
 
+            Medium& medium = _model->mediums[0];
             if(selectedObj != 0){
                 if(hitGroup == HitGroup::Volume) {
-                    _dirty |= ImGui::SliderFloat("density", &material->opacity, 0, 100);
+                    _dirty |= ImGui::SliderFloat("g", &medium.g, -0.99, 0.99);
+
+                    static float s = medium.scatteringCoeff.x;
+                    static float a = medium.absorptionCoeff.x;
+                    _dirty |= ImGui::SliderFloat("scatter", &s, 0, 100);
+                    _dirty |= ImGui::SliderFloat("absorption", &a, 0, 100);
+                    medium.scatteringCoeff = glm::vec3(s);
+                    medium.absorptionCoeff = glm::vec3(a);
                 }
                 _dirty |= ImGui::ColorEdit3("albedo", glm::value_ptr(material->diffuse));
             }

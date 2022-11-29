@@ -45,16 +45,12 @@ struct VulkanBuffer{
 
         this->~VulkanBuffer();
 
-        allocator = source.allocator;
-        buffer = source.buffer;
-        allocation = source.allocation;
-        name = source.name;
-        size = source.size;
-
-        source.allocator = VK_NULL_HANDLE;
-        source.buffer = VK_NULL_HANDLE;
-        source.allocation = VK_NULL_HANDLE;
-        source.name.clear();
+        allocator = std::exchange(source.allocator, VK_NULL_HANDLE);
+        buffer = std::exchange(source.buffer, VK_NULL_HANDLE);
+        allocation = std::exchange(source.allocation, VK_NULL_HANDLE);
+        name = std::exchange(source.name, "");
+        size = std::exchange(source.size, 0);
+        op_handle = std::exchange(source.op_handle, {});
 
         return *this;
     }
@@ -101,6 +97,16 @@ struct VulkanBuffer{
                 if (mapped) {
                     unmap();
                 }
+                if(op_handle.has_value()) {
+#ifdef WIN32
+                    CloseHandle(op_handle.value());
+#else
+                    if(op_handle.value() != -1){
+                        close(op_handle.value());
+                        op_handle = -1;
+                    }
+#endif
+                }
                 vmaDestroyBuffer(allocator, buffer, allocation);
             }else{
                 decrementRef(buffer);
@@ -110,29 +116,37 @@ struct VulkanBuffer{
 
 #ifdef WIN32
     HANDLE getHandle(VkDevice device) const {
+        if(op_handle.has_value()){
+            return op_handle.value();
+        }else {
+            VkMemoryGetWin32HandleInfoKHR getMemoryInfo{VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR};
+            getMemoryInfo.memory = allocationInfo().deviceMemory;
+            getMemoryInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 
-        VkMemoryGetWin32HandleInfoKHR getMemoryInfo{VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR};
-        getMemoryInfo.memory = allocationInfo().deviceMemory;
-        getMemoryInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
-
-        HANDLE handle;
-        vkGetMemoryWin32HandleKHR(device, &getMemoryInfo, &handle);
-        return handle;
+            HANDLE handle;
+            vkGetMemoryWin32HandleKHR(device, &getMemoryInfo, &handle);
+            op_handle = handle;
+            return handle;
+        }
 
     }
 #else
     int getHandle(VkDevice device) const {
-        VmaAllocationInfo info;
-        vmaGetAllocationInfo(allocator, allocation, &info);
-        auto memory = info.deviceMemory;
-        VkMemoryGetFdInfoKHR getMemoryInfo{ VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR };
-        getMemoryInfo.memory = info.deviceMemory;
-        getMemoryInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+        if(op_handle.has_value()){
+            return op_handle.value();
+        }else{
+            VmaAllocationInfo info;
+            vmaGetAllocationInfo(allocator, allocation, &info);
+            auto memory = info.deviceMemory;
+            VkMemoryGetFdInfoKHR getMemoryInfo{ VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR };
+            getMemoryInfo.memory = info.deviceMemory;
+            getMemoryInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 
-        int handle;
-        vkGetMemoryFdKHR(device, &getMemoryInfo, &handle);
-
-        return handle;
+            int handle;
+            vkGetMemoryFdKHR(device, &getMemoryInfo, &handle);
+            op_handle = handle;
+            return handle;
+        }
     }
 #endif
 
@@ -215,4 +229,9 @@ struct VulkanBuffer{
     bool isMapped = false;
     bool mappable = false;
     static std::map<VkBuffer, std::atomic_uint32_t> refCounts;
+#ifdef WIN32
+    mutable std::optional<HANDLE> op_handle {};
+#else
+    std::optional<int> op_handle = -1;
+#endif
 };
