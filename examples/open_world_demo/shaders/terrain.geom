@@ -11,12 +11,17 @@ layout(location = 2) in vec2 uv_in[3];
 layout(location = 3) in vec2 patch_uv_in[3];
 layout(location = 4) in vec3 color_in[3];
 
-layout(location = 0) out vec3 worldPosition;
-layout(location = 1) out vec3 normal;
-layout(location = 2) out vec2 uv_out;
-layout(location = 3) out vec2 patch_uv_out;
-layout(location = 4) noperspective out vec3 edgeDist;
-layout(location = 5) out vec3 color_out;
+layout(location = 0) out struct {
+   vec3 worldPosition;
+   vec3 normal;
+   vec2 uv;
+   vec2 patch_uv;
+   vec3 color;
+   vec3 viewPosition;
+} gs_out;
+
+layout(location = 6) noperspective out vec3 edgeDist;
+
 
 vec3 edgeDistance(vec3 p0, vec3 p1, vec3 p2){
     float a = distance(p1, p2);
@@ -41,12 +46,13 @@ void main(){
     vec3 edgeDisComb = edgeDistance(p0, p1, p2);
 
     for(int i = 0; i < gl_in.length(); i++){
-        worldPosition = worldPosition_in[i];
-        normal = normal_in[i];
-        uv_out = uv_in[i];
-        patch_uv_out = patch_uv_in[i];
-        color_out = color_in[i];
-
+        gs_out.worldPosition = worldPosition_in[i];
+        gs_out.normal = normal_in[i];
+        gs_out.uv = uv_in[i];
+        gs_out.patch_uv = patch_uv_in[i];
+        gs_out.color = color_in[i];
+        gs_out.viewPosition = (view * vec4(0, 0, 0, 1)).xyz;
+        
         edgeDist = vec3(0);
         edgeDist[i] = edgeDisComb[i];
 

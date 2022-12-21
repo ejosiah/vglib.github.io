@@ -42,8 +42,12 @@ void Terrain::loadHeightMap() {
 }
 
 void Terrain::loadShadingTextures() {
-    textures::fromFile(device(), shadingMap.albedo, resource("ground_dirt_rocky/GroundDirtRocky012_COL_4K.jpg"));
-    textures::fromFile(device(), shadingMap.normal, resource("ground_dirt_rocky/GroundDirtRocky012_NRM_4K.jpg"));
+    textures::fromFile(device(), shadingMap.albedo, resource("ground_dirt_012/COL_4K.jpg"));
+    textures::color(device(), shadingMap.metalness, glm::vec3(0), {128, 128});
+    textures::fromFile(device(), shadingMap.roughness, resource("ground_dirt_012/GLOSS_4K.jpg"));
+    textures::fromFile(device(), shadingMap.normal, resource("ground_dirt_012/NRM_4K.jpg"));
+    textures::fromFile(device(), shadingMap.ambientOcclusion, resource("ground_dirt_012/AO_4K.jpg"));
+    textures::fromFile(device(), shadingMap.displacement, resource("ground_dirt_012/DISP_4K.jpg"));
 }
 
 std::vector<glm::vec3> Terrain::generateNormals() {
@@ -175,6 +179,7 @@ void Terrain::initUBO() {
     ubo->viewportSize = { m_width, m_height };
     ubo->lodTargetTriangleWidth = 20.f;
     ubo->lodStrategy = static_cast<int>(LodStrategy::SphereProjection);
+    ubo->invertRoughness = 1;
 }
 
 void Terrain::createDescriptorSetLayout() {
@@ -206,6 +211,22 @@ void Terrain::createDescriptorSetLayout() {
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .binding(2)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .binding(3)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .binding(4)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .binding(5)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
         .createLayout();
 }
 
@@ -215,7 +236,7 @@ void Terrain::updateDescriptorSet() {
     descriptorSet = sets[0];
     shadingSet = sets[1];
     
-    auto writes = initializers::writeDescriptorSets<5>();
+    auto writes = initializers::writeDescriptorSets<3>();
     
     writes[0].dstSet = descriptorSet;
     writes[0].dstBinding = 0;
@@ -238,21 +259,56 @@ void Terrain::updateDescriptorSet() {
     VkDescriptorImageInfo normalInfo{heightMap.normal.sampler, heightMap.normal.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     writes[2].pImageInfo = &normalInfo;
 
+    device().updateDescriptorSets(writes);
+
+
+    // update shading descriptor set
+    writes = initializers::writeDescriptorSets<6>();
+
+    writes[0].dstSet = shadingSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorImageInfo albedoInfo{shadingMap.albedo.sampler, shadingMap.albedo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[0].pImageInfo = &albedoInfo;
+
+    writes[1].dstSet = shadingSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[1].descriptorCount = 1;
+    VkDescriptorImageInfo metalInfo{shadingMap.metalness.sampler, shadingMap.metalness.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[1].pImageInfo = &metalInfo;
+
+    writes[2].dstSet = shadingSet;
+    writes[2].dstBinding = 2;
+    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[2].descriptorCount = 1;
+    VkDescriptorImageInfo roughnessInfo{shadingMap.roughness.sampler, shadingMap.roughness.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[2].pImageInfo = &roughnessInfo;
+
     writes[3].dstSet = shadingSet;
-    writes[3].dstBinding = 0;
+    writes[3].dstBinding = 3;
     writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[3].descriptorCount = 1;
-    VkDescriptorImageInfo albedoInfo{shadingMap.albedo.sampler, shadingMap.albedo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[3].pImageInfo = &albedoInfo;
+    VkDescriptorImageInfo shadingNormalInfo{shadingMap.normal.sampler, shadingMap.normal.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[3].pImageInfo = &shadingNormalInfo;
 
     writes[4].dstSet = shadingSet;
-    writes[4].dstBinding = 1;
+    writes[4].dstBinding = 4;
     writes[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[4].descriptorCount = 1;
-    VkDescriptorImageInfo shadingNormalInfo{shadingMap.normal.sampler, shadingMap.normal.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[4].pImageInfo = &shadingNormalInfo;
-    
+    VkDescriptorImageInfo aoInfo{shadingMap.ambientOcclusion.sampler, shadingMap.ambientOcclusion.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[4].pImageInfo = &aoInfo;
+
+    writes[5].dstSet = shadingSet;
+    writes[5].dstBinding = 5;
+    writes[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[5].descriptorCount = 1;
+    VkDescriptorImageInfo displacementInfo{shadingMap.displacement.sampler, shadingMap.displacement.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[5].pImageInfo = &displacementInfo;
+
     device().updateDescriptorSets(writes);
+
 }
 
 void Terrain::createPipelines() {

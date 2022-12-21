@@ -97,6 +97,7 @@ private:
         int tessLevelColor;
         float lodTargetTriangleWidth;
         int lodStrategy;
+        int invertRoughness;
     };
 
     UniformBufferObject* ubo{};
@@ -113,7 +114,11 @@ private:
 
     struct {
         Texture albedo;
+        Texture metalness;
+        Texture roughness;
         Texture normal;
+        Texture ambientOcclusion;
+        Texture displacement;
     } shadingMap;
 
     VulkanBuffer patchesBuffer;
