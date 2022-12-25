@@ -39,15 +39,66 @@ void Terrain::loadHeightMap() {
     heightMap.normal.sampler = device().createSampler(samplerInfo);
     textures::fromFile(device(), heightMap.displacement, resource(fmt::format("terrain/{}.png", terrainPath)));
     textures::fromFile(device(), heightMap.normal, resource(fmt::format("terrain/{}_normal.png", terrainPath)));
+
+    textures::fromFile(device(), randomTexture, resource("random.png"));
 }
 
 void Terrain::loadShadingTextures() {
-    textures::fromFile(device(), shadingMap.albedo, resource("ground_dirt_012/COL_4K.jpg"));
-    textures::color(device(), shadingMap.metalness, glm::vec3(0), {128, 128});
-    textures::fromFile(device(), shadingMap.roughness, resource("ground_dirt_012/GLOSS_4K.jpg"));
-    textures::fromFile(device(), shadingMap.normal, resource("ground_dirt_012/NRM_4K.jpg"));
-    textures::fromFile(device(), shadingMap.ambientOcclusion, resource("ground_dirt_012/AO_4K.jpg"));
-    textures::fromFile(device(), shadingMap.displacement, resource("ground_dirt_012/DISP_4K.jpg"));
+    std::vector<std::string> paths{{
+        resource("ground_green_grass/GroundGrassGreen004_COL_4K.jpg"),
+         resource("ground_dirt_012/COL_4K.jpg"),
+         resource("ground_dirt_rocky/COL_4K.jpg"),
+        resource("ground_snow/GroundSnowFresh001_COL_4K.jpg")
+    }};
+    textures::fromFile(device(), shadingMap.albedo, paths);
+
+    paths.clear();
+    paths = {
+        resource("black.png"),
+        resource("black.png"),
+        resource("black.png"),
+        resource("black.png"),
+    };
+    textures::fromFile(device(), shadingMap.metalness, paths);
+
+    paths.clear();
+    paths = {
+        resource("ground_green_grass/GroundGrassGreen004_GLOSS_4K.jpg"),
+        resource("ground_dirt_012/GLOSS_4K.jpg"),
+        resource("ground_dirt_rocky/GLOSS_4K.jpg"),
+        resource("ground_snow/GroundSnowFresh001_GLOSS_4K.jpg")
+
+    };
+    textures::fromFile(device(), shadingMap.roughness, paths);
+
+    paths.clear();
+    paths = {
+        resource("ground_green_grass/GroundGrassGreen004_NRM_4K.jpg"),
+        resource("ground_dirt_012/NRM_4K.jpg"),
+        resource("ground_dirt_rocky/NRM_4K.jpg"),
+        resource("ground_snow/GroundSnowFresh001_NRM_4K.jpg")
+    };
+    textures::fromFile(device(), shadingMap.normal, paths);
+
+    paths.clear();
+    paths = {
+        resource("ground_green_grass/GroundGrassGreen004_AO_4K.jpg"),
+        resource("ground_dirt_012/AO_4K.jpg"),
+        resource("ground_dirt_rocky/AO_4K.jpg"),
+        resource("ground_snow/GroundSnowFresh001_AO_4K.jpg")
+    };
+    textures::fromFile(device(), shadingMap.ambientOcclusion, paths);
+
+    paths.clear();
+    paths = {
+        resource("ground_green_grass/GroundGrassGreen004_DISP_4K.jpg"),
+        resource("ground_dirt_012/DISP_4K.jpg"),
+        resource("ground_dirt_rocky/DISP_4K.jpg"),
+        resource("ground_snow/GroundSnowFresh001_DISP_4K.jpg")
+    };
+    textures::fromFile(device(), shadingMap.displacement, paths);
+
+    textures::fromFile(device(), shadingMap.groundMask, resource("ground_mask.png"));
 }
 
 std::vector<glm::vec3> Terrain::generateNormals() {
@@ -107,6 +158,8 @@ std::vector<glm::vec3> Terrain::generateNormals() {
 
     int* minMax = reinterpret_cast<int*>(minMaxBuffer.map());
     spdlog::info("height map range [{}, {}]", glm::intBitsToFloat(minMax[0]), glm::intBitsToFloat(minMax[1]));
+    ubo->minHeight = glm::intBitsToFloat(minMax[0]);
+    ubo->maxHeight = glm::intBitsToFloat(minMax[1]);
 
     VkDeviceSize size = (SQRT_NUM_PATCHES + 1) * (SQRT_NUM_PATCHES + 1) * sizeof(glm::vec4);
 
@@ -165,7 +218,7 @@ void Terrain::createPatches() {
 void Terrain::initUBO() {
     uboBuffer = device().createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(UniformBufferObject), "terrain");
     ubo = reinterpret_cast<UniformBufferObject*>(uboBuffer.map());
-    ubo->maxHeight = MAX_HEIGHT;
+    ubo->heightScale = MAX_HEIGHT;
     ubo->wireframeColor = {1, 0, 0};
     ubo->wireframe = 0;
     ubo->wireframeWidth = 5;
@@ -180,6 +233,12 @@ void Terrain::initUBO() {
     ubo->lodTargetTriangleWidth = 20.f;
     ubo->lodStrategy = static_cast<int>(LodStrategy::SphereProjection);
     ubo->invertRoughness = 1;
+    ubo->materialId = 0;
+    ubo->greenGrass = 0;
+    ubo->dirt = 1;
+    ubo->dirtRock = 2;
+    ubo->snowFresh = 3;
+    ubo->snowStart = 0.6;
 }
 
 void Terrain::createDescriptorSetLayout() {
@@ -193,11 +252,15 @@ void Terrain::createDescriptorSetLayout() {
             .binding(1)
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT)
+                .shaderStages(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .binding(2)
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT)
+            .binding(3)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(ALL_SHADER_STAGES)
         .createLayout();
 
     shadingSetLayout =
@@ -227,6 +290,10 @@ void Terrain::createDescriptorSetLayout() {
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .binding(6)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
         .createLayout();
 }
 
@@ -236,7 +303,7 @@ void Terrain::updateDescriptorSet() {
     descriptorSet = sets[0];
     shadingSet = sets[1];
     
-    auto writes = initializers::writeDescriptorSets<3>();
+    auto writes = initializers::writeDescriptorSets<4>();
     
     writes[0].dstSet = descriptorSet;
     writes[0].dstBinding = 0;
@@ -259,11 +326,19 @@ void Terrain::updateDescriptorSet() {
     VkDescriptorImageInfo normalInfo{heightMap.normal.sampler, heightMap.normal.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     writes[2].pImageInfo = &normalInfo;
 
+
+    writes[3].dstSet = descriptorSet;
+    writes[3].dstBinding = 3;
+    writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[3].descriptorCount = 1;
+    VkDescriptorImageInfo randomInfo{randomTexture.sampler, randomTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[3].pImageInfo = &randomInfo;
+
     device().updateDescriptorSets(writes);
 
 
     // update shading descriptor set
-    writes = initializers::writeDescriptorSets<6>();
+    writes = initializers::writeDescriptorSets<7>();
 
     writes[0].dstSet = shadingSet;
     writes[0].dstBinding = 0;
@@ -306,6 +381,13 @@ void Terrain::updateDescriptorSet() {
     writes[5].descriptorCount = 1;
     VkDescriptorImageInfo displacementInfo{shadingMap.displacement.sampler, shadingMap.displacement.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     writes[5].pImageInfo = &displacementInfo;
+
+    writes[6].dstSet = shadingSet;
+    writes[6].dstBinding = 6;
+    writes[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[6].descriptorCount = 1;
+    VkDescriptorImageInfo groundMaskInfo{shadingMap.groundMask.sampler, shadingMap.groundMask.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[6].pImageInfo = &groundMaskInfo;
 
     device().updateDescriptorSets(writes);
 
@@ -394,6 +476,7 @@ void Terrain::update(const SceneData& sceneData) {
     ubo->projection = camera.proj;
     ubo->mvp = camera.proj * camera.view * camera.model;
     ubo->sunPosition = sceneData.sun.position;
+    ubo->cameraPosition = sceneData.eyes;
 }
 
 std::string Terrain::resource(const std::string &name) {
@@ -422,7 +505,7 @@ void Terrain::renderUI() {
 
     static bool disableHeightMap = false;
     ImGui::Checkbox("disable height map", &disableHeightMap);
-    ubo->maxHeight = disableHeightMap ? 0 : MAX_HEIGHT;
+    ubo->heightScale = disableHeightMap ? 0 : MAX_HEIGHT;
 
     static bool lod = static_cast<bool>(ubo->lod);
     ImGui::Checkbox("Dynamic LOD", &lod);
@@ -446,7 +529,17 @@ void Terrain::renderUI() {
         }
     }
 
+    if(lighting){
+//        if(ImGui::Button("cycle material")){
+//            ubo->materialId += 1;
+//            ubo->materialId %= shadingMap.albedo.layers;
+//            spdlog::info("material id: {}", ubo->materialId);
+//        }
 
+        static float snow = 1 - ubo->snowStart;
+        ImGui::SliderFloat("snow", &snow, 0, 1);
+        ubo->snowStart = 1 - snow;
+    }
 
     ImGui::End();
 }

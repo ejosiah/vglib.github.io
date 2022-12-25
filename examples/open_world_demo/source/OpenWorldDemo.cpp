@@ -267,6 +267,8 @@ int main(){
     try{
 
         Settings settings;
+        settings.fullscreen = true;
+        settings.screen = 1;
         settings.depthTest = true;
         settings.enabledFeatures.tessellationShader = VK_TRUE;
         settings.enabledFeatures.fillModeNonSolid = VK_TRUE;

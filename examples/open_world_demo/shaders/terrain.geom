@@ -17,10 +17,9 @@ layout(location = 0) out struct {
    vec2 uv;
    vec2 patch_uv;
    vec3 color;
-   vec3 viewPosition;
 } gs_out;
 
-layout(location = 6) noperspective out vec3 edgeDist;
+layout(location = 5) noperspective out vec3 edgeDist;
 
 
 vec3 edgeDistance(vec3 p0, vec3 p1, vec3 p2){
@@ -51,8 +50,7 @@ void main(){
         gs_out.uv = uv_in[i];
         gs_out.patch_uv = patch_uv_in[i];
         gs_out.color = color_in[i];
-        gs_out.viewPosition = (view * vec4(0, 0, 0, 1)).xyz;
-        
+
         edgeDist = vec3(0);
         edgeDist[i] = edgeDisComb[i];
 

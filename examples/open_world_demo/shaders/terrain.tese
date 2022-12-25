@@ -24,6 +24,11 @@ bool isEdge(vec2 uv){
     return uv.x == 0 || uv.x == 1 || uv.y == 0 || uv.y == 1;
 }
 
+float remap(float x, float a, float b, float c, float d){
+    float t = clamp((x - a)/(b - a), 0, 1);
+    return mix(c, d, t);
+}
+
 void main(){
     float u = gl_TessCoord.x;
     float v = gl_TessCoord.y;
@@ -43,7 +48,7 @@ void main(){
 
 
     vec2 uv = mix(mix(uv0, uv1, u), mix(uv3, uv2, u), v);
-    float y = texture(displacementMap, uv).r * maxHeight;
+    float y = remap(texture(displacementMap, uv).r, minHeight, maxHeight, 0, 1) * heightScale;
 
     p.y += y;
 

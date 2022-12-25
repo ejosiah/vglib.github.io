@@ -15,12 +15,17 @@ layout(location = 0) out vec2 uvOut[];
 layout(location = 1) out vec3 normal_out[];
 layout(location = 2) out vec3 color_out[];
 
+float remap(float x, float a, float b, float c, float d){
+    float t = clamp((x - a)/(b - a), 0, 1);
+    return mix(c, d, t);
+}
+
 void main(){
     barrier();
 
     if(gl_InvocationID == 0){
         if (lod == 0){
-            float tessLevel = maxTessLevel / 2;
+            float tessLevel = maxTessLevel;
             gl_TessLevelOuter[0] = tessLevel;
             gl_TessLevelOuter[1] = tessLevel;
             gl_TessLevelOuter[2] = tessLevel;
@@ -35,10 +40,10 @@ void main(){
             lodParams.positions[1] = gl_in[1].gl_Position;
             lodParams.positions[2] = gl_in[2].gl_Position;
             lodParams.positions[3] = gl_in[3].gl_Position;
-            lodParams.displacement[0] = texture(displacementMap, uvIn[0]).x * maxHeight;
-            lodParams.displacement[1] = texture(displacementMap, uvIn[1]).x * maxHeight;
-            lodParams.displacement[2] = texture(displacementMap, uvIn[2]).x * maxHeight;
-            lodParams.displacement[3] = texture(displacementMap, uvIn[3]).x * maxHeight;
+            lodParams.displacement[0] = remap(texture(displacementMap, uvIn[0]).x, minHeight, maxHeight, 0, 1) * heightScale;
+            lodParams.displacement[1] = remap(texture(displacementMap, uvIn[1]).x, minHeight, maxHeight, 0, 1) * heightScale;
+            lodParams.displacement[2] = remap(texture(displacementMap, uvIn[2]).x, minHeight, maxHeight, 0, 1) * heightScale;
+            lodParams.displacement[3] = remap(texture(displacementMap, uvIn[3]).x, minHeight, maxHeight, 0, 1) * heightScale;
             lodParams.viewport = viewportSize;
             lodParams.minDepth = lodMinDepth;
             lodParams.maxDepth = lodMaxDepth;

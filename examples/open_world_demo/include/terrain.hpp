@@ -78,7 +78,7 @@ private:
         glm::mat4 mvp;
 
         glm::vec3 sunPosition;
-        float maxHeight;
+        float heightScale;
 
         glm::vec3 wireframeColor;
         int wireframe;
@@ -95,9 +95,20 @@ private:
         glm::vec2 viewportSize;
         int lighting;
         int tessLevelColor;
+
+        glm::vec3 cameraPosition;
         float lodTargetTriangleWidth;
+
         int lodStrategy;
         int invertRoughness;
+        int materialId;
+        int greenGrass;
+        int dirt;
+        int dirtRock;
+        int snowFresh;
+        float minHeight;
+        float maxHeight;
+        float snowStart;
     };
 
     UniformBufferObject* ubo{};
@@ -119,7 +130,10 @@ private:
         Texture normal;
         Texture ambientOcclusion;
         Texture displacement;
+        Texture groundMask;
     } shadingMap;
+
+    Texture randomTexture;
 
     VulkanBuffer patchesBuffer;
     VulkanBuffer indexBuffer;

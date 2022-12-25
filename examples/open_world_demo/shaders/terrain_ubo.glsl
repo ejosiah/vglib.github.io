@@ -5,7 +5,7 @@ layout(set = 0, binding = 0) uniform UBO{
     mat4 MVP;
 
     vec3 sunPosition;
-    float maxHeight;
+    float heightScale;
 
     vec3 wireframeColor;
     int wireframe;
@@ -23,7 +23,17 @@ layout(set = 0, binding = 0) uniform UBO{
     int shading;
     int tessLevelColor;
 
+    vec3 cameraPosition;
     float lodTargetTriangleWidth;
+
     int lodStrategy;
     int invertRoughness;
+    int materialId;
+    int greenGrass;
+    int dirt;
+    int dirtRock;
+    int snowFresh;
+    float minHeight;
+    float maxHeight;
+    float snowStart;
 };
