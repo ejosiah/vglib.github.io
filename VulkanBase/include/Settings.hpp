@@ -12,6 +12,8 @@ struct Settings{
      */
     bool fullscreen = false;
 
+    int screen = 0;
+
     struct {
         int width = 0;
         int height = 0;

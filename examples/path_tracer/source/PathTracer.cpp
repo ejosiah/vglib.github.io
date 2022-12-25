@@ -42,6 +42,7 @@ PathTracer::PathTracer(const Settings& settings) : VulkanRayTraceBaseApp("refere
 void PathTracer::initApp() {
     optix = std::make_shared<OptixContext>();
     initDenoiser();
+    initShapes();
     loadEnvironmentMap();
     initCamera();
     initCanvas();
@@ -72,6 +73,23 @@ void PathTracer::initApp() {
 
         }
     });
+}
+
+void PathTracer::initShapes() {
+    int count = 10;
+    shapes.rectangles = device.createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                            VMA_MEMORY_USAGE_CPU_TO_GPU,
+                                            count * sizeof(Rectangle_));
+    shapes.spheres = device.createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                         VMA_MEMORY_USAGE_CPU_TO_GPU,
+                                         count * sizeof(Sphere));
+
+    shapes.disks = device.createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                         VMA_MEMORY_USAGE_CPU_TO_GPU,
+                                         count * sizeof(Disk));
+    lightShapeRef = device.createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                         VMA_MEMORY_USAGE_CPU_TO_GPU,
+                                         100 * sizeof(ShapeRef));
 }
 
 void PathTracer::initDenoiser() {
@@ -133,6 +151,20 @@ void PathTracer::loadEnvironmentMap() {
 void PathTracer::initLights() {
     std::vector<Light> lights;
 
+    auto ref = reinterpret_cast<ShapeRef*>(lightShapeRef.map());
+    ref[0].objectId = static_cast<int>(lights.size());
+    ref[0].shapeId = 0;
+    ref[0].shape = static_cast<int>(Shape::Rectangle);
+
+    ref[1].objectId = static_cast<int>(lights.size());
+    ref[1].shapeId = 0;
+    ref[1].shape = static_cast<int>(Shape::Disk);
+
+    ref[2].objectId = static_cast<int>(lights.size());
+    ref[2].shapeId = 0;
+    ref[2].shape = static_cast<int>(Shape::Sphere);
+
+
     lights.push_back(cornellLight);
 
     Light light;
@@ -140,7 +172,6 @@ void PathTracer::initLights() {
     light.position = camera->position();
     light.normal = camera->viewDir;
     light.flags = DeltaPosition;
-    light.instanceId = ~0u;
     light.cosWidth = glm::cos(glm::radians(20.f));
     light.fallOffStart = glm::cos(glm::radians(10.f));
     lights.push_back(light);
@@ -219,6 +250,7 @@ void PathTracer::loadModel() {
     pInstance.object.metaData[0].hitGroupId = 0;
     pInstance.object.metaData[0].mask = ePlane;
     pInstance.xform = glm::translate(glm::mat4{1}, {0, drawables["cornell"].bounds.min.y, 0});
+    m.sceneConstants.planeId = static_cast<int>(instance.object.metaData.size());
     instances.push_back(pInstance);
     objects.push_back(&drawables["plane"]);
 
@@ -256,6 +288,7 @@ void PathTracer::createCornellBox(phong::VulkanDrawableInfo info) {
     spdlog::info("light: {}", radiance);
 ////    glm::vec3 radiance = glm::vec3(0);
 
+
     std::vector<mesh::Mesh> meshes(8);
     meshes[0].name = "Light";
     meshes[0].vertices = cornellBox[0].vertices;
@@ -266,6 +299,17 @@ void PathTracer::createCornellBox(phong::VulkanDrawableInfo info) {
     meshes[0].material.specular = glm::vec3(0);
     meshes[0].material.emission = radiance;
     meshes[0].material.shininess = 1;
+
+    auto center = mesh::center(meshes[0]);
+    glm::vec3 min, max;
+    mesh::bounds({ meshes[0]}, min, max);
+    auto radius = 5.0f;
+    glm::mat4 xform = glm::translate(glm::mat4{1}, {0, radius * 5.f, 0});
+    xform = glm::translate(xform, center);
+    auto sphere = primitives::sphere(1000, 1000, radius, xform, color::white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+//    meshes[0].vertices = sphere.vertices;
+//    meshes[0].indices = sphere.indices;
+
 
     meshes[1].name = "Floor";
     meshes[1].vertices = cornellBox[3].vertices;
@@ -319,12 +363,11 @@ void PathTracer::createCornellBox(phong::VulkanDrawableInfo info) {
     meshes[6].material.opacity = 10;
 
 
-    glm::vec3 min, max;
     mesh::bounds({ meshes[6]}, min, max);
-    auto radius =(max.y - min.y) * 0.5f;
-    auto center = (min + max) * 0.5f;
-    glm::mat4 xform = glm::translate(glm::mat4{1}, center);
-    auto sphere = primitives::sphere(1000, 1000, radius, xform, color::white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    radius =(max.y - min.y) * 0.5f;
+    center = (min + max) * 0.5f;
+    xform = glm::translate(glm::mat4{1}, center);
+    sphere = primitives::sphere(1000, 1000, radius, xform, color::white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 //    meshes[6].vertices = sphere.vertices;
 //    meshes[6].indices = sphere.indices;
 
@@ -349,12 +392,37 @@ void PathTracer::createCornellBox(phong::VulkanDrawableInfo info) {
 
     mesh::normalize(meshes);
 
+    auto& rectangle = reinterpret_cast<Rectangle_*>(shapes.rectangles.map())[0];
+    rectangle.p0 = meshes[0].vertices[0].position.xyz();
+    rectangle.p1 = meshes[0].vertices[1].position.xyz();
+    rectangle.p2 = meshes[0].vertices[2].position.xyz();
+    rectangle.p3 = meshes[0].vertices[3].position.xyz();
+
+    auto a = rectangle.p1 - rectangle.p0;
+    auto b= rectangle.p2 - rectangle.p0;
+    auto area0 = glm::length(a) * glm::length(b);
+    auto area1 = mesh::surfaceArea(meshes[0]);
+
+    shapes.rectangles.unmap();
+
+    center = mesh::center(meshes[0]);
+    mesh::bounds({ meshes[0]}, min, max);
+    auto& disk = reinterpret_cast<Disk*>(shapes.disks.map())[0];
+    disk.center = center;
+    disk.radius = glm::distance(min, max) * 0.5f;
+    disk.height = center.y;
+    shapes.disks.unmap();
+
+    auto& sphereShape = reinterpret_cast<Sphere*>(shapes.spheres.map())[0];
+    sphereShape.center = center;
+    sphereShape.radius = glm::distance(min, max) * 0.15f;
+    shapes.spheres.unmap();
+
     cornellLight.value = radiance;
     cornellLight.flags = Area;
-    cornellLight.instanceId = 0;
-    cornellLight.area = mesh::surfaceArea(meshes[0]);
-    cornellLight.numTriangles = meshes[0].indices.size() / 3;
-    cornellLight.triangleOffset = 0;
+    cornellLight.normal = glm::vec3(0, -1, 0);
+    cornellLight.shapeType = static_cast<int>(Shape::Rectangle);
+    cornellLight.shapeId = 0;
 
 
     VulkanDrawable drawable;
@@ -437,21 +505,37 @@ void PathTracer::createDescriptorSetLayouts() {
     const uint32_t numInstances = drawables.size();
 
     raytrace.instanceDescriptorSetLayout =
-            device.descriptorSetLayoutBuilder()
-                    .name("raytrace_instance")
-                    .binding(0) // materials
-                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                        .descriptorCount(numInstances)
-                        .shaderStages(ALL_RAY_TRACE_STAGES)
-                    .binding(1) // material ids
-                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                        .descriptorCount(numInstances)
-                        .shaderStages(ALL_RAY_TRACE_STAGES)
-                    .binding(2) // scene objects
-                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                        .descriptorCount(1)
-                        .shaderStages(ALL_RAY_TRACE_STAGES)
-                    .createLayout();
+        device.descriptorSetLayoutBuilder()
+            .name("raytrace_instance")
+            .binding(0) // materials
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(numInstances)
+                .shaderStages(ALL_RAY_TRACE_STAGES)
+            .binding(1) // material ids
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(numInstances)
+                .shaderStages(ALL_RAY_TRACE_STAGES)
+            .binding(2) // scene objects
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(ALL_RAY_TRACE_STAGES)
+            .binding(3) // rectangles
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(ALL_RAY_TRACE_STAGES)
+            .binding(4) // disks
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(ALL_RAY_TRACE_STAGES)
+            .binding(5) // spheres
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(ALL_RAY_TRACE_STAGES)
+            .binding(6) // light shape ref
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(ALL_RAY_TRACE_STAGES)
+            .createLayout();
 
     raytrace.vertexDescriptorSetLayout =
             device.descriptorSetLayoutBuilder()
@@ -728,6 +812,38 @@ void PathTracer::updateDescriptorSets(){
     writes[2].pImageInfo = &dgFlowInfo;
 
     device.updateDescriptorSets(writes);
+    
+    // shapes 
+    writes = initializers::writeDescriptorSets<4>();
+    writes[0].dstSet = raytrace.instanceDescriptorSet;
+    writes[0].dstBinding = 3;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorBufferInfo rectInfo{ shapes.rectangles, 0, VK_WHOLE_SIZE };
+    writes[0].pBufferInfo = &rectInfo;
+    
+    writes[1].dstSet = raytrace.instanceDescriptorSet;
+    writes[1].dstBinding = 4;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].descriptorCount = 1;
+    VkDescriptorBufferInfo diskInfo{ shapes.disks, 0, VK_WHOLE_SIZE };
+    writes[1].pBufferInfo = &diskInfo;
+
+    writes[2].dstSet = raytrace.instanceDescriptorSet;
+    writes[2].dstBinding = 5;
+    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[2].descriptorCount = 1;
+    VkDescriptorBufferInfo sphereInfo{ shapes.spheres, 0, VK_WHOLE_SIZE };
+    writes[2].pBufferInfo = &sphereInfo;
+
+    writes[3].dstSet = raytrace.instanceDescriptorSet;
+    writes[3].dstBinding = 6;
+    writes[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[3].descriptorCount = 1;
+    VkDescriptorBufferInfo shapeRefInfo{ lightShapeRef, 0, VK_WHOLE_SIZE };
+    writes[3].pBufferInfo = &shapeRefInfo;
+
+    device.updateDescriptorSets(writes);
 }
 
 void PathTracer::createCommandPool() {
@@ -881,6 +997,7 @@ void PathTracer::createRayTracingPipeline() {
     shaderGroups.push_back(shaderTablesDesc.addHitGroup(eOcclusionPrimary));
 
     shaderTablesDesc.hitGroups[static_cast<int>(HitShaders::volume)].addRecord(device.getAddress(mediumBuffer));
+    shaderTablesDesc.hitGroups[static_cast<int>(HitShaders::occlusionVolume)].addRecord(device.getAddress(mediumBuffer));
 
     dispose(raytrace.layout);
     raytrace.layout = device.createPipelineLayout({ raytrace.descriptorSetLayout, raytrace.instanceDescriptorSetLayout
@@ -913,6 +1030,7 @@ void PathTracer::createPostProcessPipeline() {
 }
 
 void PathTracer::rayTrace(VkCommandBuffer commandBuffer) {
+//    m.sceneConstants.mask = m.sceneConstants.mask & ~static_cast<uint32_t>(eLights);
     if(m.sceneConstants.adaptiveSampling == 0){
         m.sceneConstants.numSamples = glm::clamp(m.sceneConstants.numSamples, 1u, 100u);
     }
@@ -1186,10 +1304,10 @@ void PathTracer::update(float time) {
         *(ptr+2) = viewProjection;
     });
 
-    auto lights = reinterpret_cast<Light*>(lightsBuffer.map());
-    lights[1].normal = camera->viewDir;
-    lights[1].position = camera->position();
-    lightsBuffer.unmap();
+//    auto lights = reinterpret_cast<Light*>(lightsBuffer.map());
+//    lights[1].normal = camera->viewDir;
+//    lights[1].position = camera->position();
+//    lightsBuffer.unmap();
 
     m.fps = framePerSecond;
 }
@@ -1299,6 +1417,8 @@ void PathTracer::checkAppInputs() {
 }
 
 void PathTracer::cleanup() {
+    dispose(denoiser);
+    dispose(optix);
     for(auto& [_, drawable] : drawables){
         drawable.materialBuffer.unmap();
     }

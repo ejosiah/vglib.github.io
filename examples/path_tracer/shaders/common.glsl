@@ -5,11 +5,47 @@
 #include "util.glsl"
 #include "fresnel.glsl"
 
+#define SHAPE_RECTANGLE 0
+#define SHAPE_SPHERE 1
+#define SHAPE_DISK 2
+
 #define LIGHT_FLAG_DELTA_POSITION 0x1u
 #define LIGHT_FLAG_DELTA_DIRECTION 0x2u
 #define LIGHT_FLAG_DELTA_AREA 0x4u
 #define LIGHT_FLAG_INFINITE  0x8u
 #define LIGHT_FLAG_HAS_PRIMITIVE = 0x16u
+
+struct ShapeRef{
+    int objectId;
+    int shapeId;
+    int shape;
+    int padding;
+};
+
+struct Rectangle{
+    vec3 p0;
+    vec3 p1;
+    vec3 p2;
+    vec3 p3;
+};
+
+struct Sphere{
+    vec3 center;
+    float radius;
+};
+
+struct Disk{
+    vec3 center;
+    float radius;
+    float height;
+};
+
+struct Polygon{
+    int instanceId;
+    int numTriangles;
+    int triangleOffset;
+    float area;
+};
 
 struct Ray{
     vec3 origin;
@@ -20,17 +56,33 @@ struct Ray{
 
 struct Light{
     vec3 position;
-    vec3 normal;
-    vec3 value;
     uint flags;
-    uint instanceId;
-    float area;
-    uint numTriangles;
-    uint triangleOffset;
+
+    vec3 normal;
+    int shapeType;
+
+    vec3 value;
+    int shapeId;
+
     float cosWidth;
     float fallOffStart;
     int envMapId;
 };
+
+float area(Rectangle rectangle){
+    vec3 e0 = rectangle.p1 - rectangle.p0;
+    vec3 e1 = rectangle.p2 - rectangle.p0;
+
+    return length(e0) * length(e1);
+}
+
+float area(Sphere sphere){
+    return 4 * PI * sphere.radius * sphere.radius;
+}
+
+float area(Disk disk){
+    return PI * disk.radius * disk.radius;
+}
 
 bool isPositional(Light light){
     return (light.flags & LIGHT_FLAG_DELTA_POSITION) == LIGHT_FLAG_DELTA_POSITION;
@@ -196,8 +248,14 @@ vec2 randomVec2(inout RngStateType rngState){
     return vec2(rand(rngState), rand(rngState));
 }
 
+struct Sample{
+    int i;
+    int N;
+};
+
 struct HitData {
     Ray ray;
+    Sample _sample;
     Surface surface;
     vec3 brdfWeight;
     vec3 lightContribution;

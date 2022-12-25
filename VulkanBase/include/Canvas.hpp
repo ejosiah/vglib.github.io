@@ -28,6 +28,8 @@ struct Canvas{
 
     void draw(VkCommandBuffer commandBuffer);
 
+    void draw(VkCommandBuffer commandBuffer, VkDescriptorSet imageSet);
+
     void createDescriptorSetLayout();
 
     void createDescriptorPool();
@@ -60,4 +62,5 @@ struct Canvas{
     std::optional<std::string> fragmentShaderPath;
     std::optional<VkPushConstantRange> pushConstantMeta;
     void* pushConstants{};
+    bool enableBlending{false};
 };

@@ -15,6 +15,7 @@ vhacd/0.1
 meshoptimizer/0.17
 openexr/3.1.5
 taskflow/3.4.0
+mp-units/0.7.0
 
 [generators]
 cmake

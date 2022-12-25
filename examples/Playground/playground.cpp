@@ -26,35 +26,37 @@
 #include "openexr_eval.h"
 #include "FirstPersonCamera.h"
 
-void flow(){
-    auto fieldOfView = 60.0f;
-    auto aspectRatio = 1024.f/720.f;
 
-    Camera camera;
-    camera.proj = glm::perspective(fieldOfView, 1.f, 0.001f, 1000.f);
-    camera.view = glm::lookAt(glm::vec3(0, 0, 2), glm::vec3(0), {0, 1, 0});
+glm::vec3 rRotate(float angle, glm::vec3 v, glm::vec3 axis){
+    return v * glm::cos(angle) + glm::cross(axis, v) * glm::sin(angle)
+            + axis * dot(axis, v) * (1 - glm::cos(angle));
+}
 
-    glm::vec4 p0{2, 3, -4, 1};
-    glm::vec4 p1{2, 3, -2, 1};
-    glm::vec4 p2{2, 3, -1, 1};
 
-    p0 = camera.proj * camera.view * p0;
-    p1 = camera.proj * camera.view * p1;
-    p2 = camera.proj * camera.view * p2;
+void rect(){
+  glm::vec3 min{-0.132965505, 0.754987597, -0.127133697};
+  glm::vec3 max{0.139963686, 0.754987597, 0.0933091267};
 
-    fmt::print("{}\n", p0);
-    fmt::print("{}\n", p1);
-    fmt::print("{}\n", p2);
+  auto d = max - min;
+  auto dn = glm::normalize(d);
+  auto n = glm::vec3(0, -1, 0);
+  auto qx = glm::angleAxis(glm::quarter_pi<float>(), n);
+  auto x = qx * dn;
+  auto qy = glm::angleAxis(-glm::quarter_pi<float>(), n);
+  auto y = qy * dn;
 
-    fmt::print("\napplying perspective division..\n");
 
-    p0 /= p0.w;
-    p1 /= p1.w;
-    p2 /= p2.w;
+  auto p0 = min;
+  auto p1 = p0 + x;
+  auto p2 = p0 + y;
+  auto p3 = max;
+  fmt::print("d: {}\n", d);
+  fmt::print("p0 : {}\n", p0);
+  fmt::print("p1 : {}\n", p1);
+  fmt::print("p2 : {}\n", p2);
+  fmt::print("p3 : {}\n", p3);
 
-    fmt::print("{}\n", p0);
-    fmt::print("{}\n", p1);
-    fmt::print("{}\n", p2);
+
 }
 
 #define toKelvin(celsius) (celsius)
@@ -344,6 +346,15 @@ void searchTest(){
     fmt::print("index: {}, value: {}\n", u(search1(array, 5)), 5);
 }
 
+inline glm::vec2 rootsOfUnity(float n){
+    auto f = glm::two_pi<float>() * n;
+    return {glm::cos(f), glm::sin(f)};
+}
+
 int main(){
-    flow();
+    for(int i = 0; i < 100; i++){
+        auto f = static_cast<float>(i);
+        f = glm::mod(f, 100.f);
+        fmt::print("{}\n", f);
+    }
 }

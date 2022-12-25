@@ -407,3 +407,7 @@ float BaseCameraController::far() {
     return zfar;
 }
 
+void BaseCameraController::fieldOfView(float value) {
+    perspective(value, aspectRatio, znear, zfar);
+}
+

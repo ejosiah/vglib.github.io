@@ -9,6 +9,8 @@
 #include "Plugin.hpp"
 #include "Texture.h"
 #include "imgui.h"
+#include "implot.h"
+#include "implot_internal.h"
 
 #define IM_GUI_PLUGIN "Dear ImGui Plugin"
 #define IMGUI_NO_WINDOW ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground

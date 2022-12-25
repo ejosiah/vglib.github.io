@@ -16,6 +16,7 @@ ImGuiPlugin::~ImGuiPlugin() {
         glfwDestroyCursor(mouse.cursors[i]);
         mouse.cursors[i] = nullptr;
     }
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 }
 
@@ -31,6 +32,7 @@ void ImGuiPlugin::init() {
     mapInputs();
     createDeviceObjects();
     loadFonts();
+    ImPlot::CreateContext();
     initialized = true;
 }
 

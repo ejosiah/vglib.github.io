@@ -26,6 +26,13 @@ vec3 uniformSampleSphere(vec3 u){
     return normalize(2 * u - 1);
 }
 
+vec3 uniformSampleSphere(vec2 u){
+    float z = 1 - 2 * u.x;
+    float r = sqrt(max(0, 1 - z * z));
+    float phi = 2 * PI * u.y;
+    return vec3(r * cos(phi), r * sin(phi), z);
+}
+
 vec3 sampleHemisphere(vec2 u, out float pdf){
     float a = sqrt(u.x);
     float b = TWO_PI * u.y;
@@ -148,4 +155,20 @@ vec2 sampleContinuous2D(sampler2D pConditionalVFunc, sampler2D pConditionalVCdf,
     return vec2(d0, d1);
 }
 
-    #endif // SAMPLING_GLSL
+vec2 concentricSampleDisk(vec2 u){
+    u = 2 * u - 1;
+
+    if(u.x == 0  && u.y == 0) return vec2(0);   // at origin
+
+    float theta, r;
+    if(abs(u.x) > abs(u.y)){
+        r = u.x;
+        theta = PI_OVER_FOUR * (u.y/u.x);
+    }else{
+        r = u.y;
+        theta = PI_OVER_TWO - PI_OVER_FOUR * (u.x/u.y);
+    }
+    return r * vec2(cos(theta), sin(theta));
+}
+
+#endif // SAMPLING_GLSL

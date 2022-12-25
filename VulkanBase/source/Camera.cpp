@@ -227,3 +227,7 @@ float CameraController::near() {
 float CameraController::far() {
     return cameras[currentMode]->far();
 }
+
+void CameraController::fieldOfView(float value) {
+    return cameras[currentMode]->fieldOfView(value);
+}

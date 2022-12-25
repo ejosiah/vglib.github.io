@@ -63,6 +63,23 @@ void Canvas::draw(VkCommandBuffer commandBuffer) {
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
 
+void Canvas::draw(VkCommandBuffer commandBuffer, VkDescriptorSet imageSet) {
+    assert(pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &imageSet, 0, VK_NULL_HANDLE);
+
+    if(pushConstantMeta.has_value()){
+        ASSERT(pushConstants != nullptr);
+        auto meta = pushConstantMeta.value();
+        vkCmdPushConstants(commandBuffer, pipelineLayout, meta.stageFlags, meta.offset, meta.size, pushConstants);
+    }
+
+    std::array<VkDeviceSize, 1> offsets = {0u};
+    std::array<VkBuffer, 2> buffers{ buffer, colorBuffer};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers.data() , offsets.data());
+    vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+}
+
 void Canvas::createDescriptorSetLayout() {
     std::array<VkDescriptorSetLayoutBinding, 1> binding{};
     binding[0].binding = 0;
@@ -139,6 +156,14 @@ void Canvas::createPipeline() {
     colorBlendAttachment[0].colorWriteMask =
             VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
+    if(enableBlending) {
+        colorBlendAttachment[0].blendEnable = VK_TRUE;
+        colorBlendAttachment[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlendAttachment[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    }
+
     auto colorBlendState = initializers::colorBlendState(colorBlendAttachment);
 
     std::vector<VkPushConstantRange> ranges;
@@ -191,6 +216,8 @@ void Canvas::createImageStorage() {
             app->swapChain.extent.height
     );
     image = app->device.createImage(imageInfo);
+
+    image.size = app->swapChain.extent.width * app->swapChain.extent.height * sizeof(float) * 4;  // FIXME move to VulkanImage
 
     VkImageSubresourceRange subresourceRange{};
     subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;

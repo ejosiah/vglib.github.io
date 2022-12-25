@@ -1,28 +1,46 @@
 #include "common.glsl"
+#include "scene_push_constants.glsl"
 
 layout(set = 1, binding = 0, std430) buffer MATERIALS{
     Material m[];
 } materials[];
 
 
-layout(binding = 1, set = 1) buffer MATERIAL_ID {
+layout(set = 1, binding = 1) buffer MATERIAL_ID {
     int i[];
 } matIds [];
 
 
-layout(binding = 2, set = 1) buffer OBJECT_INSTANCE {
+layout(set = 1, binding = 2) buffer OBJECT_INSTANCE {
     SceneObject sceneObjs[];
 };
 
-layout(binding = 0, set = 2) buffer VERTEX_BUFFER {
+layout(set = 1, binding = 3) buffer RECTANGLES{
+    Rectangle rectangles[];
+};
+
+layout(set = 1, binding = 4) buffer DISK {
+    Disk disks[];
+};
+
+layout(set = 1, binding = 5) buffer SPHERE {
+    Sphere spheres[];
+};
+
+layout(set = 1, binding = 6) buffer LIGHT_SHAPE_REF{
+    ShapeRef shapeRefs[];
+};
+
+
+layout(set = 2, binding = 0) buffer VERTEX_BUFFER {
     Vertex v[];
 } vertices[];
 
-layout(binding = 1, set = 2) buffer INDEX_BUFFER {
+layout(set = 2, binding = 1) buffer INDEX_BUFFER {
     int i[];
 } indices[];
 
-layout(binding = 2, set = 2) buffer VETEX_OFFSETS {
+layout(set = 2, binding = 2) buffer VETEX_OFFSETS {
     VertexOffsets vo[];
 } offsets[];
 
@@ -83,7 +101,7 @@ Surface getSurfaceData(SurfaceRef ref, vec3 wo){
     surface.roughness = material.roughness;
     surface.opacity = material.opacity;
 
-    if(ref.instanceId == 8){
+    if(ref.instanceId == planeId){
         surface.albedo = checkerboard(surface.x, surface.gN);
     }
 

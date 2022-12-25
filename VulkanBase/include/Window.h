@@ -7,11 +7,12 @@
 class Window {
 public:
     friend class Plugin;
-    Window(std::string_view title, int width, int height, bool fullscreen = false)
+    Window(std::string_view title, int width, int height, bool fullscreen = false, int screen = 0)
     : title(title)
     , width(width)
     , height(height)
     , fullscreen(fullscreen)
+    , screen(screen)
     {}
 
     inline void addMouseClickListener(MouseClickListener&& listener){
@@ -105,6 +106,8 @@ protected:
 
     bool isShuttingDown() const;
 
+    GLFWmonitor* getMonitor() const;
+
     static void onError(int error, const char* msg);
 
     static void onResize(GLFWwindow* window, int width, int height);
@@ -132,6 +135,7 @@ protected:
     int prevHeight;
     bool resized = false;
     bool fullscreen;
+    mutable int screen = 0;
     GLFWwindow* window = nullptr;
     MouseEvent mouseEvent{};
     KeyEvent keyEvent{};

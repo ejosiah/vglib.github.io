@@ -25,7 +25,7 @@ const std::string VulkanBaseApp::kAttachment_MSAA =  "MSAA_BUFFER_INDEX";
 const std::string VulkanBaseApp::kAttachment_DEPTH = "DEPTH_BUFFER_INDEX";
 
 VulkanBaseApp::VulkanBaseApp(std::string_view name, const Settings& settings, std::vector<std::unique_ptr<Plugin>> plugins)
-        : Window(name, settings.width, settings.height, settings.fullscreen)
+        : Window(name, settings.width, settings.height, settings.fullscreen, settings.screen)
         , InputManager(settings.relativeMouseMode)
         , enabledFeatures(settings.enabledFeatures)
         , settings(settings)

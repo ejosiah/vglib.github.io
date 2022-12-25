@@ -60,7 +60,7 @@ void Window::initWindow() {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     if(fullscreen){
-        monitor = glfwGetPrimaryMonitor();
+        monitor = getMonitor();
         auto mode = glfwGetVideoMode(monitor);
         if(videoMode.width == 0 || videoMode.height == 0 || videoMode.refreshRate == 0) {
             videoMode.width = width = mode->width;
@@ -93,6 +93,13 @@ void Window::initWindow() {
     glfwSetFramebufferSizeCallback(window, onResize);
     glfwSetScrollCallback(window, onMouseWheelMove);
     glfwSetCursorEnterCallback(window, onCursorEntered);
+}
+
+GLFWmonitor *Window::getMonitor() const {
+    int count;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    screen %= count;
+    return monitors[screen];
 }
 
 void Window::onMouseClick(GLFWwindow *window, int button, int action, int mods) {
@@ -164,7 +171,7 @@ void Window::onCursorEntered(GLFWwindow *window, int entered) {
 bool Window::setFullScreen() {
     if(fullscreen) return false;
     if(!monitor){
-        monitor = glfwGetPrimaryMonitor();
+        monitor = getMonitor();
         auto mode = glfwGetVideoMode(monitor);
         videoMode.width = mode->width;
         videoMode.height = mode->height;

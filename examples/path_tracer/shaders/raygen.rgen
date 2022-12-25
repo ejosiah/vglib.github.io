@@ -60,11 +60,16 @@ void main(){
     Ray ray = generateRay(randomVec2(hitData.rngState));
     if(adaptiveSampling == 0){
         for(int i = 0; i < numSamples; i++){
+            hitData._sample.i = i;
+            hitData._sample.N = int(numSamples);
             Lo += getRadiance(ray);
         }
         Lo /= numSamples;
     }else{
         if(currentSample >= numSamples) return;
+
+        hitData._sample.i = int(currentSample);
+        hitData._sample.N = int(numSamples);
 
         Lo = getRadiance(ray);
         vec3 dst = imageLoad(image, ivec2(gl_LaunchID.xy)).rgb;

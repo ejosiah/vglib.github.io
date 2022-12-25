@@ -26,15 +26,7 @@ enum ShaderIndex{
     eShaderCount
 };
 
-struct Rectangle{
-    glm::vec2 min;
-    glm::vec4 max;
-};
 
-struct Sphere{
-    glm::vec3 center;
-    float radius;
-};
 
 struct DenoiserGuide{
     Texture albedo;
@@ -49,6 +41,8 @@ public:
 
 protected:
     void initApp() final;
+
+    void initShapes();
 
     void initDenoiser();
 
@@ -186,6 +180,15 @@ protected:
     bool shouldDenoise = false;
     uint64_t fenceValue{0};
     std::shared_ptr<OptixContext> optix;
+
+    struct{
+        VulkanBuffer rectangles;
+        VulkanBuffer spheres;
+        VulkanBuffer disks;
+        VulkanBuffer polygons;
+    } shapes;
+
+    VulkanBuffer lightShapeRef;
 
     VulkanBuffer mediumBuffer;
 };

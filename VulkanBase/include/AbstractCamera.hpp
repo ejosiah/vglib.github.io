@@ -50,6 +50,8 @@ public:
 
     virtual float far() = 0;
 
+    virtual void fieldOfView(float value) = 0;
+
     virtual void updatePosition(const glm::vec3 &direction, float elapsedTimeSec) = 0;
 
     virtual void undoRoll() = 0;

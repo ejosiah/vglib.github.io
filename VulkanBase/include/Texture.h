@@ -19,6 +19,7 @@ struct Texture{
     uint32_t width{0};
     uint32_t height{0};
     uint32_t depth{1};
+    uint32_t layers = 1;
 };
 
 struct Distribution1DTexture {
@@ -61,6 +62,10 @@ namespace textures{
                 , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
                 , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
 
+    void createTextureArray(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format, const std::vector<void*>& data
+                , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
+                , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
+
     void create(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format
             , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
             , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
@@ -76,6 +81,8 @@ namespace textures{
     RawImage loadImage(std::string_view path, bool flipUv = false);
 
     void fromFile(const VulkanDevice& device, Texture& texture, std::string_view path, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM);
+
+    void fromFile(const VulkanDevice& device, Texture& texture, const std::vector<std::string>& paths, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM);
 
     void generate(const VulkanDevice& device, Texture& texture, uint32_t width, uint32_t height, ColorGen&& generator, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM);
 

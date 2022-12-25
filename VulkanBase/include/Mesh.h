@@ -64,7 +64,7 @@ namespace mesh {
 
         auto area = 0.f;
         auto numTriangles = mesh.indices.size()/3;
-        for(auto i = 0; i < numTriangles; i += 3){
+        for(auto i = 0; i < numTriangles; i++){
             const auto& i0 = mesh.indices[i * 3 + 0];
             const auto& i1 = mesh.indices[i * 3 + 1];
             const auto& i2 = mesh.indices[i * 3 + 2];
@@ -86,7 +86,7 @@ namespace mesh {
         glm::vec3 center{0};
 
         auto numTriangles = mesh.indices.size()/3;
-        for(auto i = 0; i < numTriangles; i += 3){
+        for(auto i = 0; i < numTriangles; i++){
             const auto& i0 = mesh.indices[i * 3 + 0];
             const auto& i1 = mesh.indices[i * 3 + 1];
             const auto& i2 = mesh.indices[i * 3 + 2];

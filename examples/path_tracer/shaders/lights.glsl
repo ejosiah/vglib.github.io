@@ -7,9 +7,9 @@
 
 layout(location = 1) rayPayload OcclusionData occData;
 
-bool sampleLightRIS(inout RngStateType rngState, Surface surface, out LightInfo selectedSampl, out float lightSampleWeight);
+bool sampleLightRIS(inout RngStateType rngState, Sample _sample, Surface surface, out LightInfo selectedSampl, out float lightSampleWeight);
 
-LightInfo sampleLight(inout RngStateType rngState, Surface surface, out float lightWeight);
+LightInfo sampleLight(inout RngStateType rngState, Sample _sample, Surface surface, out float lightWeight);
 
 bool isVisisble(LightInfo light, Surface surface);
 
@@ -23,7 +23,7 @@ float fallOff(Light light, vec3 pointToLightDir);
 
 vec3 evalBrdf(Surface surface, vec3 wo, vec3 wi);
 
-bool sampleLightRIS(inout RngStateType rngState, Surface surface, out LightInfo selectedSample, out float lightSampleWeight){
+bool sampleLightRIS(inout RngStateType rngState, Sample _sample, Surface surface, out LightInfo selectedSample, out float lightSampleWeight){
     if(numLights <= 0) return false;
 
     float totalWeights = 0;
@@ -31,7 +31,7 @@ bool sampleLightRIS(inout RngStateType rngState, Surface surface, out LightInfo 
 
     for(int i = 0; i < RIS_CANDIDATES_LIGHTS; i++){
         float lightWeight;
-        LightInfo light = sampleLight(rngState, surface, lightWeight);
+        LightInfo light = sampleLight(rngState, _sample, surface, lightWeight);
         if(isBlack(light.radiance)){
             continue;
         }
@@ -60,7 +60,43 @@ bool sampleLightRIS(inout RngStateType rngState, Surface surface, out LightInfo 
 
 }
 
-LightInfo sampleLight(inout RngStateType rngState, Surface surface, out float lightWeight){
+Rectangle findRectangle(int instanceId){
+    ShapeRef ref;
+    for(int i = 0; i < 10; i++){    // TODO add shape ref count to uniforms
+        ref = shapeRefs[i];
+        if(ref.shape == SHAPE_RECTANGLE && ref.objectId == instanceId){
+            break;
+        }
+        while(i == 9){} // crash shader, we should find a reference
+    }
+    return rectangles[ref.shapeId];
+}
+
+Disk findDisk(int instanceId){
+    ShapeRef ref;
+    for(int i = 0; i < 10; i++){    // TODO add shape ref count to uniforms
+        ref = shapeRefs[i];
+        if(ref.shape == SHAPE_DISK && ref.objectId == instanceId){
+            break;
+        }
+        while(i == 9){} // crash shader, we should find a reference
+    }
+    return disks[ref.shapeId];
+}
+
+Sphere findSphere(int instanceId){
+    ShapeRef ref;
+    for(int i = 0; i < 10; i++){    // TODO add shape ref count to uniforms
+        ref = shapeRefs[i];
+        if(ref.shape == SHAPE_SPHERE && ref.objectId == instanceId){
+            break;
+        }
+        while(i == 9){} // crash shader, we should find a reference
+    }
+    return spheres[ref.shapeId];
+}
+
+LightInfo sampleLight(inout RngStateType rngState, Sample _sample, Surface surface, out float lightWeight){
     LightInfo lightInfo;
     lightInfo.radiance = vec3(0);
     lightInfo.sx = surface.x;
@@ -74,7 +110,7 @@ LightInfo sampleLight(inout RngStateType rngState, Surface surface, out float li
     Light light = lights[id];
     lightInfo.x = light.position;
     lightInfo.n = light.normal;
-    lightInfo.area = light.area;
+    lightInfo.area = 1;
     lightInfo.flags = light.flags;
     lightInfo.value = light.value;
     lightInfo.pdf = 0.0;
@@ -98,25 +134,35 @@ LightInfo sampleLight(inout RngStateType rngState, Surface surface, out float li
     }
 
     if(isArea(light)){
-        SceneObject sceneObj = sceneObjs[light.instanceId];
-        int objId = sceneObj.objId;
-
-        uint primitiveId = uint(floor(rand(rngState) * light.numTriangles));
-
-        Vertex v0, v1, v2;
-        getTriangle(objId, mat4x3(1), light.triangleOffset, primitiveId, v0, v1, v2);
-
-        vec2 u = vec2(rand(rngState), rand(rngState));
-        vec2 uv = uniformSampleTriangle(u);
-        lightInfo.x = u.x * v0.position + u.y * v1.position + (1 - u.x - u.y) * v2.position;
-        lightInfo.n = u.x * v0.normal + u.y * v1.normal + (1 - u.x - u.y) * v2.normal;
+        if(light.shapeType == SHAPE_RECTANGLE){
+            Rectangle rect = findRectangle(id);
+            float u = rand(rngState);
+            float v = rand(rngState);
+            lightInfo.x = mix(mix(rect.p0, rect.p1, u), mix(rect.p2, rect.p3, u), v);
+            lightInfo.area = area(rect);
+        }else if(light.shapeType == SHAPE_DISK){
+            vec2 u = randomVec2(rngState);
+            vec2 p = concentricSampleDisk(u);
+            Disk disk = findDisk(id);
+            lightInfo.x = vec3(disk.radius * p.x, disk.height, disk.radius * p.y);
+            lightInfo.area = area(disk);
+        }else if(light.shapeType == SHAPE_SPHERE){
+            Sphere sphere = findSphere(id);
+            vec2 u = randomVec2(rngState);
+            lightInfo.x = sphere.center + sphere.radius * uniformSampleSphere(u);
+            lightInfo.n = normalize(lightInfo.x - sphere.center);
+            lightInfo.area = area(sphere);
+        }
+        else{
+            while(true){} // crash shader shape type not implmented
+        }
 
         vec3 wi = lightInfo.x - lightInfo.sx;
         lightInfo.wi = normalize(wi);
         lightInfo.dist = length(wi);
         lightInfo.NdotL = clamp(dot(lightInfo.wi, lightInfo.sn), 0.00001, 1);
         lightInfo.radiance = light.value;
-        lightInfo.pdf = (lightInfo.dist * lightInfo.dist)/(lightInfo.NdotL * light.area);
+        lightInfo.pdf = (lightInfo.dist * lightInfo.dist)/(lightInfo.NdotL * lightInfo.area);
     }
 
     if(isInfinite(light)){
@@ -188,7 +234,7 @@ vec3 evalLightContribution(inout HitData hitData, vec3 wo){
 
     float lightWeight;
     LightInfo light;
-    if(sampleLightRIS(hitData.rngState, surface, light, lightWeight)){
+    if(sampleLightRIS(hitData.rngState, hitData._sample, surface, light, lightWeight)){
         if(lightWeight != 0){
             if(bool(shadow_ray_in_ris) || isVisisble(light, surface)){
                 vec3 wi = normalize(light.x - surface.x);
@@ -206,7 +252,7 @@ vec3 evalLightContributionWithTranmission(inout HitData hitData, vec3 wo, float 
 
     float lightWeight;
     LightInfo light;
-    if(sampleLightRIS(hitData.rngState, surface, light, lightWeight)){
+    if(sampleLightRIS(hitData.rngState, hitData._sample, surface, light, lightWeight)){
         if(lightWeight != 0){
             vec3 wi = normalize(light.x - surface.x);
             float scatteringPdf = HG_p(g, wo, wi);

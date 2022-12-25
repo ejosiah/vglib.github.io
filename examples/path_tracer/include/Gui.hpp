@@ -18,7 +18,6 @@ public:
 
     void render(VkCommandBuffer commandBuffer){
         if(hide) return;
-
         ImGui::Begin("Path tracer");
         ImGui::SetWindowSize("Path tracer", {0, 0});
 
@@ -166,14 +165,36 @@ public:
                 if(hitGroup == HitGroup::Volume) {
                     _dirty |= ImGui::SliderFloat("g", &medium.g, -0.99, 0.99);
 
-                    static float s = medium.scatteringCoeff.x;
-                    static float a = medium.absorptionCoeff.x;
-                    _dirty |= ImGui::SliderFloat("scatter", &s, 0, 100);
-                    _dirty |= ImGui::SliderFloat("absorption", &a, 0, 100);
-                    medium.scatteringCoeff = glm::vec3(s);
-                    medium.absorptionCoeff = glm::vec3(a);
+                    ImGui::Text("Scattering coefficient:");
+                    ImGui::Indent(16);
+                    _dirty |= ImGui::SliderFloat("r", &medium.scatteringCoeff.r, 0, 100);
+
+                    ImGui::PushID("sc_g");
+                    _dirty |= ImGui::SliderFloat("g", &medium.scatteringCoeff.g, 0, 100);
+                    ImGui::PopID();
+
+                    _dirty |= ImGui::SliderFloat("b", &medium.scatteringCoeff.b, 0, 100);
+                    ImGui::Indent(-16);
+
+                    ImGui::Text("absorption coefficient:");
+                    ImGui::Indent(16);
+
+                    ImGui::PushID("ac_r");
+                    _dirty |= ImGui::SliderFloat("r", &medium.absorptionCoeff.r, 0, 100);
+                    ImGui::PopID();
+
+                    ImGui::PushID("ac_g");
+                    _dirty |= ImGui::SliderFloat("g", &medium.absorptionCoeff.g, 0, 100);
+                    ImGui::PopID();
+
+                    ImGui::PushID("ac_b");
+                    _dirty |= ImGui::SliderFloat("b", &medium.absorptionCoeff.b, 0, 100);
+                    ImGui::PopID();
+                    ImGui::Indent(-16);
+
+                }else {
+                    _dirty |= ImGui::ColorEdit3("albedo", glm::value_ptr(material->diffuse));
                 }
-                _dirty |= ImGui::ColorEdit3("albedo", glm::value_ptr(material->diffuse));
             }
             ImGui::Indent(-16);
         }

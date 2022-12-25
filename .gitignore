@@ -1,4 +1,7 @@
 #resource files
+**/*.dat
+**/*.vol
+
 data/**/*.png
 data/**/*.jpg
 data/**/*.exr

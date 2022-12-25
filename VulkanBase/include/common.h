@@ -240,3 +240,14 @@ using Proc = std::function<void()>;
 
 #define REPORT_ERROR(result, msg) if(result != VK_SUCCESS) throw std::runtime_error{msg}
 #define offsetOf(s,m) static_cast<uint32_t>(offsetof(s, m))
+
+
+constexpr float meter = 1;
+constexpr float meters = 1;
+constexpr float centimetre = meter * 0.01;
+constexpr float centimetres = centimetre;
+constexpr float cm = centimetre;
+constexpr float CM = centimetre;
+constexpr float kilometer = meter * 1000;
+constexpr float km = kilometer;
+constexpr float KM = kilometer;

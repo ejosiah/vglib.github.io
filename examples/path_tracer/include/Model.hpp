@@ -2,6 +2,45 @@
 
 #include "common.h"
 
+enum class Shape : int {
+    Rectangle = 0,
+    Sphere,
+    Disk,
+    Polygon
+};
+
+struct Rectangle_{
+    alignas(16) glm::vec3 p0;
+    alignas(16) glm::vec3 p1;
+    alignas(16) glm::vec3 p2;
+    alignas(16) glm::vec3 p3;
+};
+
+struct Sphere{
+    glm::vec3 center;
+    float radius;
+};
+
+struct Disk{
+    glm::vec3 center;
+    float radius;
+    float height;
+};
+
+struct Polygon{
+    int instanceId{-1};
+    int numTriangles{0};
+    int triangleOffset{0};
+    float area;
+};
+
+struct ShapeRef{
+    int objectId;
+    int shapeId;
+    int shape;
+    int padding;
+};
+
 enum ObjectTypes : uint32_t {
     eNone = 0x0,
     eCornellBox = 0x1,
@@ -55,17 +94,19 @@ enum class Ndf : int {
 };
 
 struct Light{
-    alignas(16) glm::vec3 position{0};
-    alignas(16) glm::vec3 normal{0};
-    alignas(16) glm::vec3 value{0};
+    glm::vec3 position{0};
     uint32_t flags{0};
-    uint32_t instanceId{~0u};
-    float area{0};
-    uint32_t numTriangles{0};
-    uint32_t triangleOffset{0};
+
+    glm::vec3 normal{0};
+    int shapeType{-1};
+
+    glm::vec3 value{0};
+    int shapeId{0};
+
     float cosWidth{1};
     float fallOffStart{0};
     int envMapId;
+    int padding;
 };
 
 constexpr int SHORT_BOX_MAT_ID = 6;
@@ -110,7 +151,7 @@ struct Model {
         float exposure{0.8};
         float skyIntensity{0};
         float envMapIntensity{1};
-        int hammersley{0};
+        int planeId{-1};
     } sceneConstants;
 
     struct {

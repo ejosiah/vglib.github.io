@@ -214,7 +214,6 @@ std::vector<rt::BlasId> rt::AccelerationStructureBuilder::buildBlas(const std::v
         buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
         buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
         buildInfo.flags = flags;
-      //  buildInfo.geometryCount = COUNT(input.asGeomentry);
         buildInfo.geometryCount = COUNT(input.asGeomentry);
         buildInfo.pGeometries = input.asGeomentry.data();
 

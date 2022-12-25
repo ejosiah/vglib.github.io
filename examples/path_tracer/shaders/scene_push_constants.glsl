@@ -14,7 +14,7 @@ layout(push_constant) uniform SceneConstants {
     float exposure;
     float skyIntensity;
     float envMapIntensity;
-    int hammersley;
+    int planeId;
 };
 
 #endif // SCENE_PUSH_CONSTANTS

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.19)
 project(vulkan_bootstrap VERSION 0.0.0)
 enable_testing()
 

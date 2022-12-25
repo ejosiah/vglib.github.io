@@ -100,6 +100,46 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, std::strin
     stbi_image_free(pixels);
 }
 
+void textures::fromFile(const VulkanDevice &device, Texture &texture, const std::vector<std::string> &paths, bool flipUv,
+                        VkFormat format) {
+
+    auto load = [flipUv](std::string_view path, int& width, int& height, int& channel){
+        stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
+        stbi_uc* pixels = stbi_load(path.data(), &width, &height, &channel, STBI_rgb_alpha);
+        if(!pixels){
+            throw std::runtime_error{fmt::format("failed to load texture image {}!", path)};
+        }
+        return pixels;
+    };
+
+    std::vector<void*> data;
+    int texWidth, texHeight, texChannels;
+    auto itr = paths.begin();
+    auto pixels = load(itr->data(), texWidth, texHeight, texChannels);
+    data.push_back(pixels);
+
+    std::advance(itr, 1);
+    while(itr != end(paths)){
+        int width, height;
+        pixels = load(itr->data(), width, height, texChannels);
+        if(width != texWidth || height != texHeight){
+            throw std::runtime_error(fmt::format("{} dimensions: [{}, {}] does not match previously loaded dimensions: [{}, {}]",
+                                                 *itr, width, height, texWidth, texHeight));
+        }
+        data.push_back(pixels);
+        texWidth = width;
+        texHeight = height;
+        std::advance(itr, 1);
+    }
+
+    createTextureArray(device, texture, VK_IMAGE_TYPE_2D, format, data, {texWidth, texHeight, 1u});
+    for(auto memory : data){
+        stbi_image_free(memory);
+    }
+
+}
+
+
 Texture textures::equirectangularToOctahedralMap(const VulkanDevice& device, const std::string& path, uint32_t size, VkImageLayout finalLayout){
     Texture equiTexture;
     equiTexture.width = equiTexture.height = size;
@@ -249,6 +289,126 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
         texture.sampler = device.createSampler(samplerInfo);
     }
 }
+
+void textures::createTextureArray(const VulkanDevice &device, Texture &texture, VkImageType imageType, VkFormat format,
+                      const std::vector<void *> &data, Dimension3D<uint32_t> dimensions,
+                      VkSamplerAddressMode addressMode, uint32_t sizeMultiplier, VkImageTiling tiling) {
+
+    const auto layers = data.size();
+    texture.format = format;
+    VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * sizeMultiplier;
+    VkDeviceSize totalImageSize = imageSize * layers;
+
+    VulkanBuffer stagingBuffer = device.createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, totalImageSize);
+
+    for(auto layer = 0; layer < layers; layer++){
+        stagingBuffer.copy(data[layer], imageSize, imageSize * layer);
+    }
+
+    VkImageCreateInfo imageCreateInfo{};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = imageType;
+    imageCreateInfo.format = format;
+    imageCreateInfo.extent = { static_cast<uint32_t>(dimensions.x), static_cast<uint32_t>(dimensions.y), dimensions.z};
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = layers;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = tiling;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    auto& commandPool = device.commandPoolFor(*device.findFirstActiveQueue());
+
+    texture.image = device.createImage(imageCreateInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+    texture.image.size = totalImageSize;
+    texture.width = dimensions.x;
+    texture.height = dimensions.y;
+    texture.depth = dimensions.z;
+    texture.layers = layers;
+
+    commandPool.oneTimeCommand([&](auto commandBuffer) {
+        std::vector<VkBufferImageCopy> regions;
+        std::vector<VkImageMemoryBarrier> transferBarriers;
+        std::vector<VkImageMemoryBarrier> readBarriers;
+
+        for(auto layer = 0; layer < layers; layer++) {
+
+            VkBufferImageCopy region{};
+            region.bufferOffset = imageSize * layer;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = layer;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = {static_cast<uint32_t>(dimensions.x), static_cast<uint32_t>(dimensions.y),
+                                  dimensions.z};
+
+            regions.push_back(region);
+
+            VkImageMemoryBarrier barrier{};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = texture.image;
+            barrier.subresourceRange = DEFAULT_SUB_RANGE;
+            barrier.subresourceRange.baseArrayLayer = layer;
+            barrier.srcAccessMask = VK_ACCESS_NONE;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+            transferBarriers.push_back(barrier);
+
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            readBarriers.push_back(barrier);
+        }
+
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                             nullptr, 0, nullptr, COUNT(transferBarriers), transferBarriers.data());
+
+        vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, COUNT(regions),
+                               regions.data());
+
+
+
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                             nullptr, 0, nullptr, COUNT(readBarriers), readBarriers.data());
+
+    });
+
+    VkImageSubresourceRange subresourceRange;
+    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = 1;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount = layers;
+
+    auto imageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
+
+    if(!texture.sampler.handle) {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = addressMode;
+        samplerInfo.addressModeV = addressMode;
+        samplerInfo.addressModeW = addressMode;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+        texture.sampler = device.createSampler(samplerInfo);
+    }
+}
+
 
 void textures::create(const VulkanDevice &device, Texture &texture, VkImageType imageType, VkFormat format,
                       Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode, uint32_t sizeMultiplier,
