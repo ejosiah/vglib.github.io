@@ -106,6 +106,6 @@ TEST_F(DeviceLinkedListFixture, createAValidDeviceLinkedList){
     deviceListContainsAll(expected);
 }
 
-TEST_F(DeviceLinkedListFixture, createMultipleDeviceLinkedList){
+TEST_F(DeviceLinkedListFixture, DISABLED_createMultipleDeviceLinkedList){
     FAIL() << "Not yet implemented!";
 }

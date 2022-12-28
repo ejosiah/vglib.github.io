@@ -1,4 +1,3 @@
-#include <common.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "BoxSurfaceFixture.hpp"
@@ -6,6 +5,11 @@
 #include <glm/gtc/epsilon.hpp>
 #include <fmt/format.h>
 #include "glm_format.h"
+
+template<glm::length_t L, typename T, glm::qualifier Q>
+bool vectorEquals(glm::vec<L, T, Q> v0, glm::vec<L, T, Q> v1, float eps = 1e-4){
+    return glm::all(glm::epsilonEqual(v0, v1, eps));
+}
 
 TEST_F(BoxSurfaceFixture, closestPointWhenPointInsideBox){
     auto [surface, planes] = createBoxSurface(-0.5, 0.5);
