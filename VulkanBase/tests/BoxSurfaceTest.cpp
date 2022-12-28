@@ -1,10 +1,10 @@
+#include <common.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "BoxSurfaceFixture.hpp"
 #include <vector>
 #include <glm/gtc/epsilon.hpp>
 #include <fmt/format.h>
-#include <common.h>
 #include "glm_format.h"
 
 TEST_F(BoxSurfaceFixture, closestPointWhenPointInsideBox){
