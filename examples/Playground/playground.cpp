@@ -25,7 +25,9 @@
 #include "spectrum/spectrum.hpp"
 #include "openexr_eval.h"
 #include "FirstPersonCamera.h"
-
+#include "primitives.h"
+#include "halfedge.hpp"
+#include <process.h>
 
 glm::vec3 rRotate(float angle, glm::vec3 v, glm::vec3 axis){
     return v * glm::cos(angle) + glm::cross(axis, v) * glm::sin(angle)
@@ -351,10 +353,34 @@ inline glm::vec2 rootsOfUnity(float n){
     return {glm::cos(f), glm::sin(f)};
 }
 
-int main(){
-    for(int i = 0; i < 100; i++){
-        auto f = static_cast<float>(i);
-        f = glm::mod(f, 100.f);
-        fmt::print("{}\n", f);
+template<typename T>
+void save(const std::string& path, const std::vector<T>& data){
+    std::ofstream fout(path, std::ios::binary);
+    if(!fout.good()){
+        fmt::print("error opening output file");
+        std::exit(120);
     }
+    fout.write(reinterpret_cast<char*>(const_cast<T*>(data.data())), BYTE_SIZE(data));
+    fout.flush();
+    fout.close();
+}
+
+int main(){
+    auto sphere = primitives::sphere(100, 100, 1, glm::mat4{1}, glm::vec4(1), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+    std::vector<glm::vec4> vertices;
+    std::vector<glm::vec4> normals;
+    std::vector<glm::vec4> colors;
+    std::vector<glm::vec2> uvs;
+    for(auto index : sphere.indices){
+        auto& vertex = sphere.vertices[index];
+        vertices.push_back(vertex.position);
+        normals.push_back(glm::vec4(vertex.normal, 0));
+        colors.push_back(vertex.color);
+        uvs.push_back(vertex.uv);
+    }
+    save(R"(D:\Program Files\SHADERed\sphere_vertices.dat)", vertices);
+    save(R"(D:\Program Files\SHADERed\sphere_normals.dat)", normals);
+    save(R"(D:\Program Files\SHADERed\sphere_color.dat)", colors);
+    save(R"(D:\Program Files\SHADERed\sphere_uv.dat)", uvs);
 }

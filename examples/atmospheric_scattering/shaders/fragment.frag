@@ -105,21 +105,20 @@ layout(location = 0) in struct {
 void main(){
     vec3 view_ray = fs_in.view_ray;
     vec3 view_direction = normalize(view_ray);
-    float fragment_angular_size =
-    length(dFdx(view_ray) + dFdy(view_ray)) / length(view_ray);
+    float fragment_angular_size = length(dFdx(view_ray) + dFdy(view_ray)) / length(view_ray);
+
     float shadow_in;
     float shadow_out;
     GetSphereShadowInOut(view_direction, sun_direction, shadow_in, shadow_out);
-    float lightshaft_fadein_hack = smoothstep(
-    0.02, 0.04, dot(normalize(camera - earth_center), sun_direction));
+    float lightshaft_fadein_hack = smoothstep(0.02, 0.04, dot(normalize(camera - earth_center), sun_direction));
     vec3 p = camera - kSphereCenter;
     float p_dot_v = dot(p, view_direction);
     float p_dot_p = dot(p, p);
     float ray_sphere_center_squared_distance = p_dot_p - p_dot_v * p_dot_v;
-    float distance_to_intersection = -p_dot_v - sqrt(
-    kSphereRadius * kSphereRadius - ray_sphere_center_squared_distance);
+    float distance_to_intersection = -p_dot_v - sqrt(kSphereRadius * kSphereRadius - ray_sphere_center_squared_distance);
     float sphere_alpha = 0.0;
     vec3 sphere_radiance = vec3(0.0);
+
     if (distance_to_intersection > 0.0) {
         float ray_sphere_distance =
         kSphereRadius - sqrt(ray_sphere_center_squared_distance);
@@ -139,6 +138,7 @@ void main(){
         vec3 in_scatter = GetSkyRadianceToPoint(camera - earth_center, point - earth_center, shadow_length, sun_direction, transmittance);
         sphere_radiance = sphere_radiance * transmittance + in_scatter;
     }
+
     p = camera - earth_center;
     p_dot_v = dot(p, view_direction);
     p_dot_p = dot(p, p);
@@ -147,6 +147,7 @@ void main(){
     earth_center.z * earth_center.z - ray_earth_center_squared_distance);
     float ground_alpha = 0.0;
     vec3 ground_radiance = vec3(0.0);
+
     if (distance_to_intersection > 0.0) {
         vec3 point = camera + view_direction * distance_to_intersection;
         vec3 normal = normalize(point - earth_center);
@@ -170,9 +171,10 @@ void main(){
     if (dot(view_direction, sun_direction) > sun_size.y) {
         radiance = radiance + transmittance * GetSolarRadiance();
     }
+
     radiance = mix(radiance, ground_radiance, ground_alpha);
     radiance = mix(radiance, sphere_radiance, sphere_alpha);
-    color.rgb =
-    pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
+
+    color.rgb = pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
     color.a = 1.0;
 }

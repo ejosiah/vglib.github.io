@@ -498,7 +498,7 @@ void Terrain::resize(VulkanRenderPass &renderPass, uint32_t width, uint32_t heig
 }
 
 void Terrain::render(VkCommandBuffer commandBuffer) {
-    static std::array<VkDescriptorSet,4> sets;
+    static std::array<VkDescriptorSet,3> sets;
     sets[0] = descriptorSet;
     sets[1] = shadingSet;
     sets[2] = trianglesSet;

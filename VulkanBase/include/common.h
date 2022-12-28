@@ -251,3 +251,7 @@ constexpr float CM = centimetre;
 constexpr float kilometer = meter * 1000;
 constexpr float km = kilometer;
 constexpr float KM = kilometer;
+
+inline float remap(float x, float a, float b, float c, float d){
+    return glm::mix(c, d, (x - a)/(b - a));
+}

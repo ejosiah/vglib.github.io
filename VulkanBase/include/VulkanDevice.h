@@ -738,6 +738,14 @@ struct VulkanDevice{
     GraphicsPipelineBuilder graphicsPipelineBuilder() const;
 
     VulkanImageOps imageOps();
+
+    [[nodiscard]]
+    VmaTotalStatistics memoryUsage() const {
+        VmaTotalStatistics stats;
+        vmaCalculateStatistics(allocator, &stats);
+        return stats;
+    }
+
 };
 
 #include "DescriptorSetBuilder.hpp"
