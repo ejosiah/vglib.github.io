@@ -36,7 +36,7 @@ class VgLibConan(ConanFile):
             del self.options.fPIC
 
     def source(self):
-        self.run("git clone git@github.com:ejosiah/vglib.github.io.git")
+        self.run("git clone git@github.com:ejosiah/vglib.github.io.git vglib")
         self.run("git -C %s/vglib checkout v%s" % (self.source_folder, self.version))
 
     def build(self):
