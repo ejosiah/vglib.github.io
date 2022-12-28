@@ -27,8 +27,3 @@ if (OpenCL_FOUND)
 else()
     message(WARNING "OpenCL not found")
 endif()
-
-include(GoogleTest)
-add_executable(VulkanBaseTest ${HPP_FILES} ${TEST_FILES})
-target_link_libraries(VulkanBaseTest PRIVATE VulkanBase Vulkan::Vulkan ${GTEST_LIBS} ${CONAN_LIBS})
-gtest_discover_tests(VulkanBaseTest)
