@@ -3,7 +3,7 @@ from conans import ConanFile, CMake, tools
 
 class VgLibConan(ConanFile):
     name = "vglib"
-    version = "0.0.2"
+    version = "0.0.3"
     license = "<Put the package license here>"
     author = "Josiah Ebhomenye joebhomenye@gmail.com"
     url = "<Package recipe repository url here, for issues about the package>"
@@ -36,7 +36,7 @@ class VgLibConan(ConanFile):
             del self.options.fPIC
 
     def source(self):
-        self.run("git clone https://github.com/ejosiah/vglib.git")
+        self.run("git clone git@github.com:ejosiah/vglib.github.io.git")
         self.run("git -C %s/vglib checkout v%s" % (self.source_folder, self.version))
 
     def build(self):
