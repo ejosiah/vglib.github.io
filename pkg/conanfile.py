@@ -37,18 +37,18 @@ class VgLibConan(ConanFile):
 
     def source(self):
         self.run("git clone git@github.com:ejosiah/vglib.github.io.git vglib")
-        self.run("git -C %s/vglib checkout v%s" % (self.source_folder, self.version))
+        self.run("git -C \"%s/vglib\" checkout v%s" % (self.source_folder, self.version))
 
     def build(self):
-        self.run('conan install %s/vglib -s build_type=%s' % (self.source_folder, self.settings.build_type.value))
+        self.run('conan install \"%s/vglib\" -s build_type=%s' % (self.source_folder, self.settings.build_type.value))
         cmake = CMake(self)
         cmake.configure(source_folder="vglib")
         # cmake.build()
 
         # Explicit way:
-        self.run('cmake %s/vglib %s'
+        self.run('cmake \"%s/vglib\" %s'
                  % (self.source_folder, cmake.command_line))
-        self.run("cmake %s/vglib -D BUILD_EXAMPLES:BOOL=OFF" % self.source_folder)
+        self.run("cmake \"%s/vglib\" -D BUILD_EXAMPLES:BOOL=OFF" % self.source_folder)
         self.run("cmake --build . %s" % cmake.build_config)
 
     def package(self):
