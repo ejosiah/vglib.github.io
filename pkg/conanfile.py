@@ -1,9 +1,9 @@
 from conans import ConanFile, CMake, tools
 
 
-class VulkanUtilConan(ConanFile):
-    name = "vulkanUtil"
-    version = "0.1.5"
+class VgLibConan(ConanFile):
+    name = "vglib"
+    version = "0.0.1"
     license = "<Put the package license here>"
     author = "Josiah Ebhomenye joebhomenye@gmail.com"
     url = "<Package recipe repository url here, for issues about the package>"
@@ -35,25 +35,25 @@ class VulkanUtilConan(ConanFile):
             del self.options.fPIC
 
     def source(self):
-        self.run("git clone https://github.com/ejosiah/vulkan_bootstrap.git")
-        self.run("git -C %s/vulkan_bootstrap checkout v%s" % (self.source_folder, self.version))
+        self.run("git clone https://github.com/ejosiah/vglib.git")
+        self.run("git -C %s/vglib checkout v%s" % (self.source_folder, self.version))
 
     def build(self):
-        self.run('conan install %s/vulkan_bootstrap -s build_type=%s' % (self.source_folder, self.settings.build_type.value))
+        self.run('conan install %s/vglib -s build_type=%s' % (self.source_folder, self.settings.build_type.value))
         cmake = CMake(self)
-        cmake.configure(source_folder="vulkan_bootstrap")
+        cmake.configure(source_folder="vglib")
         # cmake.build()
 
         # Explicit way:
-        self.run('cmake %s/vulkan_bootstrap %s'
+        self.run('cmake %s/vglib %s'
                  % (self.source_folder, cmake.command_line))
-        self.run("cmake %s/vulkan_bootstrap -D BUILD_EXAMPLES:BOOL=OFF" % self.source_folder)
+        self.run("cmake %s/vglib -D BUILD_EXAMPLES:BOOL=OFF" % self.source_folder)
         self.run("cmake --build . %s" % cmake.build_config)
 
     def package(self):
-        self.copy("VulkanBase/*.h*", dst="include/vulkan_util", src="vulkan_bootstrap", keep_path=False)
-        self.copy("3rdParty/*.h*", dst="include/vulkan_util", src="vulkan_bootstrap", keep_path=False)
-        self.copy("ImGuiPlugin/*.h*", dst="include/vulkan_util", src="vulkan_bootstrap", keep_path=False)
+        self.copy("VulkanBase/*.h*", dst="include/vglib", src="vglib", keep_path=False)
+        self.copy("3rdParty/*.h*", dst="include/vglib", src="vglib", keep_path=False)
+        self.copy("ImGuiPlugin/*.h*", dst="include/vglib", src="vglib", keep_path=False)
         self.copy("*.lib", dst="lib", keep_path=False)
         self.copy("*.dll", dst="bin", keep_path=False)
         self.copy("*.so", dst="lib", keep_path=False)
