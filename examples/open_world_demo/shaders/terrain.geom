@@ -5,6 +5,23 @@
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 3) out;
 
+struct Vertex{
+    vec4 position;
+    vec4 color;
+    vec3 normal;
+    vec3 tangent;
+    vec3 bitangent;
+    vec2 uv;
+};
+
+layout(set = 2, binding = 0) buffer TRI_COUNT {
+    int count;
+};
+
+layout(set = 2, binding = 1) buffer TRI_VERTCIES {
+    Vertex vertices[];
+};
+
 layout(location = 0) in vec3 worldPosition_in[3];
 layout(location = 1) in vec3 normal_in[3];
 layout(location = 2) in vec2 uv_in[3];
@@ -38,9 +55,28 @@ vec3 edgeDistance(vec3 p0, vec3 p1, vec3 p2){
 }
 
 void main(){
+    int triangle = atomicAdd(count, 1);
+
     vec3 p0 = gl_in[0].gl_Position.xyz;
     vec3 p1 = gl_in[1].gl_Position.xyz;
     vec3 p2 = gl_in[2].gl_Position.xyz;
+
+    Vertex v0, v1, v2;
+    v0.position = vec4(p0, 1);
+    v1.position = vec4(p1, 1);
+    v2.position = vec4(p2, 1);
+
+    v0.normal = normal_in[0];
+    v1.normal = normal_in[1];
+    v2.normal = normal_in[2];
+
+    v0.uv = uv_in[0];
+    v1.uv = uv_in[0];
+    v2.uv = uv_in[0];
+
+    vertices[triangle * 3 + 0] = v0;
+    vertices[triangle * 3 + 1] = v2;
+    vertices[triangle * 3 + 2] = v1;
 
     vec3 edgeDisComb = edgeDistance(p0, p1, p2);
 

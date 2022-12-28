@@ -48,7 +48,7 @@ void main(){
 
 
     vec2 uv = mix(mix(uv0, uv1, u), mix(uv3, uv2, u), v);
-    float y = remap(texture(displacementMap, uv).r, minHeight, maxHeight, 0, 1) * heightScale;
+    float y = remap(texture(displacementMap, uv).r, 0, 1, minZ, maxZ) * heightScale;
 
     p.y += y;
 

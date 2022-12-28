@@ -33,7 +33,7 @@ layout(set = 0, binding = 0) uniform UBO{
     int dirt;
     int dirtRock;
     int snowFresh;
-    float minHeight;
-    float maxHeight;
+    float minZ;
+    float maxZ;
     float snowStart;
 };

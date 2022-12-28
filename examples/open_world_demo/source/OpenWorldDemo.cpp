@@ -267,12 +267,13 @@ int main(){
     try{
 
         Settings settings;
-        settings.fullscreen = true;
+//        settings.fullscreen = true;
         settings.screen = 1;
         settings.depthTest = true;
         settings.enabledFeatures.tessellationShader = VK_TRUE;
         settings.enabledFeatures.fillModeNonSolid = VK_TRUE;
         settings.enabledFeatures.geometryShader = VK_TRUE;
+        settings.enabledFeatures.vertexPipelineStoresAndAtomics = VK_TRUE;
 
         auto app = OpenWorldDemo{ settings };
         std::unique_ptr<Plugin> imGui = std::make_unique<ImGuiPlugin>();

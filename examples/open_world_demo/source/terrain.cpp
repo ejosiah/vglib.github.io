@@ -1,3 +1,4 @@
+#include "Vertex.h"
 #include "terrain.hpp"
 #include <spdlog/spdlog.h>
 #include "GraphicsPipelineBuilder.hpp"
@@ -158,8 +159,6 @@ std::vector<glm::vec3> Terrain::generateNormals() {
 
     int* minMax = reinterpret_cast<int*>(minMaxBuffer.map());
     spdlog::info("height map range [{}, {}]", glm::intBitsToFloat(minMax[0]), glm::intBitsToFloat(minMax[1]));
-    ubo->minHeight = glm::intBitsToFloat(minMax[0]);
-    ubo->maxHeight = glm::intBitsToFloat(minMax[1]);
 
     VkDeviceSize size = (SQRT_NUM_PATCHES + 1) * (SQRT_NUM_PATCHES + 1) * sizeof(glm::vec4);
 
@@ -218,7 +217,9 @@ void Terrain::createPatches() {
 void Terrain::initUBO() {
     uboBuffer = device().createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(UniformBufferObject), "terrain");
     ubo = reinterpret_cast<UniformBufferObject*>(uboBuffer.map());
-    ubo->heightScale = MAX_HEIGHT;
+    ubo->heightScale = 1;
+    ubo->minZ = 0 * meters;
+    ubo->maxZ = MAX_HEIGHT;
     ubo->wireframeColor = {1, 0, 0};
     ubo->wireframe = 0;
     ubo->wireframeWidth = 5;
@@ -239,6 +240,13 @@ void Terrain::initUBO() {
     ubo->dirtRock = 2;
     ubo->snowFresh = 3;
     ubo->snowStart = 0.6;
+
+    int count = 0;
+    triangleCountBuffer = device().createCpuVisibleBuffer(&count, sizeof(int), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    triangleCount = reinterpret_cast<int*>(triangleCountBuffer.map());
+
+    VkDeviceSize capacity = sizeof(Vertex) * triangleCapacity;
+    vertexBuffer = device().createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, capacity, "triangles");
 }
 
 void Terrain::createDescriptorSetLayout() {
@@ -295,14 +303,28 @@ void Terrain::createDescriptorSetLayout() {
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
         .createLayout();
+    
+    trianglesSetLayout =
+        device().descriptorSetLayoutBuilder()
+            .name("triangles")
+            .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_GEOMETRY_BIT)
+            .binding(1)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_GEOMETRY_BIT)
+            .createLayout();
 }
 
 void Terrain::updateDescriptorSet() {
-    auto sets = descriptorPool().allocate( { descriptorSetLayout, shadingSetLayout });
+    auto sets = descriptorPool().allocate( { descriptorSetLayout, shadingSetLayout, trianglesSetLayout });
     
     descriptorSet = sets[0];
     shadingSet = sets[1];
-    
+    trianglesSet = sets[2];
+
     auto writes = initializers::writeDescriptorSets<4>();
     
     writes[0].dstSet = descriptorSet;
@@ -391,6 +413,23 @@ void Terrain::updateDescriptorSet() {
 
     device().updateDescriptorSets(writes);
 
+    writes = initializers::writeDescriptorSets<2>();
+    
+    writes[0].dstSet = trianglesSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorBufferInfo triCountInfo{triangleCountBuffer, 0, VK_WHOLE_SIZE};
+    writes[0].pBufferInfo = &triCountInfo;
+
+    writes[1].dstSet = trianglesSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].descriptorCount = 1;
+    VkDescriptorBufferInfo triVertexInfo{vertexBuffer, 0, VK_WHOLE_SIZE};
+    writes[1].pBufferInfo = &triVertexInfo;
+
+    device().updateDescriptorSets(writes);
 }
 
 void Terrain::createPipelines() {
@@ -442,6 +481,7 @@ void Terrain::createPipelines() {
                 .layout()
                     .addDescriptorSetLayout(descriptorSetLayout)
                     .addDescriptorSetLayout(shadingSetLayout)
+                    .addDescriptorSetLayout(trianglesSetLayout)
                 .renderPass(renderPass())
                 .subpass(0)
                 .name("terrain")
@@ -458,9 +498,10 @@ void Terrain::resize(VulkanRenderPass &renderPass, uint32_t width, uint32_t heig
 }
 
 void Terrain::render(VkCommandBuffer commandBuffer) {
-    static std::array<VkDescriptorSet,2> sets;
+    static std::array<VkDescriptorSet,4> sets;
     sets[0] = descriptorSet;
     sets[1] = shadingSet;
+    sets[2] = trianglesSet;
     VkDeviceSize offset = 0;
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrain.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrain.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -505,7 +546,7 @@ void Terrain::renderUI() {
 
     static bool disableHeightMap = false;
     ImGui::Checkbox("disable height map", &disableHeightMap);
-    ubo->heightScale = disableHeightMap ? 0 : MAX_HEIGHT;
+    ubo->heightScale = disableHeightMap ? 0 : 1;
 
     static bool lod = static_cast<bool>(ubo->lod);
     ImGui::Checkbox("Dynamic LOD", &lod);
@@ -540,7 +581,8 @@ void Terrain::renderUI() {
         ImGui::SliderFloat("snow", &snow, 0, 1);
         ubo->snowStart = 1 - snow;
     }
-
+    ImGui::Text("triangle count: %d", *triangleCount);
     ImGui::End();
+    *triangleCount = 0;
 }
 

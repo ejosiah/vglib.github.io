@@ -33,6 +33,11 @@ layout(location = 0) out vec4 fragColor;
 
 const float preventDivideByZero = 0.0001;
 
+float remap(float x, float a, float b, float c, float d){
+    float t = clamp((x - a)/(b - a), 0, 1);
+    return mix(c, d, t);
+}
+
 vec3 checkerboard(){
     vec2 id = floor(numPatches * fs_in.uv);
     float c = step(1, mod(id.x + id.y, 2));
@@ -125,7 +130,7 @@ Material layeredMaterial(vec2 uv){
     vec4 color1 = vec4(groundMaterial.albedo, grassMaterial.displacement);
     vec4 color2 = vec4(snowMaterial.albedo, snowMaterial.displacement);
 
-    float y = fs_in.worldPosition.y/heightScale;
+    float y = remap(fs_in.worldPosition.y, minZ, maxZ, 0, 1);
     float a1 = 1 - smoothstep(0, snowStart, y);
     float a2 = smoothstep(snowStart, 1, y);
 

@@ -25,7 +25,7 @@ void main(){
 
     if(gl_InvocationID == 0){
         if (lod == 0){
-            float tessLevel = maxTessLevel;
+            float tessLevel = maxTessLevel * 0.25;
             gl_TessLevelOuter[0] = tessLevel;
             gl_TessLevelOuter[1] = tessLevel;
             gl_TessLevelOuter[2] = tessLevel;
@@ -40,10 +40,10 @@ void main(){
             lodParams.positions[1] = gl_in[1].gl_Position;
             lodParams.positions[2] = gl_in[2].gl_Position;
             lodParams.positions[3] = gl_in[3].gl_Position;
-            lodParams.displacement[0] = remap(texture(displacementMap, uvIn[0]).x, minHeight, maxHeight, 0, 1) * heightScale;
-            lodParams.displacement[1] = remap(texture(displacementMap, uvIn[1]).x, minHeight, maxHeight, 0, 1) * heightScale;
-            lodParams.displacement[2] = remap(texture(displacementMap, uvIn[2]).x, minHeight, maxHeight, 0, 1) * heightScale;
-            lodParams.displacement[3] = remap(texture(displacementMap, uvIn[3]).x, minHeight, maxHeight, 0, 1) * heightScale;
+            lodParams.displacement[0] = remap(texture(displacementMap, uvIn[0]).x, 0, 1, minZ, maxZ) * heightScale;
+            lodParams.displacement[1] = remap(texture(displacementMap, uvIn[1]).x, 0, 1, minZ, maxZ) * heightScale;
+            lodParams.displacement[2] = remap(texture(displacementMap, uvIn[2]).x, 0, 1, minZ, maxZ) * heightScale;
+            lodParams.displacement[3] = remap(texture(displacementMap, uvIn[3]).x, 0, 1, minZ, maxZ) * heightScale;
             lodParams.viewport = viewportSize;
             lodParams.minDepth = lodMinDepth;
             lodParams.maxDepth = lodMaxDepth;

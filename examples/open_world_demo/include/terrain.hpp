@@ -106,8 +106,8 @@ private:
         int dirt;
         int dirtRock;
         int snowFresh;
-        float minHeight;
-        float maxHeight;
+        float minZ;
+        float maxZ;
         float snowStart;
     };
 
@@ -138,6 +138,13 @@ private:
     VulkanBuffer patchesBuffer;
     VulkanBuffer indexBuffer;
     VulkanBuffer uboBuffer;
+
+    int* triangleCount;
+    VulkanBuffer triangleCountBuffer;
+    VulkanBuffer vertexBuffer;
+    VulkanDescriptorSetLayout trianglesSetLayout;
+    VkDescriptorSet trianglesSet;
+    uint32_t triangleCapacity = 35000000;
 
     struct {
         VulkanPipelineLayout layout;
