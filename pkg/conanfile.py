@@ -3,7 +3,7 @@ from conans import ConanFile, CMake, tools
 
 class VgLibConan(ConanFile):
     name = "vglib"
-    version = "0.0.1"
+    version = "0.0.2"
     license = "<Put the package license here>"
     author = "Josiah Ebhomenye joebhomenye@gmail.com"
     url = "<Package recipe repository url here, for issues about the package>"
@@ -13,21 +13,22 @@ class VgLibConan(ConanFile):
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = {"shared": False, "fPIC": True}
     generators = "cmake"
-    requires = ["assimp/5.0.1",
+    requires = ["assimp/5.2.2",
                 "glm/0.9.9.8",
                 "glfw/3.3.2",
                 "stb/20200203",
                 "spdlog/1.8.2",
-                "freetype/2.10.4",
+                "freetype/2.12.1",
                 "imgui/1.82",
-                "boost/1.75.0",
+                "boost/1.80.0",
                 "gtest/1.11.0",
-                "thrust/1.9.5",
                 "argparse/2.1",
                 "bullet3/3.17",
                 "entt/3.8.1",
+                "vhacd/0.1",
                 "meshoptimizer/0.17",
-                "zlib/1.2.12"
+                "openexr/3.1.5",
+                "taskflow/3.4.0",
                 ]
 
     def config_options(self):
