@@ -3,7 +3,7 @@ from conans import ConanFile, CMake, tools
 
 class VgLibConan(ConanFile):
     name = "vglib"
-    version = "0.0.3"
+    version = "0.1.0"
     license = "<Put the package license here>"
     author = "Josiah Ebhomenye joebhomenye@gmail.com"
     url = "<Package recipe repository url here, for issues about the package>"
