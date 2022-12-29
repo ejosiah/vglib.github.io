@@ -4,6 +4,7 @@
 #include "VulkanModel.h"
 #include "Texture.h"
 #include "Mesh.h"
+#include <meshoptimizer.h>
 
 namespace phong{
 
@@ -69,6 +70,7 @@ namespace phong{
         VkBufferUsageFlags  materialIdUsage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         VmaMemoryUsage materialBufferMemoryUsage = VMA_MEMORY_USAGE_GPU_ONLY;
         bool generateMaterialId = true;
+        bool generateAdjacencyTriangles = false;
     };
 
     /**
@@ -105,6 +107,18 @@ namespace phong{
 
         std::vector<mesh::Mesh> meshes;
         mesh::load(meshes, path);
+
+
+        if(info.generateAdjacencyTriangles){
+            for(auto& mesh : meshes){
+                decltype(mesh.indices) adjIndices;
+                adjIndices.resize(mesh.indices.size() * 2);
+                meshopt_generateAdjacencyIndexBuffer(adjIndices.data(), mesh.indices.data(), mesh.indices.size(),
+                                                     reinterpret_cast<const float*>(mesh.vertices.data()),
+                                                     mesh.vertices.size(), sizeof(Vertex));
+                mesh.indices = adjIndices;
+            }
+        }
 
         if(normalize) {
             mesh::normalize(meshes, size);

@@ -28,6 +28,7 @@
 #include "primitives.h"
 #include "halfedge.hpp"
 #include <process.h>
+#include <meshoptimizer.h>
 
 glm::vec3 rRotate(float angle, glm::vec3 v, glm::vec3 axis){
     return v * glm::cos(angle) + glm::cross(axis, v) * glm::sin(angle)
@@ -367,20 +368,37 @@ void save(const std::string& path, const std::vector<T>& data){
 
 int main(){
     auto sphere = primitives::sphere(100, 100, 1, glm::mat4{1}, glm::vec4(1), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    auto cube = primitives::cube();
+    auto prim = sphere;
 
-    std::vector<glm::vec4> vertices;
-    std::vector<glm::vec4> normals;
-    std::vector<glm::vec4> colors;
-    std::vector<glm::vec2> uvs;
-    for(auto index : sphere.indices){
-        auto& vertex = sphere.vertices[index];
-        vertices.push_back(vertex.position);
-        normals.push_back(glm::vec4(vertex.normal, 0));
-        colors.push_back(vertex.color);
-        uvs.push_back(vertex.uv);
+    std::vector<uint32_t> remap(prim.indices.size());
+    meshopt_generateVertexRemap(remap.data(), prim.indices.data(), prim.indices.size(), prim.vertices.data(), prim.vertices.size(), sizeof(Vertex));
+
+    std::vector<uint32_t> adjIndex(prim.indices.size() * 2);
+    meshopt_generateAdjacencyIndexBuffer(adjIndex.data(), prim.indices.data(), prim.indices.size(), reinterpret_cast<const float*>(prim.vertices.data()), prim.vertices.size(), sizeof(Vertex));
+
+    HalfEdgeMesh<Vertex, 0, 4> halfEdge{prim.indices.data(), prim.indices.size(), prim.vertices.data() };
+    for(auto vertexId = 0u; vertexId < prim.vertices.size(); vertexId++){
+        halfEdge.visitAdjacentEdges(vertexId, [](const auto edge){
+            fmt::print("{} ", edge->vertex);
+        });
+        fmt::print("\n");
     }
-    save(R"(D:\Program Files\SHADERed\sphere_vertices.dat)", vertices);
-    save(R"(D:\Program Files\SHADERed\sphere_normals.dat)", normals);
-    save(R"(D:\Program Files\SHADERed\sphere_color.dat)", colors);
-    save(R"(D:\Program Files\SHADERed\sphere_uv.dat)", uvs);
+//    auto sphere = primitives::sphere(100, 100, 1, glm::mat4{1}, glm::vec4(1), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+//
+//    std::vector<glm::vec4> vertices;
+//    std::vector<glm::vec4> normals;
+//    std::vector<glm::vec4> colors;
+//    std::vector<glm::vec2> uvs;
+//    for(auto index : sphere.indices){
+//        auto& vertex = sphere.vertices[index];
+//        vertices.push_back(vertex.position);
+//        normals.push_back(glm::vec4(vertex.normal, 0));
+//        colors.push_back(vertex.color);
+//        uvs.push_back(vertex.uv);
+//    }
+//    save(R"(D:\Program Files\SHADERed\sphere_vertices.dat)", vertices);
+//    save(R"(D:\Program Files\SHADERed\sphere_normals.dat)", normals);
+//    save(R"(D:\Program Files\SHADERed\sphere_color.dat)", colors);
+//    save(R"(D:\Program Files\SHADERed\sphere_uv.dat)", uvs);
 }
