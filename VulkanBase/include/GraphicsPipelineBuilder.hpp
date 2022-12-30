@@ -31,7 +31,7 @@ public:
 
     virtual DepthStencilStateBuilder& depthStencilState();
 
-    virtual ColorBlendStateBuilder& colorBlendState();
+    virtual ColorBlendStateBuilder& colorBlendState(void* next = nullptr);
 
     virtual MultisampleStateBuilder& multisampleState();
 
@@ -88,6 +88,7 @@ protected:
     std::unique_ptr<TessellationStateBuilder> _tessellationStateBuilder = nullptr;
     VulkanPipeline* _basePipeline = nullptr;
     VkPipelineCache pipelineCache_ = VK_NULL_HANDLE;
+    void* nextChain = nullptr;
 
 };
 

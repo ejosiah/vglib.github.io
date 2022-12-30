@@ -53,6 +53,90 @@ DynamicStateBuilder &DynamicStateBuilder::stencilReferenceMask() {
     return *this;
 }
 
+DynamicStateBuilder &DynamicStateBuilder::cullMode() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_CULL_MODE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::frontFace() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_FRONT_FACE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::primitiveTopology() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::viewportWithCount() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT_WITH_COUNT);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::scissorWithCount() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR_WITH_COUNT);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::vertexInputBindingStride() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::depthTestEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::depthWriteEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::depthCompareOp() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_COMPARE_OP);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::DepthBoundsTestEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::stencilTestEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::stencilOp() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_OP);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::rasterDiscardEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::depthBiasEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::primitiveRestartEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::colorWriteEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT);
+    return *this;
+}
+
+DynamicStateBuilder &DynamicStateBuilder::clear() {
+    _dynamicStates.clear();
+}
+
 VkPipelineDynamicStateCreateInfo& DynamicStateBuilder::buildPipelineDynamicState() {
     _info.dynamicStateCount = COUNT(_dynamicStates);
     _info.pDynamicStates = _dynamicStates.data();

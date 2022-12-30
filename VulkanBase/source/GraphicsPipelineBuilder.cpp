@@ -198,10 +198,11 @@ DepthStencilStateBuilder& GraphicsPipelineBuilder::depthStencilState() {
     return *_depthStencilStateBuilder;
 }
 
-ColorBlendStateBuilder &GraphicsPipelineBuilder::colorBlendState() {
+ColorBlendStateBuilder &GraphicsPipelineBuilder::colorBlendState(void* next) {
     if(parent()){
-        return parent()->colorBlendState();
+        return parent()->colorBlendState(next);
     }
+    _colorBlendStateBuilder->nextChain = next;
     return *_colorBlendStateBuilder;
 }
 
