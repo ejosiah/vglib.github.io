@@ -34,6 +34,8 @@ protected:
 
     void renderSceneShadowVolumeIntoStencilBuffer(VkCommandBuffer commandBuffer);
 
+    void renderSilhouette(VkCommandBuffer commandBuffer);
+
     void visualizeShadowVolume(VkCommandBuffer commandBuffer);
 
     void renderAmbientLight(VkCommandBuffer commandBuffer);
@@ -80,6 +82,11 @@ protected:
     struct {
         VulkanPipelineLayout layout;
         VulkanPipeline pipeline;
+    } silhouette;
+
+    struct {
+        VulkanPipelineLayout layout;
+        VulkanPipeline pipeline;
     } shadow_volume_visual;
 
     struct {
@@ -100,6 +107,9 @@ protected:
     UBO* ubo{};
 
     VulkanDrawable model;
+
+    bool showSilhouette = false;
+
 
     VulkanDescriptorSetLayout descriptorSetLayout;
     VkDescriptorSet descriptorSet;

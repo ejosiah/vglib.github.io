@@ -3,6 +3,13 @@
 layout(triangles_adjacency) in;
 layout(line_strip, max_vertices = 6) out;
 
+layout(push_constant) uniform UniformBufferObject{
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+};
+
+
 layout(set = 0, binding = 0) uniform UBO {
     vec3 lightDirection;
     vec3 cameraPosition;

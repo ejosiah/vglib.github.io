@@ -63,10 +63,16 @@ VkCommandBuffer *ShadowVolumeDemo::buildCommandBuffers(uint32_t imageIndex, uint
 
     vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    renderSceneIntoDepthBuffer(commandBuffer);
-    renderSceneShadowVolumeIntoStencilBuffer(commandBuffer);
-    renderScene(commandBuffer);
-    visualizeShadowVolume(commandBuffer);
+    if(!showSilhouette) {
+        renderSceneIntoDepthBuffer(commandBuffer);
+        renderSceneShadowVolumeIntoStencilBuffer(commandBuffer);
+        renderScene(commandBuffer);
+        visualizeShadowVolume(commandBuffer);
+    }else{
+        renderSceneIntoDepthBuffer(commandBuffer);
+        renderScene(commandBuffer);
+        renderSilhouette(commandBuffer);
+    }
     renderUI(commandBuffer);
 
     vkCmdEndRenderPass(commandBuffer);
@@ -93,6 +99,16 @@ void ShadowVolumeDemo::renderSceneShadowVolumeIntoStencilBuffer(VkCommandBuffer 
     cube.draw(commandBuffer);
 
     camera->push(commandBuffer, shadow_volume.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_GEOMETRY_BIT);
+    plane.draw(commandBuffer);
+}
+
+void ShadowVolumeDemo::renderSilhouette(VkCommandBuffer commandBuffer) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, silhouette.pipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, silhouette.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
+    camera->push(commandBuffer, silhouette.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}),  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
+    cube.draw(commandBuffer);
+
+    camera->push(commandBuffer, silhouette.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
     plane.draw(commandBuffer);
 }
 
@@ -142,11 +158,14 @@ void ShadowVolumeDemo::renderUI(VkCommandBuffer commandBuffer) {
 
     if(updateLight){
         updateLight = false;
-        static float radius = 3;
+        static float radius = 10;
         ubo->lightPosition.x = radius * glm::sin(elevation) * glm::sin(azimuth);
         ubo->lightPosition.y = radius * glm::cos(elevation);
         ubo->lightPosition.z = radius * glm::sin(elevation) * glm::cos(azimuth);
     }
+
+    ImGui::Checkbox("show silhouette", &showSilhouette);
+
     ImGui::End();
     plugin(IM_GUI_PLUGIN).draw(commandBuffer);
 }
@@ -302,6 +321,25 @@ void ShadowVolumeDemo::createPipeline() {
             .add()
             .name("shadow_volume_visual")
         .build(shadow_volume_visual.layout);
+
+    silhouette.pipeline =
+        builder
+            .shaderStage()
+                .vertexShader(resource("shader.vert.spv"))
+                .geometryShader(resource("silhouette.geom.spv"))
+                .fragmentShader(resource("line.frag.spv"))
+            .inputAssemblyState()
+                .trianglesWithAdjacency()
+            .rasterizationState()
+                .lineWidth(5.0)
+            .colorBlendState()
+                .attachment().clear().add()
+            .layout().clear()
+                .addDescriptorSetLayout(descriptorSetLayout)
+                .addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT, 0 , sizeof(Camera))
+            .name("silhouette")
+        .build(silhouette.layout);
+
 
     render.pipeline =
         builder
