@@ -67,7 +67,9 @@ VkCommandBuffer *ShadowVolumeDemo::buildCommandBuffers(uint32_t imageIndex, uint
         renderSceneIntoDepthBuffer(commandBuffer);
         renderSceneShadowVolumeIntoStencilBuffer(commandBuffer);
         renderScene(commandBuffer);
-        visualizeShadowVolume(commandBuffer);
+        if(showShadowVolume) {
+            visualizeShadowVolume(commandBuffer);
+        }
     }else{
         renderSceneIntoDepthBuffer(commandBuffer);
         renderScene(commandBuffer);
@@ -118,8 +120,8 @@ void ShadowVolumeDemo::visualizeShadowVolume(VkCommandBuffer commandBuffer) {
     camera->push(commandBuffer, shadow_volume_visual.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}),  VK_SHADER_STAGE_GEOMETRY_BIT);
     cube.draw(commandBuffer);
 
-//    camera->push(commandBuffer, shadow_volume_visual.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_GEOMETRY_BIT);
-//    plane.draw(commandBuffer);
+    camera->push(commandBuffer, shadow_volume_visual.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_GEOMETRY_BIT);
+    plane.draw(commandBuffer);
 }
 
 void ShadowVolumeDemo::renderScene(VkCommandBuffer commandBuffer) {
@@ -164,6 +166,7 @@ void ShadowVolumeDemo::renderUI(VkCommandBuffer commandBuffer) {
         ubo->lightPosition.z = radius * glm::sin(elevation) * glm::cos(azimuth);
     }
 
+    ImGui::Checkbox("Show shadow volume", &showShadowVolume);
     ImGui::Checkbox("show silhouette", &showSilhouette);
 
     ImGui::End();
@@ -248,6 +251,22 @@ void ShadowVolumeDemo::createPipeline() {
                     .compareOpLess()
                     .minDepthBounds(0)
                     .maxDepthBounds(1)
+                .stencilOpBack()
+                    .failOpKeep()
+                    .passOpKeep()
+                    .depthFailOpReplace()
+                    .compareOpAlways()
+                    .compareMask(0Xff)
+                    .writeMask(0Xff)
+                    .reference(0x01)
+                .stencilOpFront()
+                    .failOpKeep()
+                    .passOpKeep()
+                    .depthFailOpReplace()
+                    .compareOpAlways()
+                    .compareMask(0Xff)
+                    .writeMask(0xff)
+                    .reference(0x01)
                 .colorBlendState()
                     .attachment()
                     .add()

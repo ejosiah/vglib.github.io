@@ -109,7 +109,7 @@ protected:
     VulkanDrawable model;
 
     bool showSilhouette = false;
-
+    bool showShadowVolume = false;
 
     VulkanDescriptorSetLayout descriptorSetLayout;
     VkDescriptorSet descriptorSet;
