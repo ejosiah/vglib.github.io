@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include <glm/glm.hpp>
+#include "VulkanBaseApp.h"
 
 struct SceneData{
     Camera camera;
@@ -15,4 +16,19 @@ struct SceneData{
     float fieldOfView{90};
     float zNear{1 * meter};
     float zFar{100000 * km};
+};
+
+struct GBuffer{
+    FramebufferAttachment position;
+    FramebufferAttachment normal;
+    FramebufferAttachment albedo;
+    FramebufferAttachment material;
+    FramebufferAttachment edgeDist;
+    FramebufferAttachment depth;
+};
+
+struct ShadowVolume{
+    FramebufferAttachment positionIn;
+    FramebufferAttachment positionOut;
+    FramebufferAttachment depthStencil;
 };

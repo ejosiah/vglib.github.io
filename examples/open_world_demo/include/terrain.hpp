@@ -25,11 +25,17 @@ public:
 
     void render(VkCommandBuffer commandBuffer);
 
+    void renderTerrain();
+
     void renderUI();
 
     void resize(VulkanRenderPass& renderPass, uint32_t width, uint32_t height);
 
+    std::unique_ptr<GBuffer> gBuffer;
+    std::unique_ptr<ShadowVolume> shadowVolume;
+
 private:
+
     void loadHeightMap();
 
     void loadShadingTextures();
@@ -38,9 +44,17 @@ private:
 
     void initUBO();
 
+    void initSamplers();
+
     void createDescriptorSetLayout();
 
     void updateDescriptorSet();
+
+    void createFrameBufferAttachments();
+
+    void createGBufferFrameBuffer();
+
+    void createShadowVolumeFrameBuffer();
 
     void createPipelines();
 
@@ -54,10 +68,6 @@ private:
         return *m_descriptorPool;
     }
 
-    inline const VulkanRenderPass& renderPass() const {
-        return *m_renderPass;
-    }
-
     std::string resource(const std::string& name);
 
 private:
@@ -66,6 +76,11 @@ private:
     const FileManager* m_filemanager;
     VulkanRenderPass* m_renderPass;
 
+    VulkanRenderPass m_gBufferRenderPass;
+    VulkanFramebuffer m_gBufferFramebuffer;
+
+    VulkanRenderPass m_shadowVolumeRenderPass;
+    VulkanFramebuffer m_shadowVolumeFramebuffer;
 
     enum class LodStrategy{
         DistanceFromCamera = 0, SphereProjection
@@ -116,6 +131,9 @@ private:
     VulkanDescriptorSetLayout descriptorSetLayout;
     VkDescriptorSet descriptorSet;
 
+    VulkanDescriptorSetLayout  gBufferSetLayout;
+    VkDescriptorSet gBufferSet;
+
     VulkanDescriptorSetLayout shadingSetLayout;
     VkDescriptorSet shadingSet;
     struct{
@@ -151,8 +169,17 @@ private:
         VulkanPipeline pipeline;
     } terrain;
 
+    struct {
+        VulkanPipelineLayout layout;
+        VulkanPipeline pipeline;
+    } screen;
+
+
     uint32_t m_width{0};
     uint32_t m_height{0};
+
+    VulkanBuffer screenBuffer;
+    VulkanSampler valueSampler;
 
     static constexpr int SQRT_NUM_PATCHES = 64;
     static constexpr float PATCH_SIZE = 60 * km;

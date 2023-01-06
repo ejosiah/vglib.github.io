@@ -183,7 +183,7 @@ VkCommandBuffer *OpenWorldDemo::buildCommandBuffers(uint32_t imageIndex, uint32_
 
     vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    skyDome->render(commandBuffer);
+//    skyDome->render(commandBuffer);
     terrain->render(commandBuffer);
     renderUI(commandBuffer);
     vkCmdEndRenderPass(commandBuffer);
@@ -235,6 +235,7 @@ void OpenWorldDemo::update(float time) {
     skyDome->update(sceneData);
     auto msg = fmt::format("{} - FPS {}, position: {}", title, framePerSecond, sceneData.eyes);
     glfwSetWindowTitle(window, msg.c_str());
+
 }
 
 void OpenWorldDemo::updateScene(float time) {
@@ -260,6 +261,10 @@ void OpenWorldDemo::cleanup() {
 
 void OpenWorldDemo::onPause() {
     VulkanBaseApp::onPause();
+}
+
+void OpenWorldDemo::newFrame() {
+    terrain->renderTerrain();
 }
 
 

@@ -28,8 +28,11 @@ layout(location = 0) in struct {
 
 layout(location = 5) noperspective in vec3 edgeDist;
 
-
-layout(location = 0) out vec4 fragColor;
+layout(location = 0) out vec4 oPosition;
+layout(location = 1) out vec4 oNormal;
+layout(location = 2) out vec4 oAlbedo;
+layout(location = 3) out vec4 oMaterial;
+layout(location = 4) out vec4 oEdgeDist;
 
 const float preventDivideByZero = 0.0001;
 
@@ -155,14 +158,14 @@ Material layeredMaterial(vec2 uv){
     return layeredMat;
 }
 
-vec3 shadeFragment(){
+void shadeFragment(){
     vec2 uv = getUV();
 
     Material material = layeredMaterial(uv);
-    vec3 albedo = material.albedo;
-    float metalness = material.metalness;
-    float roughness = material.roughness;
-    float ao = material.ambientOcclusion;
+    oAlbedo.rgb = material.albedo;
+    oMaterial.r = material.metalness;
+    oMaterial.g = material.roughness;
+    oMaterial.b = material.ambientOcclusion;
 
     vec3 n1 = fs_in.normal;
     vec3 n2 = material.normal;
@@ -172,67 +175,25 @@ vec3 shadeFragment(){
     vec4 q = axisAngle(vec3(1, 0, 0), -PI/2);
     N = rotatePoint(q, N);
     N = normalize(N);
-
-    vec3 viewDir = cameraPosition - fs_in.worldPosition;
-    vec3 E = normalize(viewDir);
-    vec3 R = reflect(-E, N);
-
-    vec3 F0 = vec3(0.04);
-    F0 = mix(F0, albedo, metalness);
-
-    vec3 lightDir = sunPosition;
-    vec3 L = normalize(lightDir);
-
-    vec3 H = normalize(E + L);
-    float attenuation = 1;  // no attenuation for sun light
-    vec3 radiance = vec3(10) * attenuation;
-
-    // Cook-Torrance BRDF
-    float NDF = distributionGGX(N, H, roughness);
-    float G = geometrySmith(N, E, L, roughness);
-    vec3 F = fresnelSchlick(max(dot(H,E), 0), F0);
-
-    vec3 numerator    = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, E), 0.0) * max(dot(N, L), 0.0) + preventDivideByZero;
-    vec3 specular = numerator / denominator;
-
-    vec3 kS = F;
-
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metalness;
-
-    float NdotL = max(dot(N, L), 0.0);
-
-    vec3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
-
-    return Lo;
+    oNormal.xyz = N;
 }
 
 void main(){
     vec2 uv = fs_in.patch_uv;
-    
-    vec3 color = vec3(0);
+
     if(shading == 1){
-        color = shadeFragment();
+        shadeFragment();
     }else{
         vec3 N = normalize(heightScale <= 0 ? vec3(0, 0, 1) : fs_in.normal);
-        vec3 albedo = checkerboard();
+        oAlbedo.rgb = checkerboard();
+
         vec4 q = axisAngle(vec3(1, 0, 0), -PI/2);
         N = rotatePoint(q, N);
         N = normalize(N);
 
-        vec3 L = normalize(sunPosition);
-        color = albedo * max(0, dot(N, L));
+        oNormal.xyz = N;
+
     }
     
-
-    if(bool(wireframe)){
-        float d = min(edgeDist.x, min(edgeDist.y, edgeDist.z));
-        float t = smoothstep(-wireframeWidth, wireframeWidth, d);
-
-        vec3 wcolor = lod == 1 && tessLevelColor == 1 ? fs_in.color : wireframeColor;
-        color = mix(wcolor, color, t);
-    }
-
-    fragColor.rgb = color/(1 + color);
+    oEdgeDist.xyz = edgeDist;
 }

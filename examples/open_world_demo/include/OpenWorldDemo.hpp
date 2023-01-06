@@ -44,6 +44,8 @@ protected:
 
     void onPause() override;
 
+    void newFrame() override;
+
 protected:
     struct {
         VulkanPipelineLayout layout;
