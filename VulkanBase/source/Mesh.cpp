@@ -1,5 +1,6 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "Mesh.h"
+#include <meshoptimizer.h>
 
 VkPrimitiveTopology toVulkan(uint32_t MeshType){
     switch (MeshType) {
@@ -10,6 +11,23 @@ VkPrimitiveTopology toVulkan(uint32_t MeshType){
 //            throw std::runtime_error{"unknown primitive type"};
         return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; // TODO new version of assimp causing this to fail
     }
+}
+
+void optimize(mesh::Mesh& mesh){
+    std::vector<uint32_t> remap(mesh.indices.size());
+    auto vertexCount = meshopt_generateVertexRemap(remap.data(), mesh.indices.data(), mesh.indices.size(),
+                                                   mesh.vertices.data(), mesh.vertices.size(), sizeof(Vertex));
+    std::vector<uint32_t> remappedIndices(mesh.indices.size());
+    meshopt_remapIndexBuffer(remappedIndices.data(), mesh.indices.data(), mesh.indices.size(), remap.data());
+
+    std::vector<Vertex> remappedVertices(vertexCount);
+    meshopt_remapVertexBuffer(remappedVertices.data(), mesh.vertices.data(), mesh.vertices.size(), sizeof(Vertex), remap.data());
+
+    std::vector<uint32_t> reOrderedIndices(remappedIndices.size());
+    meshopt_optimizeVertexCache(reOrderedIndices.data(), remappedIndices.data(), remappedIndices.size(), vertexCount);
+
+    mesh.vertices = remappedVertices;
+    mesh.indices = reOrderedIndices;
 }
 
 mesh::Mesh loadMesh(const std::string& parent, const aiNode* node, const aiScene* scene, uint32_t* numVertices, uint32_t meshId){
@@ -144,6 +162,8 @@ mesh::Mesh loadMesh(const std::string& parent, const aiNode* node, const aiScene
     }
     mesh.material = material;
     mesh.textureMaterial = texMaterial;
+
+    optimize(mesh);
 
     return mesh;
 }

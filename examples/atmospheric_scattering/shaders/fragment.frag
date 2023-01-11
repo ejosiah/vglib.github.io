@@ -123,8 +123,7 @@ void main(){
         float ray_sphere_distance =
         kSphereRadius - sqrt(ray_sphere_center_squared_distance);
         float ray_sphere_angular_distance = -ray_sphere_distance / p_dot_v;
-        sphere_alpha =
-        min(ray_sphere_angular_distance / fragment_angular_size, 1.0);
+        sphere_alpha = min(ray_sphere_angular_distance / fragment_angular_size, 1.0);
         vec3 point = camera + view_direction * distance_to_intersection;
         vec3 normal = normalize(point - kSphereCenter);
         vec3 sky_irradiance;

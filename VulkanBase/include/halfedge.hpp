@@ -148,4 +148,24 @@ struct HalfEdgeMesh{
             edge = edge->pair->next;
         }while(edge != vertex.edge);
     }
+
+    [[nodiscard]]
+    auto adjacencyIndices() const {
+        std::vector<uint32_t> indices;
+
+        for(const auto& face : faces){
+            auto e0 = face->edge;
+            auto e1 = e0->next;
+            auto e2 = e1->next;
+
+            indices.push_back(e0->vertex);
+            indices.push_back(e1->pair ? e1->pair->next->vertex : e0->vertex);
+            indices.push_back(e1->vertex);
+            indices.push_back(e2->pair ? e2->pair->next->vertex : e1->vertex);
+            indices.push_back(e2->vertex);
+            indices.push_back(e0->pair ? e0->pair->next->vertex : e2->vertex);
+        }
+
+        return indices;
+    }
 };

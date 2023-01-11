@@ -30,7 +30,6 @@ vec3 shadeFragment(){
 
     vec3 N = normalize(texture(gNormal, uv).rgb);
 
-
     vec3 worldPosition = texture(gPosition, uv).xyz;
     vec3 viewDir = cameraPosition - worldPosition;
     vec3 E = normalize(viewDir);
@@ -70,7 +69,6 @@ vec3 shadeFragment(){
 
 void main(){
     vec2 uv = fs_in.uv;
-    fragColor = vec4(1);
 
     vec3 color = vec3(0);
     vec3 albedo = texture(gAlbedo, uv).rgb;

@@ -29,6 +29,7 @@
 #include "halfedge.hpp"
 #include <process.h>
 #include <meshoptimizer.h>
+#include "Mesh.h"
 
 glm::vec3 rRotate(float angle, glm::vec3 v, glm::vec3 axis){
     return v * glm::cos(angle) + glm::cross(axis, v) * glm::sin(angle)
@@ -89,33 +90,40 @@ void printRaytracingProps(){
     info.deviceExtAndLayers.extensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
     VulkanContext ctx{info};
     ctx.init();
-    VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR asProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR};
-    rtProperties.pNext = &asProperties;
-    VkPhysicalDeviceProperties2 props{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-    props.pNext = &rtProperties;
+//    VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
+//    VkPhysicalDeviceAccelerationStructurePropertiesKHR asProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR};
+//    rtProperties.pNext = &asProperties;
+//    VkPhysicalDeviceProperties2 props{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+//    props.pNext = &rtProperties;
+//
+//    vkGetPhysicalDeviceProperties2(ctx.device, &props);
+//
+//    fmt::print("VK Ray tracing properties:\n");
+//    fmt::print("\tshaderGroupHandleSize: {} bytes\n", rtProperties.shaderGroupHandleSize);
+//    fmt::print("\tmaxRayRecursionDepth: {}\n", rtProperties.maxRayRecursionDepth);
+//    fmt::print("\tmaxShaderGroupStride: {} bytes\n", rtProperties.maxShaderGroupStride);
+//    fmt::print("\tshaderGroupBaseAlignment: {} bytes\n", rtProperties.shaderGroupBaseAlignment);
+//    fmt::print("\tshaderGroupHandleCaptureReplaySize: {} bytes\n", rtProperties.shaderGroupHandleCaptureReplaySize);
+//    fmt::print("\tmaxRayDispatchInvocationCount: {}\n", rtProperties.maxRayDispatchInvocationCount);
+//    fmt::print("\tshaderGroupHandleAlignment: {} bytes\n", rtProperties.shaderGroupHandleAlignment);
+//    fmt::print("\tmaxRayHitAttributeSize: {} bytes\n", rtProperties.maxRayHitAttributeSize);
+//
+//    fmt::print("\n\nAcceleration Structure Properties:\n");
+//    fmt::print("\tmaxGeometryCount: {}\n", asProperties.maxGeometryCount);
+//    fmt::print("\tmaxInstanceCount: {}\n", asProperties.maxInstanceCount);
+//    fmt::print("\tmaxPrimitiveCount: {}\n", asProperties.maxPrimitiveCount);
+//    fmt::print("\tmaxPerStageDescriptorAccelerationStructures: {}\n", asProperties.maxPerStageDescriptorAccelerationStructures);
+//    fmt::print("\tmaxPerStageDescriptorUpdateAfterBindAccelerationStructures: {}\n", asProperties.maxPerStageDescriptorUpdateAfterBindAccelerationStructures);
+//    fmt::print("\tmaxDescriptorSetAccelerationStructures: {}\n", asProperties.maxDescriptorSetAccelerationStructures);
+//    fmt::print("\tmaxDescriptorSetUpdateAfterBindAccelerationStructures: {}\n", asProperties.maxDescriptorSetUpdateAfterBindAccelerationStructures);
+//    fmt::print("\tminAccelerationStructureScratchOffsetAlignment: {} bytes\n", asProperties.minAccelerationStructureScratchOffsetAlignment);
 
-    vkGetPhysicalDeviceProperties2(ctx.device, &props);
-
-    fmt::print("VK Ray tracing properties:\n");
-    fmt::print("\tshaderGroupHandleSize: {} bytes\n", rtProperties.shaderGroupHandleSize);
-    fmt::print("\tmaxRayRecursionDepth: {}\n", rtProperties.maxRayRecursionDepth);
-    fmt::print("\tmaxShaderGroupStride: {} bytes\n", rtProperties.maxShaderGroupStride);
-    fmt::print("\tshaderGroupBaseAlignment: {} bytes\n", rtProperties.shaderGroupBaseAlignment);
-    fmt::print("\tshaderGroupHandleCaptureReplaySize: {} bytes\n", rtProperties.shaderGroupHandleCaptureReplaySize);
-    fmt::print("\tmaxRayDispatchInvocationCount: {}\n", rtProperties.maxRayDispatchInvocationCount);
-    fmt::print("\tshaderGroupHandleAlignment: {} bytes\n", rtProperties.shaderGroupHandleAlignment);
-    fmt::print("\tmaxRayHitAttributeSize: {} bytes\n", rtProperties.maxRayHitAttributeSize);
-
-    fmt::print("\n\nAcceleration Structure Properties:\n");
-    fmt::print("\tmaxGeometryCount: {}\n", asProperties.maxGeometryCount);
-    fmt::print("\tmaxInstanceCount: {}\n", asProperties.maxInstanceCount);
-    fmt::print("\tmaxPrimitiveCount: {}\n", asProperties.maxPrimitiveCount);
-    fmt::print("\tmaxPerStageDescriptorAccelerationStructures: {}\n", asProperties.maxPerStageDescriptorAccelerationStructures);
-    fmt::print("\tmaxPerStageDescriptorUpdateAfterBindAccelerationStructures: {}\n", asProperties.maxPerStageDescriptorUpdateAfterBindAccelerationStructures);
-    fmt::print("\tmaxDescriptorSetAccelerationStructures: {}\n", asProperties.maxDescriptorSetAccelerationStructures);
-    fmt::print("\tmaxDescriptorSetUpdateAfterBindAccelerationStructures: {}\n", asProperties.maxDescriptorSetUpdateAfterBindAccelerationStructures);
-    fmt::print("\tminAccelerationStructureScratchOffsetAlignment: {} bytes\n", asProperties.minAccelerationStructureScratchOffsetAlignment);
+    VkPhysicalDeviceFeatures features;
+    VkPhysicalDeviceFeatures2 features2{};
+    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extDynamicSF{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT};
+    features2.pNext = &extDynamicSF;
+    vkGetPhysicalDeviceFeatures2(ctx.device, & features2);
+    fmt::print("extended features: {:b}\n", extDynamicSF.extendedDynamicState);
 }
 
 void montiCarlo(){
@@ -366,24 +374,90 @@ void save(const std::string& path, const std::vector<T>& data){
     fout.close();
 }
 
-int main(){
-    auto sphere = primitives::sphere(100, 100, 1, glm::mat4{1}, glm::vec4(1), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    auto cube = primitives::cube();
-    auto prim = sphere;
+struct Triangle{
+    std::array<glm::vec3, 3> v;
+};
 
-    std::vector<uint32_t> remap(prim.indices.size());
-    meshopt_generateVertexRemap(remap.data(), prim.indices.data(), prim.indices.size(), prim.vertices.data(), prim.vertices.size(), sizeof(Vertex));
+#define LEFT_PLANE 0
+#define RIGHT_PLANE 1
+#define BOTTOM_PLANE 2
+#define TOP_PLANE 3
+#define NEAR_PLANE 4
+#define FAR_PLANE 5
 
-    std::vector<uint32_t> adjIndex(prim.indices.size() * 2);
-    meshopt_generateAdjacencyIndexBuffer(adjIndex.data(), prim.indices.data(), prim.indices.size(), reinterpret_cast<const float*>(prim.vertices.data()), prim.vertices.size(), sizeof(Vertex));
+struct Frustum{
+    vec4 planes[6];
+    vec4 corners[8];
+};
 
-    HalfEdgeMesh<Vertex, 0, 4> halfEdge{prim.indices.data(), prim.indices.size(), prim.vertices.data() };
-    for(auto vertexId = 0u; vertexId < prim.vertices.size(); vertexId++){
-        halfEdge.visitAdjacentEdges(vertexId, [](const auto edge){
-            fmt::print("{} ", edge->vertex);
-        });
-        fmt::print("\n");
+const vec4 corners[8] = {
+        vec4(-1, -1, 0, 1),
+        vec4( 1, -1, 0, 1),
+        vec4( 1,  1, 0, 1),
+        vec4(-1,  1, 0, 1),
+        vec4(-1, -1, 1, 1),
+        vec4( 1, -1, 1, 1),
+        vec4( 1,  1, 1, 1),
+        vec4(-1,  1, 1, 1)
+};
+
+void getFrustumPlanes(mat4 viewProjection, vec4* planes){
+
+    mat4 vp = transpose(viewProjection);
+
+    planes[LEFT_PLANE]      = vp[3] + vp[0];
+    planes[RIGHT_PLANE]     = vp[3] - vp[0];
+    planes[BOTTOM_PLANE]    = vp[3] + vp[1];
+    planes[TOP_PLANE]       = vp[3] - vp[1];
+    planes[NEAR_PLANE]      = vp[3] + vp[2];
+    planes[FAR_PLANE]       = vp[3] - vp[2];
+}
+
+void getFrustumCorners(mat4 viewProjection, vec4* points){
+
+    mat4 invVP = inverse(viewProjection);
+
+    for(int i = 0; i < 8; i++){
+        const vec4 q = invVP * corners[i];
+        points[i] = q / q.w;
     }
+}
+
+Frustum createFrustum(mat4 viewProjection){
+    Frustum frustum{};
+    getFrustumPlanes(viewProjection, frustum.planes);
+    getFrustumCorners(viewProjection, frustum.corners);
+
+    return frustum;
+}
+
+
+int main(){
+//    std::vector<mesh::Mesh> meshes;
+//    mesh::load(meshes, R"(C:\Users\Josiah Ebhomenye\OneDrive\media\models\ChineseDragon.obj)");
+//    auto sphere = primitives::sphere(100, 100, 1, glm::mat4{1}, glm::vec4(1), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+//    auto cube = primitives::cube();
+//    auto prim = meshes.front();
+//
+//    fmt::print("before optimization:\n");
+//    fmt::print("\tnumVertices: {}, numIndices: {}\n", prim.vertices.size(), prim.indices.size());
+//
+//    std::vector<uint32_t> remap(prim.indices.size());
+//    auto vertexCount = meshopt_generateVertexRemap(remap.data(), prim.indices.data(), prim.indices.size(),
+//                                                   prim.vertices.data(), prim.vertices.size(), sizeof(Vertex));
+//
+//    std::vector<uint32_t> remappedIndices(prim.indices.size());
+//    meshopt_remapIndexBuffer(remappedIndices.data(), prim.indices.data(), prim.indices.size(), remap.data());
+//
+//    std::vector<Vertex> remappedVertices(vertexCount);
+//    meshopt_remapVertexBuffer(remappedVertices.data(), prim.vertices.data(), prim.vertices.size(), sizeof(Vertex), remap.data());
+//
+//    std::vector<uint32_t> reOrderedIndices(remappedIndices.size());
+//    meshopt_optimizeVertexCache(reOrderedIndices.data(), remappedIndices.data(), remappedIndices.size(), vertexCount);
+//
+//    fmt::print("\n\nafter optimization:\n");
+//    fmt::print("\tnumVertices: {}, numIndices: {}\n", remappedVertices.size(), remappedIndices.size());
+
 //    auto sphere = primitives::sphere(100, 100, 1, glm::mat4{1}, glm::vec4(1), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 //
 //    std::vector<glm::vec4> vertices;
@@ -401,4 +475,49 @@ int main(){
 //    save(R"(D:\Program Files\SHADERed\sphere_normals.dat)", normals);
 //    save(R"(D:\Program Files\SHADERed\sphere_color.dat)", colors);
 //    save(R"(D:\Program Files\SHADERed\sphere_uv.dat)", uvs);
+
+    auto xform = glm::perspective(glm::radians(90.f), 1.f, 1.f, 10.f);
+    fmt::print("{}\n", glm::row(xform, 0));
+    fmt::print("{}\n", glm::row(xform, 1));
+    fmt::print("{}\n", glm::row(xform, 2));
+    fmt::print("{}\n", glm::row(xform, 3));
+
+    auto tXform = transpose(xform);
+    fmt::print("\n{} + {}\n", tXform[3], tXform[0]);
+    fmt::print("{} + {}\n", tXform[3], tXform[1]);
+    fmt::print("{} + {}\n", tXform[3], tXform[2]);
+;
+
+    auto view = glm::lookAt(glm::vec3(0, 0, 2), glm::vec3(0), glm::vec3(0, 1, 0));
+
+    auto x = xform * view * glm::vec4(2, 0, -3, 1);
+    fmt::print("\n{}\n", x);
+
+    x /= x.w;
+    fmt::print("{}\n", x / x.w);
+
+//    x = xform * view * glm::vec4(2, 0, -4, 1);
+//    fmt::print("\n{}\n", x);
+//    fmt::print("{}\n", x / x.w);
+    auto x1 = x;
+    x = inverse(xform) * x;
+    fmt::print("\n{}\n", x);
+    x /= x.w;
+    x = inverse(view) * x;
+    fmt::print("{}\n", x);
+
+    x1 = inverse(xform * view) * x1;
+    fmt::print("\n{}\n", x1);
+    x1 /= x1.w;
+    fmt::print("{}\n", x1);
+
+    auto frustum = createFrustum(xform * view);
+    fmt::print("\nleft: {}\n", frustum.planes[0]);
+    fmt::print("right: {}\n", frustum.planes[1]);
+    fmt::print("bottom: {}\n", frustum.planes[2]);
+    fmt::print("top: {}\n", frustum.planes[3]);
+    fmt::print("near: {}\n", frustum.planes[4]);
+    fmt::print("far: {}\n", frustum.planes[5]);
+    fmt::print("max float: {}\n", MAX_FLOAT);
+    fmt::print("min float: {}\n", MIN_FLOAT);
 }

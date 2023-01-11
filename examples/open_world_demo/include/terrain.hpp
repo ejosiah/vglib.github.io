@@ -29,10 +29,23 @@ public:
 
     void renderUI();
 
+    [[nodiscard]]
+    bool collidesWithCamera(glm::vec3& contactPoint)  {
+        bool collision = ubo->collision == 1;
+        ubo->collision = 0;
+        contactPoint = ubo->collisionPoint;
+        return collision;
+    }
+
+
     void resize(VulkanRenderPass& renderPass, uint32_t width, uint32_t height);
 
-    std::unique_ptr<GBuffer> gBuffer;
-    std::unique_ptr<ShadowVolume> shadowVolume;
+    std::shared_ptr<GBuffer> gBuffer;
+
+    int* triangleCount;
+    VulkanBuffer vertexBuffer;
+    bool debugMode = false;
+
 
 private:
 
@@ -79,8 +92,6 @@ private:
     VulkanRenderPass m_gBufferRenderPass;
     VulkanFramebuffer m_gBufferFramebuffer;
 
-    VulkanRenderPass m_shadowVolumeRenderPass;
-    VulkanFramebuffer m_shadowVolumeFramebuffer;
 
     enum class LodStrategy{
         DistanceFromCamera = 0, SphereProjection
@@ -114,8 +125,12 @@ private:
         glm::vec3 cameraPosition;
         float lodTargetTriangleWidth;
 
+        glm::vec3 cameraVelocity;
         int lodStrategy;
+
+        glm::vec3 collisionPoint;
         int invertRoughness;
+
         int materialId;
         int greenGrass;
         int dirt;
@@ -124,15 +139,14 @@ private:
         float minZ;
         float maxZ;
         float snowStart;
+        float time;
+        int collision;
     };
 
     UniformBufferObject* ubo{};
 
     VulkanDescriptorSetLayout descriptorSetLayout;
     VkDescriptorSet descriptorSet;
-
-    VulkanDescriptorSetLayout  gBufferSetLayout;
-    VkDescriptorSet gBufferSet;
 
     VulkanDescriptorSetLayout shadingSetLayout;
     VkDescriptorSet shadingSet;
@@ -157,9 +171,7 @@ private:
     VulkanBuffer indexBuffer;
     VulkanBuffer uboBuffer;
 
-    int* triangleCount;
     VulkanBuffer triangleCountBuffer;
-    VulkanBuffer vertexBuffer;
     VulkanDescriptorSetLayout trianglesSetLayout;
     VkDescriptorSet trianglesSet;
     uint32_t triangleCapacity = 35000000;
@@ -168,6 +180,11 @@ private:
         VulkanPipelineLayout layout;
         VulkanPipeline pipeline;
     } terrain;
+
+    struct {
+        VulkanPipelineLayout layout;
+        VulkanPipeline pipeline;
+    } terrainDebug;
 
     struct {
         VulkanPipelineLayout layout;

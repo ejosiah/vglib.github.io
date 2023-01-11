@@ -16,6 +16,10 @@ struct SceneData{
     float fieldOfView{90};
     float zNear{1 * meter};
     float zFar{100000 * km};
+    float exposure{10};
+    glm::vec3 cameraVelocity{0};
+    bool enableLightShaft{false};
+
 };
 
 struct GBuffer{
@@ -25,10 +29,13 @@ struct GBuffer{
     FramebufferAttachment material;
     FramebufferAttachment edgeDist;
     FramebufferAttachment depth;
+    VulkanDescriptorSetLayout setLayout;
+    VkDescriptorSet descriptorSet;
 };
 
 struct ShadowVolume{
-    FramebufferAttachment positionIn;
-    FramebufferAttachment positionOut;
-    FramebufferAttachment depthStencil;
+    FramebufferAttachment shadowInOut;
+    FramebufferAttachment shadowOut;
+    VulkanDescriptorSetLayout setLayout;
+    VkDescriptorSet descriptorSet;
 };

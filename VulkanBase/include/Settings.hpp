@@ -26,9 +26,14 @@ struct Settings{
     bool relativeMouseMode = false;
 
     /**
-     * enables/disabbles depth testing
+     * enables/disables depth testing
      */
     bool depthTest = false;
+
+    /**
+     * enables/disables stencil testing
+     */
+    bool stencilTest = false;
 
     /**
      * sets if draw calls should be synchronized with minotrs

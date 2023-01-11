@@ -252,6 +252,10 @@ constexpr float kilometer = meter * 1000;
 constexpr float km = kilometer;
 constexpr float KM = kilometer;
 
+constexpr float kb = 1024;
+constexpr float mb = kb * kb;
+constexpr float gb = mb * kb;
+
 inline float remap(float x, float a, float b, float c, float d){
     return glm::mix(c, d, (x - a)/(b - a));
 }

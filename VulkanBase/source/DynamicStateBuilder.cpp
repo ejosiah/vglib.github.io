@@ -135,6 +135,7 @@ DynamicStateBuilder &DynamicStateBuilder::colorWriteEnable() {
 
 DynamicStateBuilder &DynamicStateBuilder::clear() {
     _dynamicStates.clear();
+    return *this;
 }
 
 VkPipelineDynamicStateCreateInfo& DynamicStateBuilder::buildPipelineDynamicState() {

@@ -53,13 +53,17 @@ constexpr int MAX_IN_FLIGHT_FRAMES = 2;
 struct FramebufferAttachment{
     VulkanImage image;
     VulkanImageView imageView;
+    uint32_t width;
+    uint32_t height;
+    VkFormat format;
 };
 
 
 struct DepthFormats{
     std::vector<VkFormat> formats{
-            VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
-            VK_FORMAT_D24_UNORM_S8_UINT
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
     };
     VkFormatFeatureFlags  features = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
     VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -288,6 +292,8 @@ protected:
                                         , VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
     void invalidateSwapChain();
+
+    void save(const FramebufferAttachment& attachment);
 
 private:
     void setPaused(bool flag);

@@ -23,6 +23,12 @@ void OpenWorldDemo::initApp() {
     createComputePipeline();
     terrain = std::make_unique<Terrain>(device, descriptorPool, fileManager, swapChain.width(), swapChain.height(), renderPass);
     skyDome = std::make_unique<SkyDome>(device, descriptorPool, fileManager, renderPass, swapChain.width(), swapChain.height());
+    shadowVolumeGenerator = std::make_unique<ShadowVolumeGenerator>(device, descriptorPool, fileManager, swapChain.width(), swapChain.height(), renderPass);
+    atmosphere = std::make_unique<Atmosphere>(device, descriptorPool, fileManager, renderPass, swapChain.width(),
+                                              swapChain.height(), terrain->gBuffer, shadowVolumeGenerator->shadowVolume);
+
+    terrain->renderTerrain();
+    shadowVolumeGenerator->initAdjacencyBuffers(terrain->vertexBuffer, *terrain->triangleCount);
 }
 
 void OpenWorldDemo::initCamera() {
@@ -34,8 +40,8 @@ void OpenWorldDemo::initCamera() {
     cameraSettings.acceleration = glm::vec3(60 * km);
     cameraSettings.velocity = glm::vec3(200 * km);
     camera = std::make_unique<FirstPersonCameraController>(dynamic_cast<InputManager&>(*this), cameraSettings);
-    camera->lookAt(glm::vec3(-28 * km, 1.849 * km, 14 * km), glm::vec3(0, 0, 0), {0, 1, 0});
-//    camera->lookAt(glm::vec3(-3.4 * km, 1.2 * km, 13 * km), glm::vec3(0, 0, 0), {0, 1, 0});
+//    camera->lookAt(glm::vec3(-28 * km, 10 * km, 14 * km), glm::vec3(0, 0, 0), {0, 1, 0});
+    camera->lookAt(glm::vec3(-3.4 * km, 1.2 * km, 13 * km), glm::vec3(0, 0, 0), {0, 1, 0});
 
 //    FirstPersonSpectatorCameraSettings cameraSettings;
 //    cameraSettings.fieldOfView = 90.0f;
@@ -159,6 +165,8 @@ void OpenWorldDemo::onSwapChainRecreation() {
     createRenderPipeline();
     createComputePipeline();
     terrain->resize(renderPass, width, height);
+    shadowVolumeGenerator->resize(renderPass, width, height);
+    atmosphere->resize(renderPass, terrain->gBuffer, shadowVolumeGenerator->shadowVolume, width, height);
     skyDome->resize(renderPass, width, height);
 }
 
@@ -183,8 +191,14 @@ VkCommandBuffer *OpenWorldDemo::buildCommandBuffers(uint32_t imageIndex, uint32_
 
     vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-//    skyDome->render(commandBuffer);
-    terrain->render(commandBuffer);
+    if(terrain->debugMode){
+        skyDome->render(commandBuffer);
+        terrain->render(commandBuffer);
+        shadowVolumeGenerator->render(commandBuffer);
+    }else{
+        atmosphere->render(commandBuffer);
+    }
+
     renderUI(commandBuffer);
     vkCmdEndRenderPass(commandBuffer);
 
@@ -208,12 +222,19 @@ void OpenWorldDemo::renderUI(VkCommandBuffer commandBuffer) {
     ImGui::SliderFloat("Sun Elevation", &sceneData.sun.elevation, 0, 360);
     ImGui::Indent(-16);
 
+    static float exposureScale = 0.5;
+    if(ImGui::SliderFloat("exposure", &exposureScale, 0, 1)){
+        float power = remap(exposureScale, 0, 1, -20, 20);
+        sceneData.exposure = 10.f * glm::pow(1.1f, power);
+    }
+
     static bool showTerrain = false;
     ImGui::Text("Systems:");
     ImGui::Indent(16);
     ImGui::Checkbox("Terrain", &showTerrain);
     ImGui::Indent(-16);
 
+    ImGui::Checkbox("light shaft", &sceneData.enableLightShaft);
     ImGui::End();
 
     if(showTerrain){
@@ -224,6 +245,17 @@ void OpenWorldDemo::renderUI(VkCommandBuffer commandBuffer) {
 }
 
 void OpenWorldDemo::update(float time) {
+
+    static bool onGround = false;
+    auto &v = sceneData.cameraVelocity;
+
+//    if(!onGround) {
+//        auto acceleration = gravity;
+//        v += acceleration * time;
+//        camera->move(v.x, v.y, v.z);
+//    }
+
+
     if(!ImGui::IsAnyItemActive()) {
         camera->update(time);
     }
@@ -233,6 +265,16 @@ void OpenWorldDemo::update(float time) {
     updateScene(time);
     terrain->update(sceneData);
     skyDome->update(sceneData);
+    atmosphere->update(sceneData);
+    shadowVolumeGenerator->update(sceneData);
+
+//    glm::vec3 contactPoint;
+//    static auto groundOffset = 2 * meter;
+//    if(terrain->collidesWithCamera(contactPoint)){
+//        camera->position(contactPoint - normalize(v) * groundOffset);
+//        onGround = true;
+//    }
+
     auto msg = fmt::format("{} - FPS {}, position: {}", title, framePerSecond, sceneData.eyes);
     glfwSetWindowTitle(window, msg.c_str());
 
@@ -265,6 +307,7 @@ void OpenWorldDemo::onPause() {
 
 void OpenWorldDemo::newFrame() {
     terrain->renderTerrain();
+    shadowVolumeGenerator->generate(sceneData, terrain->vertexBuffer, *terrain->triangleCount);
 }
 
 
@@ -279,6 +322,7 @@ int main(){
         settings.enabledFeatures.fillModeNonSolid = VK_TRUE;
         settings.enabledFeatures.geometryShader = VK_TRUE;
         settings.enabledFeatures.vertexPipelineStoresAndAtomics = VK_TRUE;
+        settings.enabledFeatures.depthClamp = VK_TRUE;
 
         auto app = OpenWorldDemo{ settings };
         std::unique_ptr<Plugin> imGui = std::make_unique<ImGuiPlugin>();

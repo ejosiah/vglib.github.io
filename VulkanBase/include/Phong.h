@@ -5,6 +5,7 @@
 #include "Texture.h"
 #include "Mesh.h"
 #include <meshoptimizer.h>
+#include "halfedge.hpp"
 
 namespace phong{
 
@@ -71,6 +72,7 @@ namespace phong{
         VmaMemoryUsage materialBufferMemoryUsage = VMA_MEMORY_USAGE_GPU_ONLY;
         bool generateMaterialId = true;
         bool generateAdjacencyTriangles = false;
+        float simplify = 0.f;
     };
 
     /**
@@ -109,6 +111,24 @@ namespace phong{
         mesh::load(meshes, path);
 
 
+        if(normalize) {
+            mesh::normalize(meshes, size);
+        }
+
+        if(info.simplify > 0 && info.simplify < 1){
+            for(auto& mesh : meshes){
+                auto threshold = info.simplify;
+                const auto target_error = 1e-2f;
+                auto targetIndexCount = static_cast<size_t>(mesh.indices.size() * threshold);
+                std::vector<uint32_t> simplifiedIndices(mesh.indices.size());
+                auto indexCount = meshopt_simplify(simplifiedIndices.data(), mesh.indices.data(), mesh.indices.size(),
+                                                   reinterpret_cast<const float*>(mesh.vertices.data()), mesh.vertices.size(),
+                                                   sizeof(Vertex), targetIndexCount, target_error);
+                simplifiedIndices.resize(indexCount);
+                mesh.indices = simplifiedIndices;
+            }
+        }
+
         if(info.generateAdjacencyTriangles){
             for(auto& mesh : meshes){
                 decltype(mesh.indices) adjIndices;
@@ -117,12 +137,11 @@ namespace phong{
                                                      reinterpret_cast<const float*>(mesh.vertices.data()),
                                                      mesh.vertices.size(), sizeof(Vertex));
                 mesh.indices = adjIndices;
+
             }
+
         }
 
-        if(normalize) {
-            mesh::normalize(meshes, size);
-        }
 
         int numIndices = 0;
         int numVertices = 0;

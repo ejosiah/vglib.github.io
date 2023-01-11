@@ -169,7 +169,7 @@ void VulkanBaseApp::createDepthBuffer() {
     VkImageCreateInfo createInfo = initializers::imageCreateInfo(
             VK_IMAGE_TYPE_2D,
             format,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
             swapChain.extent.width,
             swapChain.extent.height);
     createInfo.samples = settings.msaaSamples;
@@ -178,6 +178,16 @@ void VulkanBaseApp::createDepthBuffer() {
 
     VkImageSubresourceRange subresourceRange = initializers::imageSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT);
     depthBuffer.imageView = depthBuffer.image.createView(format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    depthBuffer.width = width;
+    depthBuffer.height = height;
+    depthBuffer.format = format;
+    auto byteSize = 0.f;
+    if(format == VK_FORMAT_D32_SFLOAT || format == VK_FORMAT_D24_UNORM_S8_UINT){
+        byteSize = 4;
+    }else if(format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+        byteSize = 5;
+    }
+    depthBuffer.image.size = width * height * byteSize;
 }
 
 void VulkanBaseApp::createColorBuffer(){
@@ -194,10 +204,19 @@ void VulkanBaseApp::createColorBuffer(){
     colorBuffer.image = device.createImage(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
     VkImageSubresourceRange subresourceRange = initializers::imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
     colorBuffer.imageView = colorBuffer.image.createView(swapChain.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    colorBuffer.width = swapChain.extent.width;
+    colorBuffer.height = swapChain.extent.height;
+    colorBuffer.format = swapChain.format;
 }
 
 VkFormat VulkanBaseApp::findDepthFormat() {
-    auto possibleFormat = device.findSupportedFormat(depthFormats.formats, depthFormats.tiling, depthFormats.features);
+    auto formats = depthFormats.formats;
+
+    if(settings.stencilTest){
+        std::reverse(formats.begin(), formats.end());
+    }
+
+    auto possibleFormat = device.findSupportedFormat(formats, depthFormats.tiling, depthFormats.features);
     if(!possibleFormat.has_value()){
         throw std::runtime_error{"Failed to find a suitable depth format"};
     }
@@ -351,9 +370,9 @@ RenderPassInfo VulkanBaseApp::buildRenderPass() {
         depthAttachment.format = depthBuffer.image.format;
         depthAttachment.samples = settings.msaaSamples;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.storeOp =  VK_ATTACHMENT_STORE_OP_STORE;
+        depthAttachment.stencilLoadOp = settings.stencilTest ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.stencilStoreOp = settings.stencilTest ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         attachments.push_back(depthAttachment);
@@ -926,4 +945,8 @@ void VulkanBaseApp::addImageMemoryBarriers(VkCommandBuffer commandBuffer, const 
 
 void VulkanBaseApp::invalidateSwapChain() {
     swapChainInvalidated = true;
+}
+
+void VulkanBaseApp::save(const FramebufferAttachment &attachment) {
+
 }

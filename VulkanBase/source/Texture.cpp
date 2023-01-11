@@ -894,7 +894,7 @@ void saveAsHdr(VkFormat format, const std::string& path, int width, int height, 
     int comp = data.sizeAs<float>()/(width * height);
     ASSERT(comp >= 1 && comp <= 4);
     if(comp == 1){
-        ASSERT(format == VK_FORMAT_R32_SFLOAT);
+        ASSERT(format == VK_FORMAT_R32_SFLOAT || format == VK_FORMAT_D32_SFLOAT)
     }
     if(comp == 2){
         ASSERT(format == VK_FORMAT_R32G32_SFLOAT);
@@ -912,6 +912,35 @@ void saveAsHdr(VkFormat format, const std::string& path, int width, int height, 
 
 void saveAsExr(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
     throw std::runtime_error{"exr save not yet implemented!"};
+}
+
+void textures::save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image){
+    VulkanBuffer buffer = device.createStagingBuffer(image.size);
+
+    device.graphicsCommandPool().oneTimeCommand([&](auto cb){
+        VkBufferImageCopy region{
+                0, 0, 0,
+                {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1},
+                {0, 0, 0},
+                {width, height, 1}
+        };
+        vkCmdCopyImageToBuffer(cb, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+    });
+    if(format == VK_FORMAT_R32_SFLOAT || format == VK_FORMAT_D32_SFLOAT){
+        auto temp = buffer;
+        buffer = device.createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, temp.size * 4);
+        auto src = reinterpret_cast<float*>(temp.map());
+        auto dst = reinterpret_cast<float*>(buffer.map());
+        for(auto i = 0; i < temp.sizeAs<float>(); i++){
+            spdlog::info(src[i]);
+            dst[i * 4 + 0] = src[i];
+            dst[i * 4 + 1] = src[i];
+            dst[i * 4 + 2] = src[i];
+            dst[i * 4 + 3] = src[i];
+        }
+        format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    }
+    save(device, buffer, format, FileFormat::HDR, path, width, height);
 }
 
 void textures::save(const VulkanDevice &device, Texture &texture,  FileFormat fileFormat, const std::string& path) {

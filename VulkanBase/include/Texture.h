@@ -129,4 +129,6 @@ namespace textures{
     void save(const VulkanDevice& device, Texture& texture, FileFormat format, const std::string& path);
 
     void save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format, const std::string& path, int width, int height);
+
+    void save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image);
 }

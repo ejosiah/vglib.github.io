@@ -61,4 +61,5 @@ void main(){
     color = mix(color, vec3(0.0), clamp(underscatter, 0.0, 1.0));
 
     fragColor.rgb = color;
+    fragColor.a = 1;
 }

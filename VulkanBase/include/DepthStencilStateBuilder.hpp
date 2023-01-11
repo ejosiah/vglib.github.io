@@ -42,9 +42,9 @@ public:
 
     DepthStencilStateBuilder& disableStencilTest();
 
-    StencilOpStateBuilder& front();
+    StencilOpStateBuilder& stencilOpFront();
 
-    StencilOpStateBuilder& back();
+    StencilOpStateBuilder& stencilOpBack();
 
     DepthStencilStateBuilder& minDepthBounds(float value);
 
@@ -131,6 +131,8 @@ public:
     StencilOpStateBuilder& writeMask(uint32_t value);
 
     StencilOpStateBuilder& reference(uint32_t value);
+
+    StencilOpStateBuilder& clearStencilState();
 
     VkStencilOpState buildStencilOpState();
 

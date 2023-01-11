@@ -52,7 +52,7 @@ void AtmosphericScattering::initBuffers() {
     screenBuffer = device.createDeviceLocalBuffer(positions.data(), BYTE_SIZE(positions), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 }
 
-void AtmosphericScattering::initUbo() {
+void AtmosphericScattering:: initUbo() {
     uboBuffer = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(Ubo), "uniforms");
     ubo = reinterpret_cast<Ubo*>(uboBuffer.map());
 

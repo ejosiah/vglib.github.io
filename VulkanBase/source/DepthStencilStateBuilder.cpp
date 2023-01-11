@@ -6,6 +6,10 @@ DepthStencilStateBuilder::DepthStencilStateBuilder(VulkanDevice *device, Graphic
 , _front{ new StencilOpStateBuilder{this} }
 , _back{ new StencilOpStateBuilder{this} }
 {
+    dynamic_cast<DepthStencilStateBuilder*>(_front)->_front = _front;
+    dynamic_cast<DepthStencilStateBuilder*>(_front)->_back = _back;
+    dynamic_cast<DepthStencilStateBuilder*>(_back)->_front = _front;
+    dynamic_cast<DepthStencilStateBuilder*>(_back)->_back = _back;
 }
 
 DepthStencilStateBuilder::DepthStencilStateBuilder(DepthStencilStateBuilder *parent)
@@ -97,11 +101,11 @@ DepthStencilStateBuilder &DepthStencilStateBuilder::disableStencilTest() {
     return *this;
 }
 
-StencilOpStateBuilder &DepthStencilStateBuilder::front() {
+StencilOpStateBuilder &DepthStencilStateBuilder::stencilOpFront() {
     return *_front;
 }
 
-StencilOpStateBuilder &DepthStencilStateBuilder::back() {
+StencilOpStateBuilder &DepthStencilStateBuilder::stencilOpBack() {
     return *_back;
 }
 
@@ -125,7 +129,6 @@ StencilOpStateBuilder::StencilOpStateBuilder(DepthStencilStateBuilder *parent)
 : DepthStencilStateBuilder(parent)
 , _stencilOpState{}
 {
-
 }
 
 StencilOpStateBuilder &StencilOpStateBuilder::failOpKeep() {
@@ -300,6 +303,11 @@ StencilOpStateBuilder &StencilOpStateBuilder::writeMask(uint32_t value) {
 
 StencilOpStateBuilder &StencilOpStateBuilder::reference(uint32_t value) {
     _stencilOpState.reference = value;
+    return *this;
+}
+
+StencilOpStateBuilder &StencilOpStateBuilder::clearStencilState() {
+    _stencilOpState = {};
     return *this;
 }
 

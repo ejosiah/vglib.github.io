@@ -34,6 +34,12 @@ void ShadowVolumeDemo::initApp() {
     updateDescriptorSet();
     createCommandPool();
     createPipeline();
+
+    xform = glm::translate(xform, {0, 1.5, 0});
+    xform = glm::scale(xform, {1, 3.0, 1});
+
+    xform1 = glm::translate(xform1, {0, 1, 2});
+    xform1 = glm::scale(xform1, {1, 2.0, 1});
 }
 
 void ShadowVolumeDemo::createCommandPool() {
@@ -86,7 +92,10 @@ VkCommandBuffer *ShadowVolumeDemo::buildCommandBuffers(uint32_t imageIndex, uint
 
 void ShadowVolumeDemo::renderSceneIntoDepthBuffer(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, depthOnly.pipeline);
-    camera->push(commandBuffer, depthOnly.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}), VK_SHADER_STAGE_VERTEX_BIT);
+    camera->push(commandBuffer, depthOnly.layout, xform, VK_SHADER_STAGE_VERTEX_BIT);
+    cube.draw(commandBuffer);
+
+    camera->push(commandBuffer, shadow_volume.layout, xform1,  VK_SHADER_STAGE_GEOMETRY_BIT);
     cube.draw(commandBuffer);
 
     camera->push(commandBuffer, depthOnly.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_VERTEX_BIT);
@@ -97,7 +106,10 @@ void ShadowVolumeDemo::renderSceneIntoDepthBuffer(VkCommandBuffer commandBuffer)
 void ShadowVolumeDemo::renderSceneShadowVolumeIntoStencilBuffer(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_volume.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_volume.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
-    camera->push(commandBuffer, shadow_volume.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}),  VK_SHADER_STAGE_GEOMETRY_BIT);
+//    camera->push(commandBuffer, shadow_volume.layout, xform,  VK_SHADER_STAGE_GEOMETRY_BIT);
+//    cube.draw(commandBuffer);
+
+    camera->push(commandBuffer, shadow_volume.layout, xform1,  VK_SHADER_STAGE_GEOMETRY_BIT);
     cube.draw(commandBuffer);
 
     camera->push(commandBuffer, shadow_volume.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_GEOMETRY_BIT);
@@ -107,7 +119,10 @@ void ShadowVolumeDemo::renderSceneShadowVolumeIntoStencilBuffer(VkCommandBuffer 
 void ShadowVolumeDemo::renderSilhouette(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, silhouette.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, silhouette.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
-    camera->push(commandBuffer, silhouette.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}),  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
+    camera->push(commandBuffer, silhouette.layout, xform,  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
+    cube.draw(commandBuffer);
+
+    camera->push(commandBuffer, shadow_volume.layout, xform1,  VK_SHADER_STAGE_GEOMETRY_BIT);
     cube.draw(commandBuffer);
 
     camera->push(commandBuffer, silhouette.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
@@ -117,7 +132,10 @@ void ShadowVolumeDemo::renderSilhouette(VkCommandBuffer commandBuffer) {
 void ShadowVolumeDemo::visualizeShadowVolume(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_volume_visual.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_volume_visual.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
-    camera->push(commandBuffer, shadow_volume_visual.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}),  VK_SHADER_STAGE_GEOMETRY_BIT);
+    camera->push(commandBuffer, shadow_volume_visual.layout, xform,  VK_SHADER_STAGE_GEOMETRY_BIT);
+    cube.draw(commandBuffer);
+
+    camera->push(commandBuffer, shadow_volume.layout, xform1,  VK_SHADER_STAGE_GEOMETRY_BIT);
     cube.draw(commandBuffer);
 
     camera->push(commandBuffer, shadow_volume_visual.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_GEOMETRY_BIT);
@@ -128,7 +146,10 @@ void ShadowVolumeDemo::renderScene(VkCommandBuffer commandBuffer) {
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
-    camera->push(commandBuffer, render.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}), VK_SHADER_STAGE_VERTEX_BIT);
+    camera->push(commandBuffer, render.layout, xform, VK_SHADER_STAGE_VERTEX_BIT);
+    cube.draw(commandBuffer);
+
+    camera->push(commandBuffer, shadow_volume.layout, xform1,  VK_SHADER_STAGE_GEOMETRY_BIT);
     cube.draw(commandBuffer);
 
     camera->push(commandBuffer, render.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_VERTEX_BIT);
@@ -136,7 +157,10 @@ void ShadowVolumeDemo::renderScene(VkCommandBuffer commandBuffer) {
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ambient.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ambient.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
-    camera->push(commandBuffer, ambient.layout, glm::translate(glm::mat4(1), {0, 1.5, 0}), VK_SHADER_STAGE_VERTEX_BIT);
+    camera->push(commandBuffer, ambient.layout, xform, VK_SHADER_STAGE_VERTEX_BIT);
+    cube.draw(commandBuffer);
+
+    camera->push(commandBuffer, shadow_volume.layout, xform1,  VK_SHADER_STAGE_GEOMETRY_BIT);
     cube.draw(commandBuffer);
 
     camera->push(commandBuffer, ambient.layout, glm::rotate(glm::mat4(1), -glm::half_pi<float>(), {1, 0, 0}), VK_SHADER_STAGE_VERTEX_BIT);
@@ -326,6 +350,7 @@ void ShadowVolumeDemo::createPipeline() {
             .rasterizationState()
 //                .polygonModeLine()
             .depthStencilState()
+                .enableDepthWrite()
                 .compareOpLess()
                 .disableStencilTest()
             .colorBlendState()

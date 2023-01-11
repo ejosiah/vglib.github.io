@@ -1,4 +1,4 @@
-layout(set = 0, binding = 0) uniform UBO{
+layout(set = 0, binding = 0) buffer UBO{
     mat4 model;
     mat4 view;
     mat4 projection;
@@ -26,8 +26,12 @@ layout(set = 0, binding = 0) uniform UBO{
     vec3 cameraPosition;
     float lodTargetTriangleWidth;
 
+    vec3 velocity;
     int lodStrategy;
+
+    vec3 collisionPoint;
     int invertRoughness;
+
     int materialId;
     int greenGrass;
     int dirt;
@@ -36,4 +40,6 @@ layout(set = 0, binding = 0) uniform UBO{
     float minZ;
     float maxZ;
     float snowStart;
+    float time;
+    int collision;
 };
