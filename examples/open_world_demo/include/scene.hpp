@@ -34,8 +34,32 @@ struct GBuffer{
 };
 
 struct ShadowVolume{
-    FramebufferAttachment shadowInOut;
+    FramebufferAttachment shadowIn;
     FramebufferAttachment shadowOut;
     VulkanDescriptorSetLayout setLayout;
     VkDescriptorSet descriptorSet;
+};
+
+struct AtmosphereLookupTable {
+    Texture irradiance;
+    Texture transmittance;
+    Texture scattering;
+    VulkanDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorSet descriptorSet;
+};
+
+struct SceneGBuffer{
+    Texture position;
+    Texture normal;
+    Texture albedo;
+    Texture material;
+    Texture depth;
+    Texture objectType;
+    VulkanDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorSet descriptorSet;
+};
+
+struct Samplers{
+    VulkanSampler nearest;
+    VulkanSampler linear;
 };

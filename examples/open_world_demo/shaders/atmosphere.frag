@@ -52,19 +52,18 @@ float GetSkyVisibility(vec3 point) {
 layout(set = 2, binding = 1) uniform sampler2D gNormal;
 layout(set = 2, binding = 2) uniform sampler2D gAlbedo;
 layout(set = 2, binding = 3) uniform sampler2D gMaterial;
-layout(set = 2, binding = 5) uniform sampler2D gDepth;
+layout(set = 2, binding = 4) uniform sampler2D gDepth;
+layout(set = 2, binding = 5) uniform sampler2D object_type;
 
 layout(set = 3, binding = 0) uniform sampler2D shadowVolume;
 
 void GetTerrainShadowInOut(vec2 uv, out float d_in, out float d_out) {
-    float z0 = texture(shadowVolume, uv).x;
-    float z1 = texture(shadowVolume, uv).y;
-
-    vec4 vIn = clipToViewSpaceMatrix * clipToViewSpaceMatrix * vec4(0, 0, z0, 1);
-    vec4 vOut = clipToViewSpaceMatrix * clipToViewSpaceMatrix * vec4(0, 0, z1, 1);
-
-    d_in = (vIn / vIn.w).z;
-    d_out = (vOut / vOut.w).z;
+    if(light_shaft != 1){
+        d_in = d_out = 0;
+        return;
+    }
+    d_in = texture(shadowVolume, uv).x;
+    d_out = texture(shadowVolume, uv).y;
 }
 
 layout(location = 0) in struct {
@@ -156,7 +155,7 @@ void main(){
     if(depth < 1){
         terrain_alpha = 1;
 //        vec3 point = texture(gPosition, uv).xyz;
-        vec3 point = getWorldPosition(uv, depth);
+        vec3 point = getWorldPosition(uv, depth)/1000;
         vec3 normal = texture(gNormal, uv).xyz;
         vec3 sky_irradiance;
         vec3 sun_irradiance = GetSunAndSkyIrradiance(point - earth_center, normal, sun_direction, sky_irradiance);

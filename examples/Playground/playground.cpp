@@ -432,6 +432,62 @@ Frustum createFrustum(mat4 viewProjection){
 }
 
 
+struct Ray{
+    vec2 p;
+    vec2 q;
+};
+
+struct Sphere{
+    vec2 center;
+    float radius;
+};
+
+bool test(const Ray& r, const Sphere& s, float& t0, float& t1){
+    auto d = normalize(r.q - r.p);
+    auto m = r.p - s.center;
+    auto rr = s.radius * s.radius;
+
+    auto b = dot(m, d);
+    auto c = dot(m, m) - rr;
+
+    if(c > 0 && b > 0) return false;
+
+    auto discriminant = b*b - c;
+    if(discriminant < 0) return false;
+
+    auto sqrtDiscr = glm::sqrt(discriminant);
+    t0 = -b - sqrtDiscr;
+    t1 = -b + sqrtDiscr;
+
+    return true;
+}
+
+bool test2(const Ray& r, const Sphere& s, float& t0, float& t1){
+    auto d = normalize(r.q - r.p);
+    auto m = r.p - s.center;
+    auto rr = s.radius * s.radius;
+
+    float a = dot(d, d);
+    float b = -dot(m, d);
+
+    vec2 l = m +( b/a) * d;
+
+    float discr = a * (rr - dot(l, l));
+
+    if(discr < 0.) return false;
+
+    float c = dot(m, m) - rr;
+
+    if(c > 0. && b < 0.) return false;
+
+    float q = b + glm::sign(b) * sqrt(discr);
+
+    t0 = c/q;
+    t1 = q/a;
+
+    return true;
+}
+
 int main(){
 //    std::vector<mesh::Mesh> meshes;
 //    mesh::load(meshes, R"(C:\Users\Josiah Ebhomenye\OneDrive\media\models\ChineseDragon.obj)");
@@ -476,48 +532,20 @@ int main(){
 //    save(R"(D:\Program Files\SHADERed\sphere_color.dat)", colors);
 //    save(R"(D:\Program Files\SHADERed\sphere_uv.dat)", uvs);
 
-    auto xform = glm::perspective(glm::radians(90.f), 1.f, 1.f, 10.f);
-    fmt::print("{}\n", glm::row(xform, 0));
-    fmt::print("{}\n", glm::row(xform, 1));
-    fmt::print("{}\n", glm::row(xform, 2));
-    fmt::print("{}\n", glm::row(xform, 3));
+    auto r = Ray{ {-4, 0}, {4, 0} };
+    auto s = Sphere{ {0, 0}, 2 };
 
-    auto tXform = transpose(xform);
-    fmt::print("\n{} + {}\n", tXform[3], tXform[0]);
-    fmt::print("{} + {}\n", tXform[3], tXform[1]);
-    fmt::print("{} + {}\n", tXform[3], tXform[2]);
-;
+    float t0, t1;
 
-    auto view = glm::lookAt(glm::vec3(0, 0, 2), glm::vec3(0), glm::vec3(0, 1, 0));
+    auto intersects = test2(r, s, t0, t1);
 
-    auto x = xform * view * glm::vec4(2, 0, -3, 1);
-    fmt::print("\n{}\n", x);
+    if(intersects){
+        auto d = normalize(r.q - r.p);
+        auto a = r.p + d * t0;
+        auto b = r.p + d * t1;
+        fmt::print("Ray intersects sphere at: [{}, {}]\n", a, b);
+    }else {
+        fmt::print("No intersection found\n");
+    }
 
-    x /= x.w;
-    fmt::print("{}\n", x / x.w);
-
-//    x = xform * view * glm::vec4(2, 0, -4, 1);
-//    fmt::print("\n{}\n", x);
-//    fmt::print("{}\n", x / x.w);
-    auto x1 = x;
-    x = inverse(xform) * x;
-    fmt::print("\n{}\n", x);
-    x /= x.w;
-    x = inverse(view) * x;
-    fmt::print("{}\n", x);
-
-    x1 = inverse(xform * view) * x1;
-    fmt::print("\n{}\n", x1);
-    x1 /= x1.w;
-    fmt::print("{}\n", x1);
-
-    auto frustum = createFrustum(xform * view);
-    fmt::print("\nleft: {}\n", frustum.planes[0]);
-    fmt::print("right: {}\n", frustum.planes[1]);
-    fmt::print("bottom: {}\n", frustum.planes[2]);
-    fmt::print("top: {}\n", frustum.planes[3]);
-    fmt::print("near: {}\n", frustum.planes[4]);
-    fmt::print("far: {}\n", frustum.planes[5]);
-    fmt::print("max float: {}\n", MAX_FLOAT);
-    fmt::print("min float: {}\n", MIN_FLOAT);
 }

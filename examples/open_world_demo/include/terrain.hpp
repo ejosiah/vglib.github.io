@@ -19,7 +19,7 @@ struct PatchVertex {
 class Terrain{
 public:
     Terrain(const VulkanDevice& device, const VulkanDescriptorPool& descriptorPool, const FileManager& fileManager,
-            uint32_t width, uint32_t height, VulkanRenderPass& renderPass);
+            uint32_t width, uint32_t height, VulkanRenderPass& renderPass, std::shared_ptr<SceneGBuffer> gBuffer);
 
     void update(const SceneData& sceneData);
 
@@ -40,8 +40,7 @@ public:
 
     void resize(VulkanRenderPass& renderPass, uint32_t width, uint32_t height);
 
-    std::shared_ptr<GBuffer> gBuffer;
-
+    std::shared_ptr<SceneGBuffer> gBuffer;
     int* triangleCount;
     VulkanBuffer vertexBuffer;
     bool debugMode = false;

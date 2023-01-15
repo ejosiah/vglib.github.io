@@ -7,13 +7,14 @@
 #include <imgui.h>
 
 Terrain::Terrain(const VulkanDevice &device, const VulkanDescriptorPool &descriptorPool, const FileManager& fileManager,
-                 uint32_t width, uint32_t height, VulkanRenderPass& renderPass)
+                 uint32_t width, uint32_t height, VulkanRenderPass& renderPass, std::shared_ptr<SceneGBuffer> gBuffer)
     :m_device{&device}
     ,m_descriptorPool{&descriptorPool}
     , m_filemanager(&fileManager)
     , m_width{width}
     , m_height{ height }
     , m_renderPass{ &renderPass }
+    , gBuffer{std::move(gBuffer)}
 {
 
     loadHeightMap();
@@ -339,49 +340,48 @@ void Terrain::createDescriptorSetLayout() {
                 .shaderStages(VK_SHADER_STAGE_GEOMETRY_BIT)
             .createLayout();
     
-    gBuffer->setLayout =
-        device().descriptorSetLayoutBuilder()
-            .name("g_buffer")
-            .binding(0)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-                .immutableSamplers(valueSampler)
-            .binding(1)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-                .immutableSamplers(valueSampler)
-            .binding(2)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-                .immutableSamplers(valueSampler)
-            .binding(3)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-                .immutableSamplers(valueSampler)
-            .binding(4)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-                .immutableSamplers(valueSampler)
-            .binding(5)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-                .immutableSamplers(valueSampler)
-            .createLayout();
+//    gBuffer->setLayout =
+//        device().descriptorSetLayoutBuilder()
+//            .name("g_buffer")
+//            .binding(0)
+//                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+//                .descriptorCount(1)
+//                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+//                .immutableSamplers(valueSampler)
+//            .binding(1)
+//                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+//                .descriptorCount(1)
+//                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+//                .immutableSamplers(valueSampler)
+//            .binding(2)
+//                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+//                .descriptorCount(1)
+//                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+//                .immutableSamplers(valueSampler)
+//            .binding(3)
+//                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+//                .descriptorCount(1)
+//                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+//                .immutableSamplers(valueSampler)
+//            .binding(4)
+//                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+//                .descriptorCount(1)
+//                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+//                .immutableSamplers(valueSampler)
+//            .binding(5)
+//                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+//                .descriptorCount(1)
+//                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+//                .immutableSamplers(valueSampler)
+//            .createLayout();
 }
 
 void Terrain::updateDescriptorSet() {
-    auto sets = descriptorPool().allocate( { descriptorSetLayout, shadingSetLayout, trianglesSetLayout, gBuffer->setLayout });
+    auto sets = descriptorPool().allocate( { descriptorSetLayout, shadingSetLayout, trianglesSetLayout });
     
     descriptorSet = sets[0];
     shadingSet = sets[1];
     trianglesSet = sets[2];
-    gBuffer->descriptorSet = sets[3];
 
     auto writes = initializers::writeDescriptorSets<4>();
     
@@ -488,52 +488,6 @@ void Terrain::updateDescriptorSet() {
     writes[1].pBufferInfo = &triVertexInfo;
 
     device().updateDescriptorSets(writes);
-    
-    writes = initializers::writeDescriptorSets<6>();
-
-    writes[0].dstSet = gBuffer->descriptorSet;
-    writes[0].dstBinding = 0;
-    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[0].descriptorCount = 1;
-    VkDescriptorImageInfo gPositionInfo{VK_NULL_HANDLE, gBuffer->position.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[0].pImageInfo = &gPositionInfo;
-
-    writes[1].dstSet = gBuffer->descriptorSet;
-    writes[1].dstBinding = 1;
-    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[1].descriptorCount = 1;
-    VkDescriptorImageInfo gNormalInfo{VK_NULL_HANDLE, gBuffer->normal.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[1].pImageInfo = &gNormalInfo;
-
-    writes[2].dstSet = gBuffer->descriptorSet;
-    writes[2].dstBinding = 2;
-    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[2].descriptorCount = 1;
-    VkDescriptorImageInfo gAlbedoInfo{VK_NULL_HANDLE, gBuffer->albedo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[2].pImageInfo = &gAlbedoInfo;
-
-    writes[3].dstSet = gBuffer->descriptorSet;
-    writes[3].dstBinding = 3;
-    writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[3].descriptorCount = 1;
-    VkDescriptorImageInfo gMaterialInfo{VK_NULL_HANDLE, gBuffer->material.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[3].pImageInfo = &gMaterialInfo;
-
-    writes[4].dstSet = gBuffer->descriptorSet;
-    writes[4].dstBinding = 4;
-    writes[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[4].descriptorCount = 1;
-    VkDescriptorImageInfo gEdgeDistInfo{VK_NULL_HANDLE, gBuffer->edgeDist.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[4].pImageInfo = &gEdgeDistInfo;
-
-    writes[5].dstSet = gBuffer->descriptorSet;
-    writes[5].dstBinding = 5;
-    writes[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[5].descriptorCount = 1;
-    VkDescriptorImageInfo gDepthInfo{VK_NULL_HANDLE, gBuffer->depth.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[5].pImageInfo = &gDepthInfo;
-
-    device().updateDescriptorSets(writes);
 }
 
 void Terrain::createPipelines() {
@@ -580,7 +534,7 @@ void Terrain::createPipelines() {
                     .minDepthBounds(0)
                     .maxDepthBounds(1)
                 .colorBlendState()
-                    .attachments(5)
+                    .attachments(4)
                 .layout()
                     .addDescriptorSetLayout(descriptorSetLayout)
                     .addDescriptorSetLayout(shadingSetLayout)
@@ -614,7 +568,7 @@ void Terrain::createPipelines() {
                 .attachments(1)
             .layout().clear()
                 .addDescriptorSetLayout(descriptorSetLayout)
-                .addDescriptorSetLayout(gBuffer->setLayout)
+                .addDescriptorSetLayout(gBuffer->descriptorSetLayout)
             .renderPass(*m_renderPass)
             .name("terrain_render")
         .build(screen.layout);
@@ -742,76 +696,76 @@ void Terrain::renderUI() {
 }
 
 void Terrain::createFrameBufferAttachments() {
-    gBuffer = std::make_shared<GBuffer>();
-
-    VkImageCreateInfo info = initializers::imageCreateInfo(
-            VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, m_width, m_height);
-
-    VkImageSubresourceRange subresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-
-    gBuffer->position.image = device().createImage(info);
-    gBuffer->position.imageView = gBuffer->position.image.createView(
-            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
-
-    gBuffer->normal.image = device().createImage(info);
-    gBuffer->normal.imageView = gBuffer->normal.image.createView(
-            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
-
-    gBuffer->albedo.image = device().createImage(info);
-    gBuffer->albedo.imageView = gBuffer->albedo.image.createView(
-            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
-
-    gBuffer->material.image = device().createImage(info);
-    gBuffer->material.imageView = gBuffer->material.image.createView(
-            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
-
-
-    gBuffer->edgeDist.image = device().createImage(info);
-    gBuffer->edgeDist.imageView = gBuffer->edgeDist.image.createView(
-            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
-
-
-    subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    info.format = VK_FORMAT_D32_SFLOAT;
-    info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-
-    gBuffer->depth.image = device().createImage(info);
-    gBuffer->depth.imageView = gBuffer->depth.image.createView(
-            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
-
-
-
-    device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-
-        subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        gBuffer->depth.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                                          subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-        subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-        gBuffer->position.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-        gBuffer->normal.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-        gBuffer->albedo.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-        gBuffer->material.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-
-        gBuffer->edgeDist.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-    });
+//    gBuffer = std::make_shared<GBuffer>();
+//
+//    VkImageCreateInfo info = initializers::imageCreateInfo(
+//            VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
+//            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, m_width, m_height);
+//
+//    VkImageSubresourceRange subresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+//
+//    gBuffer->position.image = device().createImage(info);
+//    gBuffer->position.imageView = gBuffer->position.image.createView(
+//            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+//
+//    gBuffer->normal.image = device().createImage(info);
+//    gBuffer->normal.imageView = gBuffer->normal.image.createView(
+//            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+//
+//    gBuffer->albedo.image = device().createImage(info);
+//    gBuffer->albedo.imageView = gBuffer->albedo.image.createView(
+//            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+//
+//    gBuffer->material.image = device().createImage(info);
+//    gBuffer->material.imageView = gBuffer->material.image.createView(
+//            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+//
+//
+//    gBuffer->edgeDist.image = device().createImage(info);
+//    gBuffer->edgeDist.imageView = gBuffer->edgeDist.image.createView(
+//            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+//
+//
+//    subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+//    info.format = VK_FORMAT_D32_SFLOAT;
+//    info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+//
+//    gBuffer->depth.image = device().createImage(info);
+//    gBuffer->depth.imageView = gBuffer->depth.image.createView(
+//            info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+//
+//
+//
+//    device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
+//
+//        subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+//        gBuffer->depth.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//                                                          subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+//                                                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+//
+//        subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+//
+//        gBuffer->position.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+//                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+//
+//        gBuffer->normal.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+//                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+//
+//        gBuffer->albedo.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+//                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+//
+//        gBuffer->material.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+//                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+//
+//
+//        gBuffer->edgeDist.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+//                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+//    });
 }
 
 void Terrain::createGBufferFrameBuffer() {
@@ -832,7 +786,6 @@ void Terrain::createGBufferFrameBuffer() {
     attachmentDesc.push_back(attachment);
     attachmentDesc.push_back(attachment);
     attachmentDesc.push_back(attachment);
-    attachmentDesc.push_back(attachment);
 
     attachment.format = VK_FORMAT_D32_SFLOAT;
     attachmentDesc.push_back(attachment);
@@ -843,9 +796,8 @@ void Terrain::createGBufferFrameBuffer() {
             {1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
             {2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
             {3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
-            {4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
     };
-    subpass.depthStencilAttachments.attachment = 5;
+    subpass.depthStencilAttachments.attachment = 4;
     subpass.depthStencilAttachments.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL;
 
     std::vector<SubpassDescription> subpassDesc{ subpass };
@@ -879,7 +831,6 @@ void Terrain::createGBufferFrameBuffer() {
         gBuffer->normal.imageView,
         gBuffer->albedo.imageView,
         gBuffer->material.imageView,
-        gBuffer->edgeDist.imageView,
         gBuffer->depth.imageView,
     };
     m_gBufferFramebuffer = device().createFramebuffer(m_gBufferRenderPass, attachments, m_width, m_height);
@@ -888,13 +839,12 @@ void Terrain::createGBufferFrameBuffer() {
 void Terrain::renderTerrain() {
     if(debugMode) return;
     device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-        static std::array<VkClearValue, 6> clearValues;
+        static std::array<VkClearValue, 5> clearValues;
         clearValues[0].color = {0, 0, 0, 0};
         clearValues[1].color = {0, 0, 0, 0};
         clearValues[2].color = {0, 0, 0, 0};
         clearValues[3].color = {0, 0, 0, 0};
-        clearValues[4].color = {0, 0, 0, 0};
-        clearValues[5].depthStencil = {1.0, 0u};
+        clearValues[4].depthStencil = {1.0, 0u};
 
         VkRenderPassBeginInfo rPassInfo = initializers::renderPassBeginInfo();
         rPassInfo.clearValueCount = COUNT(clearValues);

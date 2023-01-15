@@ -32,7 +32,6 @@ layout(location = 0) out vec4 oPosition;
 layout(location = 1) out vec4 oNormal;
 layout(location = 2) out vec4 oAlbedo;
 layout(location = 3) out vec4 oMaterial;
-layout(location = 4) out vec4 oEdgeDist;
 
 const float preventDivideByZero = 0.0001;
 
@@ -181,20 +180,7 @@ void shadeFragment(){
 void main(){
     vec2 uv = fs_in.patch_uv;
 
-    if(shading == 1){
-        shadeFragment();
-    }else{
-        vec3 N = normalize(heightScale <= 0 ? vec3(0, 0, 1) : fs_in.normal);
-        oAlbedo.rgb = checkerboard();
-
-        vec4 q = axisAngle(vec3(1, 0, 0), -PI/2);
-        N = rotatePoint(q, N);
-        N = normalize(N);
-
-        oNormal.xyz = N;
-
-    }
+    shadeFragment();
 
     oPosition.xyz = fs_in.worldPosition;
-    oEdgeDist.xyz = edgeDist;
 }

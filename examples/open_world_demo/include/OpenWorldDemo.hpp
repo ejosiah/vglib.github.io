@@ -14,6 +14,12 @@ protected:
 
     void initCamera();
 
+    void createSceneGBuffer();
+
+    void createSamplers();
+
+    void loadAtmosphereLUT();
+
     void createDescriptorPool();
 
     void createDescriptorSetLayouts();
@@ -70,4 +76,9 @@ protected:
     std::unique_ptr<Atmosphere> atmosphere;
     std::unique_ptr<ShadowVolumeGenerator> shadowVolumeGenerator;
     glm::vec3 gravity{0, -9.8, 0};
+
+    std::shared_ptr<SceneGBuffer> sceneGBuffer;
+    std::shared_ptr<Samplers> samplers;
+
+    std::shared_ptr<AtmosphereLookupTable> atmosphereLUT;
 };

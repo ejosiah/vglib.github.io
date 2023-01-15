@@ -1,0 +1,34 @@
+#version 460
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(set = 0, binding = 0) uniform UBO {
+    mat4 inverse_projection;
+    mat4 inverse_view;
+    vec3 camera_pos;
+    vec3 earth_center;
+    vec3 sun_direction;
+    float innerRadius;
+    float outerRadius;
+    int viewPortWidth;
+    int viewPortHeight;
+} ubo;
+
+layout(set = 0, binding = 2, rgba32f) uniform image2D out_g_albedo;
+layout(set = 0, binding = 2, rgba32f) uniform image2D out_g_normal;
+layout(set = 0, binding = 2, r32f) uniform image2D out_g_depth;
+layout(set = 0, binding = 2, r8ui) uniform uimage2D object_type;
+
+layout(set = 2, binding = 5) uniform sampler2D g_depth;
+
+const vec2 pixelCenter = vec2(.5);
+
+vec2 resolution = vec2(ubo.viewPortWidth, ubo.viewPortHeight);
+vec2 id = vec2(gl_GlobalInvocationID);
+
+void main(){
+    if(id.x > resolution.x && id.y > resolution.y)
+        return;
+
+    vec2 uv = (id + pixelCenter)/resolution;
+}

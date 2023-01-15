@@ -31,10 +31,11 @@ void ShadowVolumeGenerator::generate(const SceneData& sceneData, const VulkanBuf
 
     device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
 
-        static std::array<VkClearValue, 6> clearValues;
+        static std::array<VkClearValue, 4> clearValues;
         clearValues[0].depthStencil = {1.0, 0u};
         clearValues[1].depthStencil = {0.0, 0u};
         clearValues[2].color = {0, 0, 0, 0};
+        clearValues[3].color = {0, 0, 0, 0};
 
         VkRenderPassBeginInfo rPassInfo = initializers::renderPassBeginInfo();
         rPassInfo.clearValueCount = COUNT(clearValues);
@@ -92,32 +93,33 @@ void ShadowVolumeGenerator::createFramebufferAttachments() {
 
     VkImageSubresourceRange subresourceRange{VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
     VkImageCreateInfo info = initializers::imageCreateInfo(
-            VK_IMAGE_TYPE_2D, VK_FORMAT_D32_SFLOAT,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT , m_width, m_height);
+            VK_IMAGE_TYPE_2D, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT  , m_width, m_height);
 
 
     depthBufferIn.image = device().createImage(info);
     depthBufferIn.imageView = depthBufferIn.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    device().setName<VK_OBJECT_TYPE_IMAGE>("depth_in_image", depthBufferIn.image);
 
     depthBufferOut.image = device().createImage(info);
     depthBufferOut.imageView = depthBufferOut.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    device().setName<VK_OBJECT_TYPE_IMAGE>("depth_out_image", depthBufferOut.image);
 
     info.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT  | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
     subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    shadowVolume->shadowInOut.image = device().createImage(info);
-    shadowVolume->shadowInOut.imageView = shadowVolume->shadowInOut.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    shadowVolume->shadowIn.image = device().createImage(info);
+    shadowVolume->shadowIn.imageView = shadowVolume->shadowIn.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    device().setName<VK_OBJECT_TYPE_IMAGE>("shadow_in_image", shadowVolume->shadowIn.image);
+
+    info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    shadowVolume->shadowOut.image = device().createImage(info);
+    shadowVolume->shadowOut.imageView = shadowVolume->shadowOut.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    device().setName<VK_OBJECT_TYPE_IMAGE>("shadow_out_image", shadowVolume->shadowOut.image);
 
     device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-        shadowVolume->shadowInOut.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                                         subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-        subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        depthBufferIn.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                                         subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
+        shadowVolume->shadowOut.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                      subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+                                                      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     });
 }
 
@@ -130,26 +132,30 @@ void ShadowVolumeGenerator::createFrameBuffer() {
             VK_ATTACHMENT_STORE_OP_STORE,
             VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
     };
 
     std::vector<VkAttachmentDescription> attachmentDesc;
     attachmentDesc.push_back(attachment);
-
-    attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachmentDesc.push_back(attachment);
 
     attachment.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    attachmentDesc.push_back(attachment);
+
+
+    attachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     attachmentDesc.push_back(attachment);
 
     std::vector<SubpassDescription> subpasses(2);
 
     subpasses[0].depthStencilAttachments = {0, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL};
+    subpasses[0].colorAttachments.push_back({2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
 
     subpasses[1].depthStencilAttachments = {1, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL};
-    subpasses[1].inputAttachments.push_back({0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
-    subpasses[1].colorAttachments.push_back({2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
+    subpasses[1].inputAttachments.push_back({2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+    subpasses[1].colorAttachments.push_back({3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
 
 
     std::vector<VkSubpassDependency> dependencies{
@@ -183,14 +189,17 @@ void ShadowVolumeGenerator::createFrameBuffer() {
     };
 
     m_shadowVolumeRenderPass = device().createRenderPass(attachmentDesc, subpasses, dependencies);
+    device().setName<VK_OBJECT_TYPE_RENDER_PASS>("shadow_volume_render_pass", m_shadowVolumeRenderPass.renderPass);
 
     std::vector<VkImageView> attachments {
         depthBufferIn.imageView,
         depthBufferOut.imageView,
-        shadowVolume->shadowInOut.imageView,
+        shadowVolume->shadowIn.imageView,
+        shadowVolume->shadowOut.imageView,
     };
 
     m_shadowVolumeFramebuffer = device().createFramebuffer(m_shadowVolumeRenderPass, attachments, m_width, m_height);
+    device().setName<VK_OBJECT_TYPE_FRAMEBUFFER>("shadow_volume_framebuffer", m_shadowVolumeFramebuffer.frameBuffer);
 }
 
 void ShadowVolumeGenerator::initUBO() {
@@ -274,20 +283,20 @@ void ShadowVolumeGenerator::updateDescriptorSet() {
     writes[0].descriptorCount = 1;
     VkDescriptorBufferInfo uboInfo{ uboBuffer, 0, VK_WHOLE_SIZE};
     writes[0].pBufferInfo = &uboInfo;
-    
+
     writes[1].dstSet = descriptorSet;
     writes[1].dstBinding = 1;
     writes[1].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     writes[1].descriptorCount = 1;
-    VkDescriptorImageInfo imageInfo{VK_NULL_HANDLE, depthBufferIn.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-    writes[1].pImageInfo = &imageInfo;
+    VkDescriptorImageInfo shadowInfo{VK_NULL_HANDLE, shadowVolume->shadowIn.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[1].pImageInfo = &shadowInfo;
 
     writes[2].dstSet = shadowVolume->descriptorSet;
     writes[2].dstBinding = 0;
     writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[2].descriptorCount = 1;
-    VkDescriptorImageInfo shadowInfo{VK_NULL_HANDLE, shadowVolume->shadowInOut.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[2].pImageInfo = &shadowInfo;
+    VkDescriptorImageInfo shadowOutInfo{VK_NULL_HANDLE, shadowVolume->shadowOut.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[2].pImageInfo = &shadowOutInfo;
 
     device().updateDescriptorSets(writes);
 }
@@ -300,6 +309,7 @@ void ShadowVolumeGenerator::createPipelines() {
             .shaderStage()
                 .vertexShader(resource("shadow_volume.vert.spv"))
                 .geometryShader(resource("shadow_volume.geom.spv"))
+                .fragmentShader(resource("shadow_volume_in.frag.spv"))
             .vertexInputState()
                 .addVertexBindingDescriptions(Vertex::bindingDisc())
                 .addVertexAttributeDescriptions(Vertex::attributeDisc())
@@ -316,7 +326,6 @@ void ShadowVolumeGenerator::createPipelines() {
                     .extent(m_width, m_height)
                 .add()
                 .rasterizationState()
-                    .enableRasterizerDiscard()
                     .cullBackFace()
                     .frontFaceCounterClockwise()
                     .polygonModeFill()

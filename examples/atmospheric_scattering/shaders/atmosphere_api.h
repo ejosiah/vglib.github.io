@@ -996,9 +996,9 @@ Direction sun_direction, out DimensionlessSpectrum transmittance) {
     scattering_texture, single_mie_scattering_texture,
     camera, view_ray, shadow_length, sun_direction, transmittance);
 }
-    RadianceSpectrum GetSkyRadianceToPoint(
-Position camera, Position point, Length shadow_length,
-Direction sun_direction, out DimensionlessSpectrum transmittance) {
+
+RadianceSpectrum GetSkyRadianceToPoint(Position camera, Position point, Length shadow_length, Direction sun_direction,
+                                       out DimensionlessSpectrum transmittance) {
     return GetSkyRadianceToPoint(ATMOSPHERE, transmittance_texture,
     scattering_texture, single_mie_scattering_texture,
     camera, point, shadow_length, sun_direction, transmittance);

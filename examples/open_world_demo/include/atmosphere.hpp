@@ -13,7 +13,8 @@
 class Atmosphere{
 public:
     Atmosphere(const VulkanDevice& device, const VulkanDescriptorPool& descriptorPool, const FileManager& fileManager,
-               VulkanRenderPass& renderPass, uint32_t width, uint32_t height, std::shared_ptr<GBuffer> terrainGBuffer,
+               VulkanRenderPass& renderPass, uint32_t width, uint32_t height,
+               std::shared_ptr<AtmosphereLookupTable> atmosphereLUT, std::shared_ptr<SceneGBuffer> terrainGBuffer,
                std::shared_ptr<ShadowVolume> terrainShadowVolume);
 
     void update(const SceneData& sceneData);
@@ -22,12 +23,10 @@ public:
 
     void renderUI();
 
-    void resize(VulkanRenderPass& renderPass, std::shared_ptr<GBuffer> terrainGBuffer,
+    void resize(VulkanRenderPass& renderPass, std::shared_ptr<SceneGBuffer> terrainGBuffer,
                 std::shared_ptr<ShadowVolume> terrainShadowVolume, uint32_t width, uint32_t height);
 
 private:
-    void loadAtmosphereLUT();
-
     void initBuffers();
 
     void initUbo();
@@ -60,11 +59,7 @@ private:
     } atmosphere;
 
 
-    struct {
-        Texture irradiance;
-        Texture transmittance;
-        Texture scattering;
-    } atmosphereLUT;
+    std::shared_ptr<AtmosphereLookupTable> m_atmosphereLUT;
 
     struct Ubo {
         glm::mat4 model_from_view{1};
@@ -91,9 +86,6 @@ private:
     VulkanDescriptorSetLayout uboSetLayout;
     VkDescriptorSet uboSet;
 
-    VulkanDescriptorSetLayout atmosphereLutSetLayout;
-    VkDescriptorSet atmosphereLutSet;
-
-    std::shared_ptr<GBuffer> m_terrainGBuffer;
+    std::shared_ptr<SceneGBuffer> m_terrainGBuffer;
     std::shared_ptr<ShadowVolume> m_terrainShadowVolume;
 };

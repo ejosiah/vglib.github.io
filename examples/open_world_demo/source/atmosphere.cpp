@@ -4,7 +4,8 @@
 #include <utility>
 
 Atmosphere::Atmosphere(const VulkanDevice& device, const VulkanDescriptorPool& descriptorPool, const FileManager& fileManager,
-                       VulkanRenderPass& renderPass, uint32_t width, uint32_t height, std::shared_ptr<GBuffer> terrainGBuffer,
+                       VulkanRenderPass& renderPass, uint32_t width, uint32_t height,
+                       std::shared_ptr<AtmosphereLookupTable> atmosphereLUT, std::shared_ptr<SceneGBuffer> terrainGBuffer,
                        std::shared_ptr<ShadowVolume> terrainShadowVolume)
         :m_device{&device}
         ,m_descriptorPool{&descriptorPool}
@@ -12,10 +13,10 @@ Atmosphere::Atmosphere(const VulkanDevice& device, const VulkanDescriptorPool& d
         , m_width{width}
         , m_height{ height }
         , m_renderPass{ &renderPass }
+        , m_atmosphereLUT{ std::move(atmosphereLUT) }
         , m_terrainGBuffer{ std::move(terrainGBuffer) }
         , m_terrainShadowVolume{ std::move(terrainShadowVolume) }
 {
-    loadAtmosphereLUT();
     initUbo();
     initBuffers();
     createDescriptorSetLayouts();
@@ -23,21 +24,6 @@ Atmosphere::Atmosphere(const VulkanDevice& device, const VulkanDescriptorPool& d
     createPipelines();
 }
 
-void Atmosphere::loadAtmosphereLUT() {
-    auto data = loadFile(resource("atmosphere/irradiance.dat"));
-
-    textures::create(device() ,atmosphereLUT.irradiance, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, data.data(),
-                     {IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT, 1}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(float) );
-
-
-    data = loadFile(resource("atmosphere/transmittance.dat"));
-    textures::create(device() ,atmosphereLUT.transmittance, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, data.data(),
-                     {TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, 1}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(float) );
-
-    data = loadFile(resource("atmosphere/scattering.dat"));
-    textures::create(device() ,atmosphereLUT.scattering, VK_IMAGE_TYPE_3D, VK_FORMAT_R32G32B32A32_SFLOAT, data.data(),
-                     {SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(float) );
-}
 
 void Atmosphere::initBuffers() {
     auto positions = ClipSpace::Quad::positions;
@@ -56,27 +42,6 @@ void Atmosphere::initUbo() {
 }
 
 void Atmosphere::createDescriptorSetLayouts() {
-    atmosphereLutSetLayout =
-        device().descriptorSetLayoutBuilder()
-            .name("atmosphere")
-            .binding(0)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-            .binding(1)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-            .binding(2)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-            .binding(3)
-                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
-        .createLayout();
-    
     uboSetLayout =
         device().descriptorSetLayoutBuilder()
             .name("ubo")
@@ -88,43 +53,16 @@ void Atmosphere::createDescriptorSetLayouts() {
 }
 
 void Atmosphere::updateDescriptorSets() {
-    auto sets = m_descriptorPool->allocate({ atmosphereLutSetLayout, uboSetLayout });
-    atmosphereLutSet = sets[0];
-    uboSet = sets[1];
+    uboSet = m_descriptorPool->allocate({ uboSetLayout }).front();
 
-    auto writes = initializers::writeDescriptorSets<5>();
+    auto writes = initializers::writeDescriptorSets<1>();
 
-    writes[0].dstSet = atmosphereLutSet;
+    writes[0].dstSet = uboSet;
     writes[0].dstBinding = 0;
-    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     writes[0].descriptorCount = 1;
-    VkDescriptorImageInfo irradianceInfo{atmosphereLUT.irradiance.sampler, atmosphereLUT.irradiance.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[0].pImageInfo = &irradianceInfo;
-
-    writes[1].dstSet = atmosphereLutSet;
-    writes[1].dstBinding = 1;
-    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[1].descriptorCount = 1;
-    VkDescriptorImageInfo transmittanceInfo{atmosphereLUT.transmittance.sampler, atmosphereLUT.transmittance.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[1].pImageInfo = &transmittanceInfo;
-
-    writes[2].dstSet = atmosphereLutSet;
-    writes[2].dstBinding = 2;
-    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[2].descriptorCount = 1;
-    VkDescriptorImageInfo scatteringInfo{atmosphereLUT.scattering.sampler, atmosphereLUT.scattering.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[2].pImageInfo = &scatteringInfo;
-
-    // single_mie_scattering
-    writes[3] = writes[2];
-    writes[3].dstBinding = 3;
-
-    writes[4].dstSet = uboSet;
-    writes[4].dstBinding = 0;
-    writes[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writes[4].descriptorCount = 1;
     VkDescriptorBufferInfo uboInfo{ uboBuffer, 0, VK_WHOLE_SIZE };
-    writes[4].pBufferInfo = &uboInfo;
+    writes[0].pBufferInfo = &uboInfo;
 
 
     device().updateDescriptorSets(writes);
@@ -169,9 +107,9 @@ void Atmosphere::createPipelines() {
                     .attachment()
                     .add()
                 .layout()
-                    .addDescriptorSetLayout(atmosphereLutSetLayout)
+                    .addDescriptorSetLayout(m_atmosphereLUT->descriptorSetLayout)
                     .addDescriptorSetLayout(uboSetLayout)
-                    .addDescriptorSetLayout(m_terrainGBuffer->setLayout)
+                    .addDescriptorSetLayout(m_terrainGBuffer->descriptorSetLayout)
                     .addDescriptorSetLayout(m_terrainShadowVolume->setLayout)
                 .renderPass(*m_renderPass)
                 .subpass(0)
@@ -199,7 +137,7 @@ void Atmosphere::update(const SceneData &sceneData) {
 void Atmosphere::render(VkCommandBuffer commandBuffer) {
     VkDeviceSize offset = 0;
     static std::array<VkDescriptorSet,4> sets;
-    sets[0] = atmosphereLutSet;
+    sets[0] = m_atmosphereLUT->descriptorSet;
     sets[1] = uboSet;
     sets[2] = m_terrainGBuffer->descriptorSet;
     sets[3] = m_terrainShadowVolume->descriptorSet;
@@ -210,7 +148,7 @@ void Atmosphere::render(VkCommandBuffer commandBuffer) {
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
 
-void Atmosphere::resize(VulkanRenderPass& renderPass, std::shared_ptr<GBuffer> terrainGBuffer,
+void Atmosphere::resize(VulkanRenderPass& renderPass, std::shared_ptr<SceneGBuffer> terrainGBuffer,
                         std::shared_ptr<ShadowVolume> terrainShadowVolume, uint32_t width, uint32_t height) {
     m_renderPass = &renderPass;
     m_width = width;
