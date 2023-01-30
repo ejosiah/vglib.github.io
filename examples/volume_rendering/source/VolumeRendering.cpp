@@ -28,8 +28,8 @@ void VolumeRendering::initApp() {
 
 void VolumeRendering::loadVolumeData() {
 
-    auto [header, dataSet] = noise(device, descriptorPool, fileManager);
-    //auto [header, dataSet] = load_volume(resource("C60.vol"));
+//    auto [header, dataSet] = noise(device, descriptorPool, fileManager);
+    auto [header, dataSet] = load_volume(resource("C60.vol"));
 //    auto [header, dataSet] = load_beatle_volume(resource("stagbeetle832x832x494.dat"));
 //    auto [header, dataSet] = load_beatle_volume(resource("present492x492x442.dat"));
     rayMarchRenderer.constants.stepSize = 1.f/glm::vec3(header.sizeX, header.sizeY, header.sizeZ);

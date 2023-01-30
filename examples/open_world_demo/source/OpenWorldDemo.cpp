@@ -31,6 +31,8 @@ void OpenWorldDemo::initApp() {
     atmosphere = std::make_unique<Atmosphere>(device, descriptorPool, fileManager, renderPass, swapChain.width(),
                                               swapChain.height(), atmosphereLUT, terrain->gBuffer, shadowVolumeGenerator->shadowVolume);
 
+    clouds = std::make_unique<Clouds>(device, descriptorPool, fileManager, swapChain.width(), swapChain.height(), terrain->gBuffer, atmosphereLUT);
+
     terrain->renderTerrain();
     shadowVolumeGenerator->initAdjacencyBuffers(terrain->vertexBuffer, *terrain->triangleCount);
 }
@@ -46,6 +48,9 @@ void OpenWorldDemo::initCamera() {
     camera = std::make_unique<FirstPersonCameraController>(dynamic_cast<InputManager&>(*this), cameraSettings);
 //    camera->lookAt(glm::vec3(-28 * km, 10 * km, 14 * km), glm::vec3(0, 0, 0), {0, 1, 0});
     camera->lookAt(glm::vec3(-3.4 * km, 1.2 * km, 13 * km), glm::vec3(0, 0, 0), {0, 1, 0});
+//    auto target = EARTH_CENTER;
+//    auto position = target + glm::vec3(0, 0, 1) * (EARTH_RADIUS);
+//    camera->lookAt(position, target, glm::vec3(0, 1, 0));
 
 //    FirstPersonSpectatorCameraSettings cameraSettings;
 //    cameraSettings.fieldOfView = 90.0f;
@@ -62,15 +67,23 @@ void OpenWorldDemo::loadAtmosphereLUT() {
 
     textures::create(device ,atmosphereLUT->irradiance, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, data.data(),
                      {IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT, 1}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(float) );
+    device.setName<VK_OBJECT_TYPE_IMAGE>("atmosphere_irradiance_lut", atmosphereLUT->irradiance.image);
+    device.setName<VK_OBJECT_TYPE_IMAGE_VIEW>("atmosphere_irradiance_lut", atmosphereLUT->irradiance.imageView.handle);
 
 
     data = loadFile(resource("atmosphere/transmittance.dat"));
     textures::create(device ,atmosphereLUT->transmittance, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, data.data(),
                      {TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, 1}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(float) );
+    device.setName<VK_OBJECT_TYPE_IMAGE>("atmosphere_transmittance_lut", atmosphereLUT->transmittance.image);
+    device.setName<VK_OBJECT_TYPE_IMAGE_VIEW>("atmosphere_transmittance_lut", atmosphereLUT->transmittance.imageView.handle);
 
     data = loadFile(resource("atmosphere/scattering.dat"));
     textures::create(device ,atmosphereLUT->scattering, VK_IMAGE_TYPE_3D, VK_FORMAT_R32G32B32A32_SFLOAT, data.data(),
                      {SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(float) );
+
+    device.setName<VK_OBJECT_TYPE_IMAGE>("atmosphere_scatteringe_lut", atmosphereLUT->scattering.image);
+    device.setName<VK_OBJECT_TYPE_IMAGE_VIEW>("atmosphere_scattering_lut", atmosphereLUT->scattering.imageView.handle);
+
 }
 
 
@@ -107,19 +120,19 @@ void OpenWorldDemo::createDescriptorSetLayouts() {
             .binding(0)
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
             .binding(1)
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
             .binding(2)
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
             .binding(3)
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
-                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
         .createLayout();
 
     atmosphereLUT->descriptorSet = descriptorPool.allocate({ atmosphereLUT->descriptorSetLayout }).front();
@@ -159,33 +172,57 @@ void OpenWorldDemo::createDescriptorSetLayouts() {
 		.binding(0)
 			.descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			.descriptorCount(1)
-			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
 			.immutableSamplers(samplers->nearest)
 		.binding(1)
 			.descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			.descriptorCount(1)
-			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
 			.immutableSamplers(samplers->nearest)
 		.binding(2)
 			.descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			.descriptorCount(1)
-			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
 			.immutableSamplers(samplers->nearest)
 		.binding(3)
 			.descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			.descriptorCount(1)
-			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
 			.immutableSamplers(samplers->nearest)
 		.binding(4)
 			.descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			.descriptorCount(1)
-			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
 			.immutableSamplers(samplers->nearest)
 		.binding(5)
 			.descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			.descriptorCount(1)
-			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+			.shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
 			.immutableSamplers(samplers->nearest)
+		.binding(6)
+			.descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+			.descriptorCount(1)
+			.shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+		.binding(7)
+			.descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+			.descriptorCount(1)
+			.shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+		.binding(8)
+			.descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+			.descriptorCount(1)
+			.shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+		.binding(9)
+			.descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+			.descriptorCount(1)
+			.shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+		.binding(10)
+			.descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+			.descriptorCount(1)
+			.shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+		.binding(11)
+			.descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+			.descriptorCount(1)
+			.shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
 		.createLayout();
 }
 
@@ -200,45 +237,68 @@ void OpenWorldDemo::updateDescriptorSets(){
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[0].descriptorCount = 1;
-    VkDescriptorImageInfo gPositionInfo{VK_NULL_HANDLE, sceneGBuffer->position.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo gPositionInfo{VK_NULL_HANDLE, sceneGBuffer->position.imageView, VK_IMAGE_LAYOUT_GENERAL};
     writes[0].pImageInfo = &gPositionInfo;
 
     writes[1].dstSet = sceneGBuffer->descriptorSet;
     writes[1].dstBinding = 1;
     writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[1].descriptorCount = 1;
-    VkDescriptorImageInfo gNormalInfo{VK_NULL_HANDLE, sceneGBuffer->normal.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo gNormalInfo{VK_NULL_HANDLE, sceneGBuffer->normal.imageView, VK_IMAGE_LAYOUT_GENERAL};
     writes[1].pImageInfo = &gNormalInfo;
 
     writes[2].dstSet = sceneGBuffer->descriptorSet;
     writes[2].dstBinding = 2;
     writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[2].descriptorCount = 1;
-    VkDescriptorImageInfo gAlbedoInfo{VK_NULL_HANDLE, sceneGBuffer->albedo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo gAlbedoInfo{VK_NULL_HANDLE, sceneGBuffer->albedo.imageView, VK_IMAGE_LAYOUT_GENERAL};
     writes[2].pImageInfo = &gAlbedoInfo;
 
     writes[3].dstSet = sceneGBuffer->descriptorSet;
     writes[3].dstBinding = 3;
     writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[3].descriptorCount = 1;
-    VkDescriptorImageInfo gMaterialInfo{VK_NULL_HANDLE, sceneGBuffer->material.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo gMaterialInfo{VK_NULL_HANDLE, sceneGBuffer->material.imageView, VK_IMAGE_LAYOUT_GENERAL};
     writes[3].pImageInfo = &gMaterialInfo;
 
     writes[4].dstSet = sceneGBuffer->descriptorSet;
     writes[4].dstBinding = 4;
     writes[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[4].descriptorCount = 1;
-    VkDescriptorImageInfo gDepthInfo{VK_NULL_HANDLE, sceneGBuffer->depth.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo gDepthInfo{VK_NULL_HANDLE, sceneGBuffer->depth.imageView, VK_IMAGE_LAYOUT_GENERAL};
     writes[4].pImageInfo = &gDepthInfo;
 
     writes[5].dstSet = sceneGBuffer->descriptorSet;
     writes[5].dstBinding = 5;
     writes[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[5].descriptorCount = 1;
-    VkDescriptorImageInfo gEdgeDistInfo{VK_NULL_HANDLE, sceneGBuffer->objectType.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    writes[5].pImageInfo = &gEdgeDistInfo;
+    VkDescriptorImageInfo gObjectTypetInfo{VK_NULL_HANDLE, sceneGBuffer->objectType.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    writes[5].pImageInfo = &gObjectTypetInfo;
 
     device.updateDescriptorSets(writes);
+
+    // storage image descriptors
+    writes[0].dstBinding = 6;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    writes[1].dstBinding = 7;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    gNormalInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    writes[2].dstBinding = 8;
+    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    writes[3].dstBinding = 9;
+    writes[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    writes[4].dstBinding = 10;
+    writes[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    writes[5].dstBinding = 11;
+    writes[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    device.updateDescriptorSets(writes);
+
 
 }
 
@@ -421,6 +481,7 @@ void OpenWorldDemo::update(float time) {
 
     updateScene(time);
     terrain->update(sceneData);
+    clouds->update(sceneData);
     skyDome->update(sceneData);
     atmosphere->update(sceneData);
     shadowVolumeGenerator->update(sceneData);
@@ -464,13 +525,15 @@ void OpenWorldDemo::onPause() {
 
 void OpenWorldDemo::newFrame() {
     terrain->renderTerrain();
-    shadowVolumeGenerator->generate(sceneData, terrain->vertexBuffer, *terrain->triangleCount);
+    clouds->renderClouds();
+//    shadowVolumeGenerator->generate(sceneData, terrain->vertexBuffer, *terrain->triangleCount);
 }
 
 void OpenWorldDemo::createSceneGBuffer() {
     VkImageCreateInfo info = initializers::imageCreateInfo(
             VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, width, height);
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            width, height);
 
     VkImageSubresourceRange subresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
@@ -496,46 +559,39 @@ void OpenWorldDemo::createSceneGBuffer() {
     sceneGBuffer->objectType.imageView = sceneGBuffer->objectType.image.createView(
             info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
 
-
-    subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    info.format = VK_FORMAT_D32_SFLOAT;
-    info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-
+    info.format = VK_FORMAT_R32_SFLOAT;
     sceneGBuffer->depth.image = device.createImage(info);
     sceneGBuffer->depth.imageView = sceneGBuffer->depth.image.createView(
             info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
 
-
-
     device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-
-        subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        sceneGBuffer->depth.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                              subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
-                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
         subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
-        sceneGBuffer->position.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        sceneGBuffer->position.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
                                                  subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
                                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        sceneGBuffer->normal.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        sceneGBuffer->normal.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
                                                subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
                                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        sceneGBuffer->albedo.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        sceneGBuffer->albedo.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
                                                subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
                                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        sceneGBuffer->material.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        sceneGBuffer->material.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
                                                  subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
                                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 
-        sceneGBuffer->objectType.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        sceneGBuffer->objectType.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
                                                  subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
                                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        sceneGBuffer->depth.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
+                                                   subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+                                                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     });
 }
 

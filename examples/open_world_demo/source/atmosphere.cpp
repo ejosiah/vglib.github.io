@@ -35,7 +35,7 @@ void Atmosphere::initUbo() {
     ubo = reinterpret_cast<Ubo*>(uboBuffer.map());
 
     ubo->white_point = glm::vec3(1);
-    ubo->earth_center = (EARTH_CENTER + glm::vec3(0, MAX_HEIGHT, 0))/kLengthUnitInMeters;
+    ubo->earth_center = EARTH_CENTER/kLengthUnitInMeters;
     ubo->sun_size = glm::vec3(glm::tan(kSunAngularRadius), glm::cos(kSunAngularRadius), 0);
     ubo->exposure = 10.f;
     ubo->lightShaft = 0;

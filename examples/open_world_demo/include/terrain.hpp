@@ -62,8 +62,6 @@ private:
 
     void updateDescriptorSet();
 
-    void createFrameBufferAttachments();
-
     void createGBufferFrameBuffer();
 
     void createShadowVolumeFrameBuffer();
@@ -189,6 +187,8 @@ private:
         VulkanPipelineLayout layout;
         VulkanPipeline pipeline;
     } screen;
+
+    DepthBuffer depthBuffer;
 
 
     uint32_t m_width{0};

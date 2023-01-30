@@ -4,6 +4,7 @@
 #include "sky_dome.hpp"
 #include "atmosphere.hpp"
 #include "shadow_volume_generator.hpp"
+#include "clouds.hpp"
 
 class OpenWorldDemo : public VulkanBaseApp{
 public:
@@ -75,6 +76,7 @@ protected:
     std::unique_ptr<SkyDome> skyDome;
     std::unique_ptr<Atmosphere> atmosphere;
     std::unique_ptr<ShadowVolumeGenerator> shadowVolumeGenerator;
+    std::unique_ptr<Clouds> clouds;
     glm::vec3 gravity{0, -9.8, 0};
 
     std::shared_ptr<SceneGBuffer> sceneGBuffer;

@@ -16,6 +16,7 @@
 #include "VulkanExtensions.h"
 #include "builder_forwards.hpp"
 #include <bitset>
+#include "VulkanShaderModule.h"
 
 class VulkanImageOps;
 
@@ -744,6 +745,10 @@ struct VulkanDevice{
         VmaTotalStatistics stats;
         vmaCalculateStatistics(allocator, &stats);
         return stats;
+    }
+
+    inline VulkanShaderModule createShaderModule(const std::string& path) const {
+        return VulkanShaderModule(path, logicalDevice);
     }
 
 };

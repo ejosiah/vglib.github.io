@@ -14,7 +14,7 @@ constexpr uint32_t SCATTERING_TEXTURE_HEIGHT = 128;
 constexpr uint32_t SCATTERING_TEXTURE_DEPTH = 32;
 constexpr uint32_t IRRADIANCE_TEXTURE_WIDTH = 64;
 constexpr uint32_t IRRADIANCE_TEXTURE_HEIGHT = 16;
-constexpr glm::vec3 EARTH_CENTER{0, -6371 * km, 0};
+constexpr glm::vec3 EARTH_CENTER{0, -EARTH_RADIUS, 0};
 
 constexpr float kSunAngularRadius = 0.00935 / 2;;
 constexpr float kSunSolidAngle = glm::pi<float>() * kSunAngularRadius * kSunAngularRadius;

@@ -53,7 +53,7 @@ layout(set = 2, binding = 1) uniform sampler2D gNormal;
 layout(set = 2, binding = 2) uniform sampler2D gAlbedo;
 layout(set = 2, binding = 3) uniform sampler2D gMaterial;
 layout(set = 2, binding = 4) uniform sampler2D gDepth;
-layout(set = 2, binding = 5) uniform sampler2D object_type;
+layout(set = 2, binding = 5) uniform usampler2D object_type_map;
 
 layout(set = 3, binding = 0) uniform sampler2D shadowVolume;
 
@@ -147,27 +147,29 @@ void main(){
 
     float shadow_in = 0;
     float shadow_out = 0;
-    GetTerrainShadowInOut(uv, shadow_in, shadow_out);
+//    GetTerrainShadowInOut(uv, shadow_in, shadow_out);
     vec3 terrain_radiance = vec3(0);
     float terrain_alpha = 0;
     float lightshaft_fadein_hack = smoothstep(0.02, 0.04, dot(normalize(camera - earth_center), sun_direction));
 
     if(depth < 1){
+        uint object_type = texture(object_type_map, uv).r;
         terrain_alpha = 1;
-//        vec3 point = texture(gPosition, uv).xyz;
+        //        vec3 point = texture(gPosition, uv).xyz;
         vec3 point = getWorldPosition(uv, depth)/1000;
         vec3 normal = texture(gNormal, uv).xyz;
         vec3 sky_irradiance;
         vec3 sun_irradiance = GetSunAndSkyIrradiance(point - earth_center, normal, sun_direction, sky_irradiance);
         vec3 albedo = texture(gAlbedo, uv).rgb;
         terrain_radiance = albedo * (1/PI) * (sun_irradiance * GetSunVisibility(normal, sun_direction));
-//        terrain_radiance = shadeFragment((sun_irradiance + sky_irradiance)/PI);
+        //        terrain_radiance = shadeFragment((sun_irradiance + sky_irradiance)/PI);
         float distance_to_intersection = distance(camera, point);
         float shadow_length = max(0.0, min(shadow_out, distance_to_intersection) - shadow_in) * lightshaft_fadein_hack;
 
         vec3 transmittance;
         vec3 in_scatter = GetSkyRadianceToPoint(camera - earth_center, point - earth_center, shadow_length, sun_direction, transmittance);
         terrain_radiance = terrain_radiance * transmittance + in_scatter;
+
     }
 
 
@@ -179,6 +181,6 @@ void main(){
     }
 
     radiance = mix(radiance, terrain_radiance, terrain_alpha);
-
+    radiance = texture(gAlbedo, uv).rgb;
     fragColor.rgb = pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
 }

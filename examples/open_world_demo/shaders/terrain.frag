@@ -32,6 +32,7 @@ layout(location = 0) out vec4 oPosition;
 layout(location = 1) out vec4 oNormal;
 layout(location = 2) out vec4 oAlbedo;
 layout(location = 3) out vec4 oMaterial;
+layout(location = 4) out float oDepth;
 
 const float preventDivideByZero = 0.0001;
 
@@ -182,5 +183,6 @@ void main(){
 
     shadeFragment();
 
+    oDepth = gl_FragCoord.z;
     oPosition.xyz = fs_in.worldPosition;
 }

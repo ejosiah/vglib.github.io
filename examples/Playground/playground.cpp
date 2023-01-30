@@ -6,7 +6,7 @@
 #include <optix_function_table_definition.h>
 #include <optix_stubs.h>
 
-
+#include <spdlog/spdlog.h>
 #include <glm/glm.hpp>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -30,6 +30,8 @@
 #include <process.h>
 #include <meshoptimizer.h>
 #include "Mesh.h"
+#include "dds.hpp"
+#include "stb_image.h"
 
 glm::vec3 rRotate(float angle, glm::vec3 v, glm::vec3 axis){
     return v * glm::cos(angle) + glm::cross(axis, v) * glm::sin(angle)
@@ -532,20 +534,24 @@ int main(){
 //    save(R"(D:\Program Files\SHADERed\sphere_color.dat)", colors);
 //    save(R"(D:\Program Files\SHADERed\sphere_uv.dat)", uvs);
 
-    auto r = Ray{ {-4, 0}, {4, 0} };
-    auto s = Sphere{ {0, 0}, 2 };
-
-    float t0, t1;
-
-    auto intersects = test2(r, s, t0, t1);
-
-    if(intersects){
-        auto d = normalize(r.q - r.p);
-        auto a = r.p + d * t0;
-        auto b = r.p + d * t1;
-        fmt::print("Ray intersects sphere at: [{}, {}]\n", a, b);
-    }else {
-        fmt::print("No intersection found\n");
+    auto input = R"(C:\Users\Josiah Ebhomenye\OneDrive\media\textures\Portrait-8.jpg)";
+    int width, height, channels;
+    auto pixels = stbi_load(input, &width, &height, &channels, STBI_rgb_alpha);
+    if(!pixels){
+        spdlog::error("failed to load texture image {}\n", input);
+        return 100;
     }
+    auto size = width * height * STBI_rgb_alpha;
+    std::vector<char> data(size);
+    std::memcpy(data.data(), pixels, size);
+    stbi_image_free(pixels);
 
+
+    dds::SaveInfo info{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+
+    info.channelSize = 1;
+    info.numChannels = STBI_rgb_alpha;
+    info.path = R"(D:\Program Files\SHADERed\portrait.dds)";
+
+    dds::save(info, data.data());
 }

@@ -154,7 +154,7 @@ float henyeyGreenstein(vec3 lightDir, vec3 viewDir, float g){
 }
 
 float sampleCloudDensity(vec3 p){
-    vec4 noiseComp = texture(lowFreqencyNoises, p + vec3(0, 1, 1) * time * 0.05);
+    vec4 noiseComp = texture(lowFreqencyNoises, p + vec3(1, 0, 1) * time * 0.05);
     float perlinWorly = noiseComp.x;
     float wfbm = dot(vec3(.625, .25, .125), noiseComp.gba);
     float cloud = remap(perlinWorly, wfbm - 1, 1, 0, 1);
@@ -178,12 +178,12 @@ float sampleCloudDensity(vec3 p){
 
 
 const vec3 noise_kernel[] = {
-vec3(-0.316253, 0.147451, -0.902035),
-vec3(0.208214, 0.114857, -0.669561),
-vec3(-0.398435, -0.105541, -0.722259),
-vec3(0.0849315, -0.644174, 0.0471824),
-vec3(0.470606, 0.99835, 0.498875),
-vec3(-0.207847, -0.176372, -0.847792)
+    vec3(-0.316253, 0.147451, -0.902035),
+    vec3(0.208214, 0.114857, -0.669561),
+    vec3(-0.398435, -0.105541, -0.722259),
+    vec3(0.0849315, -0.644174, 0.0471824),
+    vec3(0.470606, 0.99835, 0.498875),
+    vec3(-0.207847, -0.176372, -0.847792)
 };
 
 float sampleCloudDensityAlongCone(vec3 samplePos, vec3 direction){
@@ -243,7 +243,7 @@ void main(){
             float energy = sampleLightEnergy(p, dirStep, cloud);
 
             float prev_alpha = cloud - (cloud * color.a);
-            color.rgb = prev_alpha * vec3(cloud * energy) + color.rgb;
+            color.rgb += prev_alpha * cloud * energy;
             color.a += prev_alpha;
 
             if(color.a > 0.99){

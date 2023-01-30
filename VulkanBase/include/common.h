@@ -244,6 +244,7 @@ using Proc = std::function<void()>;
 
 constexpr float meter = 1;
 constexpr float meters = 1;
+constexpr float m = meters;
 constexpr float centimetre = meter * 0.01;
 constexpr float centimetres = centimetre;
 constexpr float cm = centimetre;
