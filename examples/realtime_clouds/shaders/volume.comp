@@ -4,10 +4,11 @@
 
 #include "ray_query_lang.glsl"
 #include "hash.glsl"
-
+#define EPSILON 1e-6
+#define EPSILON3 vec3(EPSILON)
 #define PI 3.1415926535897932384626433832795
 
-//#extension GL_EXT_debug_printf : require
+#extension GL_EXT_debug_printf : require
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
@@ -36,6 +37,10 @@ layout(set = 0, binding = 1) uniform CameraProperties{
 layout(set = 0, binding = 2, rgba32f) uniform image2D imageOut;
 layout(set = 1, binding = 0) uniform sampler3D lowFreqencyNoises;
 layout(set = 1, binding = 1) uniform sampler3D highFreqencyNoisesMap;
+
+layout(set = 2, binding = 0) uniform sampler2D weatherCloudCoverage;
+layout(set = 2, binding = 1) uniform sampler2D weatherCloudType;
+layout(set = 2, binding = 2) uniform sampler2D weatherPrecipitation;
 
 layout(push_constant) uniform Constants {
     vec3 lightPosition;
@@ -84,8 +89,8 @@ float remap(float x, float a, float b, float c, float d){
 
 
 bool isInsideBounds(vec3 p){
-    vec3 a = sign(boxMax - p);
-    vec3 b = sign(boxMin - p);
+    vec3 a = sign(boxMax * boxScale - p);
+    vec3 b = sign(boxMin * boxScale - p);
 
     return dot(a, b) >= 3;
 }
@@ -100,6 +105,10 @@ bool inCloud(out Ray ray);
 
 float heightFractionForPoint(vec3 p){
     return ((p - boxMin * boxScale)/(((boxMax - boxMin) * boxScale))).y;
+}
+
+vec3 samplePointForPoint(vec3 p){
+    return ((p - boxMin * boxScale)/(((boxMax - boxMin) * boxScale)));
 }
 
 float cubeSDF(vec3 p, vec3 size){
@@ -154,7 +163,8 @@ float henyeyGreenstein(vec3 lightDir, vec3 viewDir, float g){
 }
 
 float sampleCloudDensity(vec3 p){
-    vec4 noiseComp = texture(lowFreqencyNoises, p + vec3(1, 0, 1) * time * 0.05);
+    vec3 sp = samplePointForPoint(p);
+    vec4 noiseComp = texture(lowFreqencyNoises, sp - normalize(viewPosition) * time * 0.1);
     float perlinWorly = noiseComp.x;
     float wfbm = dot(vec3(.625, .25, .125), noiseComp.gba);
     float cloud = remap(perlinWorly, wfbm - 1, 1, 0, 1);
@@ -164,7 +174,7 @@ float sampleCloudDensity(vec3 p){
     cloud = remap(cloud, 1 - coverage, 1, 0, 1);
     cloud *= coverage;
 
-    vec3 highFreqencyNoises = texture(highFreqencyNoisesMap, p * 0.1).rgb;
+    vec3 highFreqencyNoises = texture(highFreqencyNoisesMap, sp * 0.1).rgb;
 
     float highFreqencyFBM = dot(highFreqencyNoises, vec3(.625, .25, .125));
     float hightFraction = heightFractionForPoint(p);
@@ -216,9 +226,8 @@ float lightEnergy(float sampleDensity, float percipitation, float eccentricity, 
 float sampleLightEnergy(vec3 samplePosition, vec3 direction, float cloudDensity){
     if(cloudDensity <= 0) return 1;
 
-    float precipitation = 0;
     float sampleDensity = sampleCloudDensityAlongCone(samplePosition, direction);
-    return 200 * lightEnergy(sampleDensity, precipitation, eccentricity, samplePosition, viewPosition, lightPosition);
+    return 50 * lightEnergy(sampleDensity, precipitation, eccentricity, samplePosition, viewPosition, lightPosition);
 
 }
 
@@ -226,21 +235,21 @@ void main(){
     //    debugPrintfEXT("min: [%.f, %.f]\n", width, height);
     vec4 color = vec4(0);
     Ray ray;
-
+    const float MaxSteps = 128;
+    const float maxDist = distance(boxMin, boxMax) * boxScale;
     if(inCloud(ray)){
 
-        vec3 size = textureSize(lowFreqencyNoises, 0);
-        int maxSamples = 10;
+        float tMin = ray.tMin;
+        float tMax = ray.tMax;
+        float diff = tMax - tMin;
+        float stepSize = diff/MaxSteps;
 
-        vec3 stepSize = 1/size;
-        vec3 dirStep = ray.direction * stepSize;
-        float t = 0;
-        vec3 p = ray.origin;
-        for(int i = 0; i < maxSamples; i++){
-            p += dirStep;
+        for(int i = 0; i < MaxSteps; i++){
+            float t = tMin + (stepSize * i);
+            vec3 p = ray.origin + ray.direction * t;
 
             float cloud = sampleCloudDensity(p);
-            float energy = sampleLightEnergy(p, dirStep, cloud);
+            float energy = sampleLightEnergy(p, ray.direction, cloud);
 
             float prev_alpha = cloud - (cloud * color.a);
             color.rgb += prev_alpha * cloud * energy;
@@ -249,11 +258,18 @@ void main(){
             if(color.a > 0.99){
                 break;
             }
+
+            if(i > MaxSteps){
+                debugPrintfEXT("[tMin: %.32f, t: %.32f, tMax: %.32f, stepSize: %.32f]\n,", tMin, t, tMax, stepSize);
+                break;
+            }
         }
     }
     color.rgb /= 1 + color.rgb;
     imageStore(imageOut, ivec2(gl_GlobalInvocationID), color);
 }
+
+bool test(inout Ray ray, Box box);
 
 bool inCloud(out Ray ray){
     ivec2 id = ivec2(gl_GlobalInvocationID);
@@ -271,18 +287,51 @@ bool inCloud(out Ray ray){
     vec3 direction = vec3(cam.viewInverse*vec4(normalize(target.xyz), 0));
     direction = normalize(direction);
 
+    ray.origin = origin;
+    ray.direction = direction;
     float dist = 0.2;
     vec3 boxHalfSize = (boxMax - boxMin) * 0.5 * boxScale;
-    for(int i = 0; i < 100; i++){
-        vec3 p = origin + direction * dist;
-        float t = cubeSDF(p, boxHalfSize);
-        if(t < 0.000001){
-            ray.origin = p;
-            ray.direction = direction;
-            return true;
+//   for(int i = 0; i < 100; i++){
+//        vec3 p = origin + direction * dist;
+//        float t = cubeSDF(p, boxHalfSize);
+//        if(t < 0.000001){
+//            ray.origin = p;
+//            ray.direction = direction;
+//            ray.tMin = 0;
+//            ray.tMax = length(boxHalfSize) * 2;
+//            return true;
+//        }
+//        dist += t;
+//        if(dist > 100) break;
+//    }
+//    return false;
+
+    return test(ray, Box(boxMin * boxScale, boxMax * boxScale));
+}
+
+bool test(inout Ray ray, Box box){
+    bvec3 parallelRay = lessThan(abs(ray.direction), EPSILON3);
+    for(int i = 0; i < 3; i++){
+        if(parallelRay[i]){
+            if(ray.origin[i] < box.min[i] || ray.origin[i] > box.max[i]){
+                return false;
+            }
         }
-        dist += t;
-        if(dist > 100) break;
     }
-    return false;
+
+    vec3 t0 = (box.min - ray.origin)/ray.direction;
+    vec3 t1 = (box.max - ray.origin)/ray.direction;
+
+    vec3 tMax = max(t0, t1);
+    vec3 tMin = min(t0, t1);
+
+    float tNear = max(max(tMin.x, tMin.y), tMin.z);
+    float tFar = min(min(tMax.x, tMax.y), tMax.z);
+
+    ray.tMin = max(0, tNear);
+    ray.tMax = tFar;
+
+//    ray.tMax = tNear + distance(box.min, box.max);
+    return tNear < tFar;
+
 }
