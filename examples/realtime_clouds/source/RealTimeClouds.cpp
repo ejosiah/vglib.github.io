@@ -10,7 +10,7 @@ RealTimeClouds::RealTimeClouds(const Settings& settings) : VulkanBaseApp("Real t
     fileManager.addSearchPathFront("../../examples/realtime_clouds");
     fileManager.addSearchPathFront("../../examples/realtime_clouds/spv");
     fileManager.addSearchPathFront("../../examples/realtime_clouds/models");
-    fileManager.addSearchPathFront("../../examples/realtime_clouds/textures");
+    fileManager.addSearchPathFront("../../examples/realtime_clouds/data");
 //    volumeRender.constants.width = settings.width;
 //    volumeRender.constants.height = settings.height;
 }
@@ -67,12 +67,15 @@ void RealTimeClouds::createNoiseTexture() {
 
     textures::create(device, highFrequencyNoiseTexture, VK_IMAGE_TYPE_3D, VK_FORMAT_R32G32B32A32_SFLOAT, dim, VK_SAMPLER_ADDRESS_MODE_REPEAT, sizeof(float));
     highFrequencyNoiseTexture.image.transitionLayout(device.graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
+
+    textures::fromFile(device, weatherTexture, resource("weather0.png"));
+    textures::fromFile(device, curlNoiseTexture, resource("curlNoise.png"));
 }
 
 void RealTimeClouds::initCanvas(){
     canvas = Canvas{
             this,
-            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL | VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             VK_FORMAT_R32G32B32A32_SFLOAT,
             std::nullopt,
 //            resource("noise.frag.spv"),
@@ -80,6 +83,23 @@ void RealTimeClouds::initCanvas(){
     };
     canvas.enableBlending = true;
     canvas.init();
+
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    blur.texture.sampler = device.createSampler(samplerInfo);
+
+    textures::create(device, blur.texture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, {width, height, 1}, VK_SAMPLER_ADDRESS_MODE_REPEAT, sizeof(float));
+    blur.texture.image.transitionLayout(device.graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
+
+    blur.transferBuffer = device.createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, blur.texture.image.size);
 }
 
 void RealTimeClouds::initCamera() {
@@ -155,6 +175,14 @@ void RealTimeClouds::createDescriptorSetLayouts() {
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
+            .binding(2)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
+            .binding(3)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
         .createLayout();
 
     volumeDescriptorSetLayout =
@@ -172,14 +200,28 @@ void RealTimeClouds::createDescriptorSetLayouts() {
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
+
+    blur.descriptorSetLayout =
+        device.descriptorSetLayoutBuilder()
+            .name("linear_blur")
+            .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+            .binding(1)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+        .createLayout();
 }
 
 void RealTimeClouds::updateDescriptorSets(){
-    auto sets = descriptorPool.allocate( { noiseImageSetLayout, noiseTextureSetLayout });
+    auto sets = descriptorPool.allocate( { noiseImageSetLayout, noiseTextureSetLayout, blur.descriptorSetLayout });
     noiseImageSet = sets[0];
     noiseTextureSet = sets[1];
+    blur.descriptorSet = sets[2];
     
-    auto writes = initializers::writeDescriptorSets<4>();
+    auto writes = initializers::writeDescriptorSets<6>();
     
     writes[0].dstSet = noiseImageSet;
     writes[0].dstBinding = 0;
@@ -207,11 +249,42 @@ void RealTimeClouds::updateDescriptorSets(){
     writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[3].descriptorCount = 1;
     VkDescriptorImageInfo highFreqNoiseTextureInfo{highFrequencyNoiseTexture.sampler, highFrequencyNoiseTexture.imageView, VK_IMAGE_LAYOUT_GENERAL};
-
     writes[3].pImageInfo = &highFreqNoiseTextureInfo;
+
+    writes[4].dstSet = noiseTextureSet;
+    writes[4].dstBinding = 2;
+    writes[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[4].descriptorCount = 1;
+    VkDescriptorImageInfo weatherInfo{ weatherTexture.sampler, weatherTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[4].pImageInfo = &weatherInfo;
+    
+    writes[5].dstSet = noiseTextureSet;
+    writes[5].dstBinding = 3;
+    writes[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[5].descriptorCount = 1;
+    VkDescriptorImageInfo curlNoiseInfo{ curlNoiseTexture.sampler, curlNoiseTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[5].pImageInfo = &curlNoiseInfo;
     
     device.updateDescriptorSets(writes);
     updateAccelerationStructureDescriptorSet();
+
+    writes = initializers::writeDescriptorSets<2>();
+
+    writes[0].dstSet = blur.descriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorImageInfo iInfo{blur.texture.sampler, blur.texture.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    writes[0].pImageInfo = &iInfo;
+
+    writes[1].dstSet = blur.descriptorSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writes[1].descriptorCount = 1;
+    VkDescriptorImageInfo oInfo{VK_NULL_HANDLE, blur.texture.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    writes[1].pImageInfo = &oInfo;
+
+    device.updateDescriptorSets(writes);
 }
 
 void RealTimeClouds::updateAccelerationStructureDescriptorSet() {
@@ -329,6 +402,17 @@ void RealTimeClouds::createVolumeRenderPipeline() {
     createInfo.layout = volumeRender.layout;
 
     volumeRender.pipeline = device.createComputePipeline( createInfo);
+
+    auto linearBlurShaderModule = VulkanShaderModule{ resource("linear_blur.comp.spv"), device };
+    stage = initializers::shaderStage({ linearBlurShaderModule, VK_SHADER_STAGE_COMPUTE_BIT});
+
+    blur.layout = device.createPipelineLayout({ blur.descriptorSetLayout }, {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int)}});
+    auto info = initializers::computePipelineCreateInfo();
+
+
+    info.stage = stage;
+    info.layout = blur.layout;
+    blur.pipeline = device.createComputePipeline(info);
 }
 
 void RealTimeClouds::onSwapChainDispose() {
@@ -400,6 +484,7 @@ void RealTimeClouds::renderUI(VkCommandBuffer commandBuffer) {
     ImGui::Indent(-16);
     ImGui::SliderFloat("scale", &volumeRender.constants.boxScale, 1, 10);
     ImGui::SliderFloat("eccentricity", &volumeRender.constants.eccentricity, -0.99, .99);
+    ImGui::Checkbox("blur", &blur.on);
     ImGui::End();
     plugin(IM_GUI_PLUGIN).draw(commandBuffer);
 }
@@ -467,6 +552,18 @@ void RealTimeClouds::newFrame() {
 }
 
 void RealTimeClouds::renderVolume() {
+    VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.image = blur.texture.image;
+    
     device.computeCommandPool().oneTimeCommand([&](auto commandBuffer){
 
         static std::array<VkDescriptorSet, 2> sets;
@@ -480,6 +577,34 @@ void RealTimeClouds::renderVolume() {
         auto wg = width/32 + (width % 32);
         auto hg = height/32 + (height % 32);
         vkCmdDispatch(commandBuffer, wg, hg, 1);
+
+        if(blur.on) {
+            // blur clouds
+            canvas.image.copyToBuffer(commandBuffer, blur.transferBuffer, VK_IMAGE_LAYOUT_GENERAL);
+            blur.texture.image.copyFromBuffer(commandBuffer, blur.transferBuffer, VK_IMAGE_LAYOUT_GENERAL);
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blur.pipeline);
+
+
+            const int iterations = blur.iterations * 2;
+            for (int i = 0; i < iterations; i++) {
+                int horizontal = 1 - (i % 2);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blur.layout, 0, 1,
+                                        &blur.descriptorSet, 0, VK_NULL_HANDLE);
+                vkCmdPushConstants(commandBuffer, blur.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int),
+                                   &horizontal);
+                vkCmdDispatch(commandBuffer, width, height, 1);
+
+                if ((i + 1) < iterations) {
+                    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE,
+                                         1, &barrier);
+                }
+            }
+
+            blur.texture.image.copyToBuffer(commandBuffer, blur.transferBuffer, VK_IMAGE_LAYOUT_GENERAL);
+            canvas.image.copyFromBuffer(commandBuffer, blur.transferBuffer, VK_IMAGE_LAYOUT_GENERAL);
+        }
     });
 }
 

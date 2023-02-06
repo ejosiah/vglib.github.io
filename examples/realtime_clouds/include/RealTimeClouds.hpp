@@ -116,14 +116,27 @@ protected:
             float cloudType{1};
             float time{0};
             float boxScale{1};
-            float eccentricity{0};
+            float eccentricity{0.2};
         } constants;
     } volumeRender;
+
+    struct {
+        VulkanPipelineLayout layout;
+        VulkanPipeline  pipeline;
+        VulkanDescriptorSetLayout descriptorSetLayout;
+        VkDescriptorSet descriptorSet;
+        Texture texture;
+        VulkanBuffer transferBuffer;
+        int iterations = 9;
+        bool on = false;
+    } blur;
 
     bool updateState = true;
 
     Texture lowFrequencyNoiseTexture;
     Texture highFrequencyNoiseTexture;
+    Texture weatherTexture;
+    Texture curlNoiseTexture;
 
     VulkanDescriptorPool descriptorPool;
     VulkanCommandPool commandPool;

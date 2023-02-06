@@ -24,8 +24,14 @@ struct Ray{
     float tMin;
 };
 
+struct WeatherData{
+    float cloudCoverage;
+    float cloudType;
+    float precipitation;
+};
+
 const vec3 boxMin = vec3(-1);
-const vec3 boxMax = vec3(1);
+const vec3 boxMax = vec3(2);
 
 layout(set = 0, binding = 0) uniform accelerationStructure topLevelAS;
 layout(set = 0, binding = 1) uniform CameraProperties{
@@ -37,10 +43,9 @@ layout(set = 0, binding = 1) uniform CameraProperties{
 layout(set = 0, binding = 2, rgba32f) uniform image2D imageOut;
 layout(set = 1, binding = 0) uniform sampler3D lowFreqencyNoises;
 layout(set = 1, binding = 1) uniform sampler3D highFreqencyNoisesMap;
+layout(set = 1, binding = 2) uniform sampler2D curlNoiseMap;
+layout(set = 1, binding = 3) uniform sampler2D weatherMap;
 
-layout(set = 2, binding = 0) uniform sampler2D weatherCloudCoverage;
-layout(set = 2, binding = 1) uniform sampler2D weatherCloudType;
-layout(set = 2, binding = 2) uniform sampler2D weatherPrecipitation;
 
 layout(push_constant) uniform Constants {
     vec3 lightPosition;
@@ -52,6 +57,23 @@ layout(push_constant) uniform Constants {
     float boxScale;
     float eccentricity;
 };
+
+vec4 loadLowFreqencyNoise(vec3 p){
+    return texture(lowFreqencyNoises, p);
+}
+
+vec3 loadHighFreqencyNoise(vec3 p){
+    return texture(highFreqencyNoisesMap, p).xyz;
+}
+
+WeatherData loadWeatherDataForPoint(vec3 p){
+    vec3 w = texture(weatherMap, p.xz).xyz;
+    WeatherData wd = WeatherData(w.x, w.y, w.z);
+
+//    wd.cloudCoverage = coverage;
+    wd.cloudType = cloudType;
+    return wd;
+}
 
 bool hasNoVolume(Box box) {
     return all(equal(box.min, vec3(0))) && all(equal(box.max, vec3(0)));
@@ -108,7 +130,8 @@ float heightFractionForPoint(vec3 p){
 }
 
 vec3 samplePointForPoint(vec3 p){
-    return ((p - boxMin * boxScale)/(((boxMax - boxMin) * boxScale)));
+    return p/20;
+    //return ((p - boxMin * boxScale)/(((boxMax - boxMin) * boxScale)));
 }
 
 float cubeSDF(vec3 p, vec3 size){
@@ -136,10 +159,9 @@ float stratusCloud(float x){
     return cubicPulse(0.1, 0.1, x);
 }
 
-float densityHeightGradientForPoint(vec3 p){
+float densityHeightGradientForPoint(vec3 p, float cloud_type){
 
     float height = heightFractionForPoint(p);
-    float cloud_type = cloudType;
 
     const vec4 stratusGrad = vec4(0.02f, 0.05f, 0.09f, 0.11f);
     const vec4 stratocumulusGrad = vec4(0.02f, 0.2f, 0.48f, 0.625f);
@@ -164,20 +186,28 @@ float henyeyGreenstein(vec3 lightDir, vec3 viewDir, float g){
 
 float sampleCloudDensity(vec3 p){
     vec3 sp = samplePointForPoint(p);
-    vec4 noiseComp = texture(lowFreqencyNoises, sp - normalize(viewPosition) * time * 0.1);
+    vec4 noiseComp = loadLowFreqencyNoise(sp);
     float perlinWorly = noiseComp.x;
     float wfbm = dot(vec3(.625, .25, .125), noiseComp.gba);
     float cloud = remap(perlinWorly, wfbm - 1, 1, 0, 1);
-    float densityHeightField = densityHeightGradientForPoint(p);
+
+    WeatherData wd = loadWeatherDataForPoint(sp);
+
+    float densityHeightField = densityHeightGradientForPoint(p, wd.cloudType);
     cloud *= densityHeightField;
+
+
+    float coverage = wd.cloudCoverage;
 
     cloud = remap(cloud, 1 - coverage, 1, 0, 1);
     cloud *= coverage;
 
-    vec3 highFreqencyNoises = texture(highFreqencyNoisesMap, sp * 0.1).rgb;
+    float hightFraction = heightFractionForPoint(p);
+    vec2 curlNoise = texture(curlNoiseMap, sp.xz).xy;
+    sp.xz += curlNoise * -hightFraction;
+    vec3 highFreqencyNoises = loadHighFreqencyNoise(sp * 0.1);
 
     float highFreqencyFBM = dot(highFreqencyNoises, vec3(.625, .25, .125));
-    float hightFraction = heightFractionForPoint(p);
 
     float highFreqencyNoiseModifier = mix(highFreqencyFBM, 1 - highFreqencyFBM, clamp(hightFraction * 10, 0, 1));
 
@@ -231,23 +261,35 @@ float sampleLightEnergy(vec3 samplePosition, vec3 direction, float cloudDensity)
 
 }
 
+const vec3 windDirection = vec3(1, 0, 1);
+const float cloudSpeed = 0.5;
+const float cloud_top_offset = 1;
+
+
 void main(){
     //    debugPrintfEXT("min: [%.f, %.f]\n", width, height);
     vec4 color = vec4(0);
     Ray ray;
-    const float MaxSteps = 128;
+
     const float maxDist = distance(boxMin, boxMax) * boxScale;
     if(inCloud(ray)){
+        float horizonFactor = dot(ray.direction, vec3(0, 1, 0));
+        const float MaxSteps = floor(mix(35, 60, horizonFactor));
 
         float tMin = ray.tMin;
         float tMax = ray.tMax;
         float diff = tMax - tMin;
         float stepSize = diff/MaxSteps;
 
+
         for(int i = 0; i < MaxSteps; i++){
             float t = tMin + (stepSize * i);
-            vec3 p = ray.origin + ray.direction * t;
+            vec3 offset = hash33(gl_GlobalInvocationID + t * 100) * 0.1;
+            vec3 p = ray.origin + (ray.direction + offset) * t;
+            float heightFraction = heightFractionForPoint(p);
+            p += heightFraction * windDirection * cloud_top_offset;
 
+            p -= (windDirection + vec3(0, 0.01, 0)) * time * cloudSpeed;
             float cloud = sampleCloudDensity(p);
             float energy = sampleLightEnergy(p, ray.direction, cloud);
 
@@ -270,6 +312,8 @@ void main(){
 }
 
 bool test(inout Ray ray, Box box);
+
+bool test2(inout Ray ray, Box box);
 
 bool inCloud(out Ray ray){
     ivec2 id = ivec2(gl_GlobalInvocationID);
@@ -306,7 +350,26 @@ bool inCloud(out Ray ray){
 //    }
 //    return false;
 
-    return test(ray, Box(boxMin * boxScale, boxMax * boxScale));
+    return test2(ray, Box(boxMin * boxScale, boxMax * boxScale));
+}
+
+bool test2(inout Ray ray, Box box){
+    vec3 n = vec3(0, 1, 0);
+    float t0 = (box.min.y - dot(ray.origin, n))/dot(ray.direction, n);
+    float t1 = (box.max.y - dot(ray.origin, n))/dot(ray.direction, n);
+
+    ray.tMin = min(t0, t1);
+    ray.tMax = max(t0, t1);
+
+//    if((ray.tMin < 0 && ray.tMax < 0) && (ray.origin.y > box.min.y && ray.origin.y < box.max.y)){
+//        ray.tMin = 0;
+//        ray.tMax = distance(box.min, box.max);
+//        return true;
+//    }
+
+    ray.tMin = max(0, ray.tMin);
+
+    return ray.tMin >= 0 && ray.tMax >= 0;
 }
 
 bool test(inout Ray ray, Box box){
