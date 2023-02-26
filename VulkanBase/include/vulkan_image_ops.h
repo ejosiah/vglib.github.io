@@ -3,16 +3,26 @@
 #include "VulkanDevice.h"
 #include "VulkanBuffer.h"
 #include "Texture.h"
+#include <memory>
 
 class VulkanImageOps {
+    friend class ImageInfo;
 public:
     VulkanImageOps(VulkanDevice *device = nullptr);
 
-    VulkanImageOps &srcTexture(Texture &texture);
+    ImageInfo &srcImage(VulkanImage &image);
 
-    VulkanImageOps &dstTexture(Texture &texture);
+    ImageInfo &dstImage(VulkanImage &texture);
 
-    VulkanImageOps& srcBuffer(VulkanBuffer buffer);
+    VulkanImageOps& srcBuffer(VulkanBuffer& buffer);
+
+    VulkanImageOps& width(uint32_t w);
+
+    VulkanImageOps& height(uint32_t h);
+
+    VulkanImageOps& depth(uint32_t w);
+
+    VulkanImageOps& extent(uint32_t width, uint32_t height, uint32_t depth = 1);
 
     VulkanImageOps& imageSubresourceRange(VkImageAspectFlags aspectMask,
                                uint32_t baseMipLevel,
@@ -20,25 +30,38 @@ public:
                                uint32_t baseArrayLayer,
                                uint32_t layerCount);
 
+    virtual void copy(VkCommandBuffer commandBuffer);
 
-    VulkanImageOps& sourceSrcPipelineStage(VkPipelineStageFlags flags);
-
-    VulkanImageOps& srcPipelineStage(VkPipelineStageFlags flags);
-
-    VulkanImageOps& dstPipelineStage(VkPipelineStageFlags flags);
-
-    VulkanImageOps& sourceSrcAccessMask(VkAccessFlags flags);
-
-    VulkanImageOps& srcAccessMask(VkAccessFlags flags);
-
-    VulkanImageOps& dstAccessMask(VkAccessFlags flags);
-
-    void copy(VkCommandBuffer commandBuffer);
-
-    void transfer(VkCommandBuffer commandBuffer);
-
+    virtual void transfer(VkCommandBuffer commandBuffer);
 
 protected:
     class Impl;
-    Impl* pimpl{ nullptr };
+    Impl* pimpl{ };
+    VulkanImageOps* _parent{};
+};
+
+class ImageInfo : public VulkanImageOps{
+public:
+    friend class Impl;
+    ImageInfo(VulkanImageOps* parent, VulkanImage* image);
+
+    ImageInfo& initialPipelineStage(VkPipelineStageFlags flags);
+
+    ImageInfo& pipelineStage(VkPipelineStageFlags flags);
+
+    ImageInfo& finalPipelineStage(VkPipelineStageFlags flags);
+
+    ImageInfo& aspectMask(VkImageAspectFlags flags);
+
+    ImageInfo& initialAspectMask(VkImageAspectFlags flags);
+
+    ImageInfo& finalAspectMask(VkImageAspectFlags flags);
+
+
+private:
+    VulkanImage* _image{};
+    VkPipelineStageFlags _initialPipelineStage{};
+    VkPipelineStageFlags _finalPipelineStage{};
+    VkImageAspectFlags _initialAspectMask{};
+    VkImageAspectFlags _finalAspectMask{};
 };

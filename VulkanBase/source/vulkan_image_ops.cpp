@@ -9,16 +9,20 @@ public:
     , _device{ device }
     {}
 
-    VulkanImageOps &srcTexture(Texture &texture){
-        return *_ops;
+    ImageInfo &srcImage(VulkanImage &image){
+        _srcImageInfo = std::make_unique<ImageInfo>(_ops, &image);
+//        _srcImage = &image;
+        return *_srcImageInfo;
     }
 
-    VulkanImageOps &dstTexture(Texture &texture){
-        return *_ops;
+    ImageInfo &dstImage(VulkanImage &image){
+        _dstImageInfo = std::make_unique<ImageInfo>(_ops, &image);
+//        _dstImage = &image;
+        return *_dstImageInfo;
     }
 
-    VulkanImageOps& srcBuffer(VulkanBuffer buffer){
-        _srcBuffer = buffer;
+    VulkanImageOps& srcBuffer(VulkanBuffer& buffer){
+        _srcBuffer = &buffer;
         return *_ops;
     }
 
@@ -36,58 +40,91 @@ public:
         return *_ops;
     }
 
-    VulkanImageOps& sourceSrcPipelineStage(VkPipelineStageFlags flags){
-        _sourceSrcPipelineStage = flags;
+    VulkanImageOps& currentPipelineStage(VkPipelineStageFlags flags){
+        _srcImageInfo->initialPipelineStage(flags);
+//        _currentPipelineStage = flags;
         return *_ops;
     }
 
     VulkanImageOps& srcPipelineStage(VkPipelineStageFlags flags){
-        _srcPipelineStage = flags;
+        _dstImageInfo->initialPipelineStage(flags);
+//        _srcPipelineStage = flags;
         return *_ops;
     }
 
     VulkanImageOps& dstPipelineStage(VkPipelineStageFlags flags){
-        _dstPipelineStage = flags;
+//        _dstPipelineStage = flags;
         return *_ops;
     }
 
-    VulkanImageOps& sourceSrcAccessMask(VkAccessFlags flags){
-        _sourceSrcAccessMask = flags;
+    VulkanImageOps& currentAccessMask(VkAccessFlags flags){
+        _srcImageInfo->initialAspectMask(flags);
+//        _currentAccessMask = flags;
         return *_ops;
     }
     VulkanImageOps& srcAccessMask(VkAccessFlags flags){
-        _srcAccessMask = flags;
+        _dstImageInfo->initialAspectMask(flags);
+//        _srcAccessMask = flags;
         return *_ops;
     }
 
     VulkanImageOps& dstAccessMask(VkAccessFlags flags){
-        _dstAccessMask = flags;
+//        _dstAccessMask = flags;
+        return *_ops;
+    }
+
+    VulkanImageOps& width(uint32_t w){
+        _extent.width = w;
+        return *_ops;
+    }
+
+    VulkanImageOps& height(uint32_t h){
+        _extent.height = h;
+        return *_ops;
+    }
+
+    VulkanImageOps& depth(uint32_t d){
+        _extent.depth = d;
+        return *_ops;
+    }
+
+    VulkanImageOps& extent(uint32_t width, uint32_t height, uint32_t depth = 0){
+        _extent.width = width;
+        _extent.height = height;
+        _extent.depth = depth;
         return *_ops;
     }
 
     void copy(VkCommandBuffer commandBuffer){
-        assert(_srcTexture);
-        assert(_dstTexture);
-        assert(_sourceSrcPipelineStage != VK_PIPELINE_STAGE_NONE);
-        assert(_srcPipelineStage != VK_PIPELINE_STAGE_NONE);
-        assert(_srcAccessMask != VK_ACCESS_NONE);
-        assert(_sourceSrcAccessMask != VK_ACCESS_NONE);
+        assert(_srcImageInfo);
+        assert(_dstImageInfo);
+        assert(_srcImageInfo->_initialPipelineStage != VK_PIPELINE_STAGE_NONE);
+        assert(_dstImageInfo->_initialPipelineStage != VK_PIPELINE_STAGE_NONE);
+        assert(_srcImageInfo->_initialAspectMask != VK_ACCESS_NONE);
+        assert(_dstImageInfo->_initialAspectMask != VK_ACCESS_NONE);
+        assert(_extent.width != 0 && _extent.height != 0);
 
-        _dstPipelineStage = (_dstPipelineStage == VK_PIPELINE_STAGE_NONE) ? _srcPipelineStage : _dstPipelineStage;
-        _dstAccessMask = (_dstAccessMask == VK_ACCESS_NONE) ? _srcAccessMask : _dstAccessMask;
+        _dstImageInfo->_finalPipelineStage = (_dstImageInfo->_finalPipelineStage == VK_PIPELINE_STAGE_NONE) ? _dstImageInfo->_initialPipelineStage : _dstImageInfo->_finalPipelineStage;
+        _dstImageInfo->_finalAspectMask = (_dstImageInfo->_finalAspectMask == VK_ACCESS_NONE) ? _dstImageInfo->_initialAspectMask : _dstImageInfo->_finalAspectMask;
 
-        auto dstOldLayout = _dstTexture->image.currentLayout;
+        auto _dstImage = _dstImageInfo->_image;
+        auto _srcAccessMask = _dstImageInfo->_initialAspectMask;
+        auto _srcPipelineStage = _dstImageInfo->_initialPipelineStage;
+        auto dstOldLayout = _dstImage->currentLayout;
         if(dstOldLayout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL){
-            _dstTexture->image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _subresourceRange
+            _dstImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _subresourceRange
                     , _srcAccessMask, VK_ACCESS_TRANSFER_WRITE_BIT
                     , _srcPipelineStage, VK_PIPELINE_STAGE_TRANSFER_BIT);
         }
 
-        auto srcOldLayout = _srcTexture->image.currentLayout;
+        auto _srcImage = _srcImageInfo->_image;
+        auto _currentAccessMask = _srcImageInfo->_initialAspectMask;
+        auto _currentPipelineStage = _srcImageInfo->_initialPipelineStage;
+        auto srcOldLayout = _srcImage->currentLayout;
         if(srcOldLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL){
-            _srcTexture->image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _subresourceRange
-                    , _sourceSrcAccessMask, VK_ACCESS_TRANSFER_READ_BIT
-                    , _sourceSrcPipelineStage, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            _srcImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _subresourceRange
+                    , _currentAccessMask, VK_ACCESS_TRANSFER_READ_BIT
+                    , _currentPipelineStage, VK_PIPELINE_STAGE_TRANSFER_BIT);
         }
 
         VkImageSubresourceLayers imageSubresource{_subresourceRange.aspectMask, _subresourceRange.baseMipLevel,
@@ -98,22 +135,24 @@ public:
         region.srcOffset = {0, 0, 0};
         region.dstSubresource = imageSubresource;
         region.dstOffset = {0, 0, 0};
-        region.extent = {_srcTexture->width, _srcTexture->height, 1};
+        region.extent = _extent;
 
-        vkCmdCopyImage(commandBuffer, _srcTexture->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _dstTexture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        vkCmdCopyImage(commandBuffer, _srcImage->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _dstImage->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
+
+        auto _dstAccessMask = _dstImageInfo->_finalAspectMask;
+        auto _dstPipelineStage = _dstImageInfo->_finalPipelineStage;
         if(dstOldLayout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL){
-            _dstTexture->image.transitionLayout(commandBuffer, dstOldLayout, _subresourceRange
-                    ,  VK_ACCESS_TRANSFER_WRITE_BIT, _dstAccessMask
-                    ,  VK_PIPELINE_STAGE_TRANSFER_BIT, _dstPipelineStage);
+            _dstImage->transitionLayout(commandBuffer, dstOldLayout, _subresourceRange
+                    , VK_ACCESS_TRANSFER_WRITE_BIT, _dstAccessMask
+                    , VK_PIPELINE_STAGE_TRANSFER_BIT, _dstPipelineStage);
         }
 
         if(srcOldLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL){
-            _srcTexture->image.transitionLayout(commandBuffer, srcOldLayout, _subresourceRange
-                    ,  VK_ACCESS_TRANSFER_WRITE_BIT, _sourceSrcAccessMask
-                    ,  VK_PIPELINE_STAGE_TRANSFER_BIT, _sourceSrcPipelineStage);
+            _srcImage->transitionLayout(commandBuffer, srcOldLayout, _subresourceRange
+                    , VK_ACCESS_TRANSFER_WRITE_BIT, _currentAccessMask
+                    , VK_PIPELINE_STAGE_TRANSFER_BIT, _currentPipelineStage);
         }
-
     }
 
     void transfer(VkCommandBuffer commandBuffer){
@@ -121,18 +160,22 @@ public:
     }
 
 private:
-    VulkanDevice *_device{nullptr};
-    VulkanImageOps* _ops{nullptr};
-    Texture *_srcTexture{nullptr};
-    Texture *_dstTexture{nullptr};
-    VulkanBuffer _srcBuffer{};
-    VkPipelineStageFlags _srcPipelineStage{VK_PIPELINE_STAGE_NONE};
-    VkPipelineStageFlags _dstPipelineStage{VK_PIPELINE_STAGE_NONE};
-    VkAccessFlags _sourceSrcAccessMask{VK_ACCESS_NONE};
-    VkAccessFlags _srcAccessMask{VK_ACCESS_NONE};
-    VkAccessFlags _dstAccessMask{VK_ACCESS_NONE};
+    VulkanDevice *_device = nullptr;
+    VulkanImageOps* _ops = nullptr;
+//    VulkanImage *_srcImage = nullptr;
+//    VulkanImage *_dstImage = nullptr;
+    VulkanBuffer* _srcBuffer = nullptr;
+    VkExtent3D _extent;
+//    VkPipelineStageFlags _srcPipelineStage{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+//    VkPipelineStageFlags _dstPipelineStage{VK_PIPELINE_STAGE_NONE};
+//    VkAccessFlags _currentAccessMask{VK_ACCESS_NONE};
+//    VkAccessFlags _srcAccessMask{VK_ACCESS_NONE};
+//    VkAccessFlags _dstAccessMask{VK_ACCESS_NONE};
     VkImageSubresourceRange _subresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    VkPipelineStageFlags _sourceSrcPipelineStage{VK_PIPELINE_STAGE_NONE};
+//    VkPipelineStageFlags _currentPipelineStage{VK_PIPELINE_STAGE_NONE};
+    std::unique_ptr<ImageInfo> _srcImageInfo;
+    std::unique_ptr<ImageInfo> _dstImageInfo;
+
 };
 
 VulkanImageOps::VulkanImageOps(VulkanDevice *device)
@@ -141,15 +184,24 @@ VulkanImageOps::VulkanImageOps(VulkanDevice *device)
 
 }
 
-VulkanImageOps &VulkanImageOps::srcTexture(Texture &texture) {
-    return pimpl->srcTexture(texture);
+ImageInfo &VulkanImageOps::srcImage(VulkanImage &image) {
+    if(_parent){
+        return _parent->srcImage(image);
+    }
+    return pimpl->srcImage(image);
 }
 
-VulkanImageOps &VulkanImageOps::dstTexture(Texture &texture) {
-    return pimpl->dstTexture(texture);
+ImageInfo &VulkanImageOps::dstImage(VulkanImage &image) {
+    if(_parent){
+        return _parent->dstImage(image);
+    }
+    return pimpl->dstImage(image);
 }
 
-VulkanImageOps &VulkanImageOps::srcBuffer(VulkanBuffer buffer) {
+VulkanImageOps &VulkanImageOps::srcBuffer(VulkanBuffer& buffer) {
+    if(_parent){
+        return _parent->srcBuffer(buffer);
+    }
     return pimpl->srcBuffer(buffer);
 }
 
@@ -159,39 +211,85 @@ VulkanImageOps::imageSubresourceRange(VkImageAspectFlags aspectMask, uint32_t ba
     return pimpl->imageSubresourceRange(aspectMask, baseMipLevel, levelCount, baseMipLevel, layerCount);
 }
 
-VulkanImageOps &VulkanImageOps::sourceSrcPipelineStage(VkPipelineStageFlags flags) {
-    return pimpl->sourceSrcPipelineStage(flags);
-}
-
-VulkanImageOps &VulkanImageOps::srcPipelineStage(VkPipelineStageFlags flags) {
-    return pimpl->srcPipelineStage(flags);
-}
-
-VulkanImageOps &VulkanImageOps::dstPipelineStage(VkPipelineStageFlags flags) {
-    return pimpl->dstPipelineStage(flags);
-}
-
-VulkanImageOps &VulkanImageOps::sourceSrcAccessMask(VkAccessFlags flags) {
-    return pimpl->sourceSrcAccessMask(flags);
-}
-
-VulkanImageOps &VulkanImageOps::srcAccessMask(VkAccessFlags flags) {
-    return pimpl->srcAccessMask(flags);
-}
-
-VulkanImageOps &VulkanImageOps::dstAccessMask(VkAccessFlags flags) {
-    return pimpl->dstAccessMask(flags);
-}
-
 void VulkanImageOps::copy(VkCommandBuffer commandBuffer) {
-    pimpl->copy(commandBuffer);
+    if(_parent){
+        _parent->copy(commandBuffer);
+    }else {
+        pimpl->copy(commandBuffer);
+    }
 }
 
 void VulkanImageOps::transfer(VkCommandBuffer commandBuffer) {
-    pimpl->transfer(commandBuffer);
+    if(_parent){
+        _parent->transfer(commandBuffer);
+    }else {
+        pimpl->transfer(commandBuffer);
+    }
+}
+
+VulkanImageOps &VulkanImageOps::width(uint32_t w) {
+    if(_parent){
+        return _parent->width(w);
+    }
+    return pimpl->width(w);
+}
+
+VulkanImageOps &VulkanImageOps::height(uint32_t h) {
+    if(_parent){
+        return _parent->height(h);
+    }
+    return pimpl->height(h);
+}
+
+VulkanImageOps &VulkanImageOps::depth(uint32_t d) {
+    if(_parent){
+        return _parent->depth(d);
+    }
+    return pimpl->depth(d);
+}
+
+VulkanImageOps &VulkanImageOps::extent(uint32_t width, uint32_t height, uint32_t depth) {
+    if(_parent){
+        return _parent->extent(width, height, depth);
+    }
+    return pimpl->extent(width, height, depth);
 }
 
 
 VulkanImageOps VulkanDevice::imageOps() {
     return VulkanImageOps{this};
+}
+
+ImageInfo::ImageInfo(VulkanImageOps *parent, VulkanImage *image) : _image{ image }{
+    _parent = parent;
+}
+
+ImageInfo &ImageInfo::initialPipelineStage(VkPipelineStageFlags flags) {
+    _initialPipelineStage = flags;
+    return *this;
+}
+
+ImageInfo &ImageInfo::finalPipelineStage(VkPipelineStageFlags flags) {
+    _finalPipelineStage = flags;
+    return *this;
+}
+
+ImageInfo &ImageInfo::initialAspectMask(VkImageAspectFlags flags) {
+    _initialAspectMask = flags;
+    return *this;
+}
+
+ImageInfo &ImageInfo::finalAspectMask(VkImageAspectFlags flags) {
+    _finalAspectMask = flags;
+    return *this;
+}
+
+ImageInfo &ImageInfo::pipelineStage(VkPipelineStageFlags flags) {
+    _initialPipelineStage = _finalPipelineStage = flags;
+    return *this;
+}
+
+ImageInfo &ImageInfo::aspectMask(VkImageAspectFlags flags) {
+    _initialAspectMask = _finalAspectMask = flags;
+    return *this;
 }
