@@ -190,7 +190,7 @@ vec4 ray_march(Ray ray, Bounds bounds){
         color.rgb = prev_alpha * vec3(voxel * energy) + color.rgb;
         color.a += prev_alpha;
 
-        position += step_dir + randomVec3(rngState);
+        position += step_dir + randomVec3(rngState) * 0.2;
     }
 
 

@@ -5,8 +5,10 @@
 #include "L2DFileDialog.h"
 #include <openvdb/openvdb.h>
 #include <sstream>
+#include <future>
 #include "glm_format.h"
 #include "primitives.h"
+#include "vulkan_image_ops.h"
 
 OpenVdbViewer::OpenVdbViewer(const Settings& settings) : VulkanBaseApp("Open Vdb viewer", settings) {
     fileManager.addSearchPathFront(".");
@@ -15,10 +17,18 @@ OpenVdbViewer::OpenVdbViewer(const Settings& settings) : VulkanBaseApp("Open Vdb
     fileManager.addSearchPathFront("../../examples/open_vdb_viewer/spv");
     fileManager.addSearchPathFront("../../examples/open_vdb_viewer/models");
     fileManager.addSearchPathFront("../../examples/open_vdb_viewer/textures");
+
+    syncFeatures = VkPhysicalDeviceSynchronization2Features{
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
+            VK_NULL_HANDLE,
+            VK_TRUE
+    };
+    deviceCreateNextChain = &syncFeatures;
 }
 
 void OpenVdbViewer::initApp() {
     openvdb::initialize();
+    createRenderTarget();
     initCamera();
     createBuffers();
     createPlaceHolderTexture();
@@ -29,6 +39,98 @@ void OpenVdbViewer::initApp() {
     createCommandPool();
     createPipelineCache();
     createRenderPipeline();
+    blur = std::make_unique<Blur>(&device, &descriptorPool, &fileManager, width, height);
+    canvas = Canvas{this, VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_FORMAT_R32G32B32A32_SFLOAT};
+    canvas.init();
+}
+
+void OpenVdbViewer::createRenderTarget() {
+    VkImageCreateInfo info = initializers::imageCreateInfo(VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, width, height);
+
+    // create color buffer
+    VkImageSubresourceRange subresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    GBuffer.color.image = device.createImage(info);
+    GBuffer.color.imageView = GBuffer.color.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+
+    // create depth buffer
+    info.format = VK_FORMAT_D32_SFLOAT;
+    subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    GBuffer.depth.image = device.createImage(info);
+    GBuffer.depth.imageView = GBuffer.depth.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+
+    device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
+        GBuffer.depth.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
+                                             subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+                                             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+        GBuffer.color.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
+                                                      subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+                                                      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    });
+
+    VkAttachmentDescription attachment{
+            0,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_ATTACHMENT_LOAD_OP_CLEAR,
+            VK_ATTACHMENT_STORE_OP_STORE,
+            VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_IMAGE_LAYOUT_GENERAL
+    };
+
+    std::vector<VkAttachmentDescription> attachmentDesc;
+    attachmentDesc.push_back(attachment);
+
+
+    attachment.format = VK_FORMAT_D32_SFLOAT;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL;
+    attachmentDesc.push_back(attachment);
+
+    SubpassDescription subpass{};
+    subpass.colorAttachments = {
+            {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}
+    };
+    subpass.depthStencilAttachments.attachment = 1;
+    subpass.depthStencilAttachments.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL;
+
+    std::vector<SubpassDescription> subpassDesc{ subpass };
+
+    std::vector<VkSubpassDependency> dependencies{
+            {
+                    VK_SUBPASS_EXTERNAL,
+                    0,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_ACCESS_SHADER_READ_BIT,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    0
+            },
+            {
+                    0,
+                    VK_SUBPASS_EXTERNAL,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    VK_ACCESS_SHADER_READ_BIT,
+                    0
+            }
+    };
+
+
+    renderTarget.renderPass = device.createRenderPass(attachmentDesc, subpassDesc, dependencies);
+
+    std::vector<VkImageView> attachments{
+            GBuffer.color.imageView,
+            GBuffer.depth.imageView,
+    };
+    renderTarget.framebuffer = device.createFramebuffer(renderTarget.renderPass, attachments, width, height);
 }
 
 void OpenVdbViewer::initCamera() {
@@ -238,7 +340,7 @@ void OpenVdbViewer::createRenderPipeline() {
                 .layout()
                     .addDescriptorSetLayout(descriptorSetLayout)
                     .addDescriptorSetLayout(volumeDescriptorSetLayout)
-                .renderPass(renderPass)
+                .renderPass(renderTarget.renderPass)
                 .subpass(0)
                 .name("ray_marching")
                 .pipelineCache(pipelineCache)
@@ -317,6 +419,24 @@ void OpenVdbViewer::createRenderPipeline() {
                 .addPushConstantRange(Camera::pushConstant())
             .name("light_renderer")
         .build(light.layout);
+
+    screenQuad.pipeline =
+        builder
+            .shaderStage()
+                .vertexShader(resource("screen.vert.spv"))
+                .fragmentShader(resource("screen.frag.spv"))
+            .vertexInputState().clear()
+            .inputAssemblyState()
+                .triangles()
+//            .depthStencilState()
+//                .disableDepthTest()
+//                .disableDepthWrite()
+            .colorBlendState()
+                .attachments(1)
+            .layout().clear()
+            .renderPass(renderPass)
+            .name("screen_quad")
+        .build(screenQuad.layout);
 }
 
 
@@ -325,8 +445,61 @@ void OpenVdbViewer::onSwapChainDispose() {
 }
 
 void OpenVdbViewer::onSwapChainRecreation() {
+    createRenderTarget();
     updateDescriptorSets();
     createRenderPipeline();
+    blur->refresh(width, height);
+    canvas.recreate();
+}
+
+void OpenVdbViewer::offscreenRender() {
+//    static VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+//    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+//    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+//    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+//    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+//    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+//    barrier.subresourceRange.baseArrayLayer = 0;
+//    barrier.subresourceRange.layerCount = 1;
+//    barrier.subresourceRange.baseMipLevel = 0;
+//    barrier.subresourceRange.levelCount = 1;
+//    barrier.image = .image;
+
+    device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
+        static std::array<VkClearValue, 2> clearValues;
+        clearValues[0].color = {0, 0, 0, 1};
+        clearValues[1].depthStencil = {1.0, 0u};
+
+        VkRenderPassBeginInfo rPassInfo = initializers::renderPassBeginInfo();
+        rPassInfo.clearValueCount = COUNT(clearValues);
+        rPassInfo.pClearValues = clearValues.data();
+        rPassInfo.framebuffer = renderTarget.framebuffer;
+        rPassInfo.renderArea.offset = {0u, 0u};
+        rPassInfo.renderArea.extent = swapChain.extent;
+        rPassInfo.renderPass = renderTarget.renderPass;
+
+        vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        renderBackground(commandBuffer);
+        renderVolume(commandBuffer);
+        vkCmdEndRenderPass(commandBuffer);
+
+        if(doBlur){
+            blur->execute(commandBuffer, GBuffer.color.image, canvas.image, blurIterations);
+        }else{
+            device.imageOps()
+                .srcImage(GBuffer.color.image)
+                    .aspectMask(VK_ACCESS_SHADER_WRITE_BIT)
+                    .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+                .dstImage(canvas.image)
+                    .aspectMask(VK_ACCESS_SHADER_READ_BIT)
+                    .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+                .imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1)
+                .extent(width, height, 1)
+            .copy(commandBuffer);
+        }
+
+
+    });
 }
 
 VkCommandBuffer *OpenVdbViewer::buildCommandBuffers(uint32_t imageIndex, uint32_t &numCommandBuffers) {
@@ -350,9 +523,10 @@ VkCommandBuffer *OpenVdbViewer::buildCommandBuffers(uint32_t imageIndex, uint32_
 
     vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    renderBackground(commandBuffer);
-    renderLight(commandBuffer);
-    renderVolume(commandBuffer);
+//    renderBackground(commandBuffer);
+//    renderLight(commandBuffer);
+//    renderVolume(commandBuffer);
+    canvas.draw(commandBuffer);
     renderUI(commandBuffer);
 
     vkCmdEndRenderPass(commandBuffer);
@@ -360,6 +534,16 @@ VkCommandBuffer *OpenVdbViewer::buildCommandBuffers(uint32_t imageIndex, uint32_
     vkEndCommandBuffer(commandBuffer);
 
     return &commandBuffer;
+}
+
+void OpenVdbViewer::renderFullscreenQuad(VkCommandBuffer commandBuffer) {
+    static std::array<VkDescriptorSet, 1> sets;
+//    sets[0] = fullscreenDecriptorSet;
+    VkDeviceSize  offset = 0;
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, screenQuad.pipeline);
+//    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, background.layout, 0, COUNT(sets), sets.data(), 0, 0);
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffer, &offset);
+    vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
 
 void OpenVdbViewer::renderLight(VkCommandBuffer commandBuffer) {
@@ -435,8 +619,8 @@ void OpenVdbViewer::renderUI(VkCommandBuffer commandBuffer) {
 
     if(ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
-
-            FileDialog::file_dialog_open = ImGui::MenuItem("Open...");
+            auto enabled = loadState == LoadState::READY;
+            FileDialog::file_dialog_open = ImGui::MenuItem("Open...", nullptr, false, enabled);
 
             if(ImGui::MenuItem("Exit")){
                 this->exit->press();
@@ -476,6 +660,16 @@ void OpenVdbViewer::renderUI(VkCommandBuffer commandBuffer) {
     ImGui::SliderFloat("Cone spread", &volumeUbo->coneSpread, 0.1, 50);
     ImGui::SliderFloat("g", &volumeUbo->g, -0.999, 0.999);
     ImGui::SliderFloat("intensity", &volumeUbo->lightIntensity, 1, 1000);
+
+    ImGui::Separator();
+
+    ImGui::Text("Blur:");
+    ImGui::Indent(16);
+    ImGui::Checkbox("blur", &doBlur);
+    if(doBlur){
+        ImGui::SliderInt("iterations", &blurIterations, 1, 9);
+    }
+    ImGui::Indent(-16);
     ImGui::End();
 
     plugin(IM_GUI_PLUGIN).draw(commandBuffer);
@@ -495,6 +689,7 @@ bool OpenVdbViewer::openFileDialog() {
 
     if(closed) {
         vdbPath = std::string{file_dialog_buffer};
+        loadState = LoadState::REQUESTED;
         closed = false;
     }
 
@@ -560,13 +755,122 @@ void OpenVdbViewer::onPause() {
     VulkanBaseApp::onPause();
 }
 
-void OpenVdbViewer::fileInfo() {
-    if(!vdbPath.empty() && fileValid){
-        openvdb::io::File file(vdbPath);
-
-        try{
+void OpenVdbViewer::loadVolume2() {
+    loadState = LoadState::LOADING;
+    taskflow.clear();
+    auto [A, B] = taskflow.emplace(
+        [&]() {
+            spdlog::info("loading volume grid from {}", fs::path(vdbPath).filename().string());
+            openvdb::io::File file(vdbPath);
             file.open();
-            loadVolume(file);
+
+
+            static auto remap = [](auto x, auto a, auto b, auto c, auto d){
+                return glm::mix(c, d, (x - a)/(b - a));
+            };
+
+            static auto to_glm_vec3 = [](openvdb::Vec3i v){
+                return glm::vec3(v.x(), v.y(), v.z());
+            };
+            auto grid = openvdb::gridPtrCast<openvdb::FloatGrid>(file.readGrid(file.beginName().gridName()));
+            openvdb::Vec3i boxMin = grid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_min")->value();
+            openvdb::Vec3i boxMax = grid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_max")->value();
+
+            openvdb::Vec3i size;
+            size = size.sub(boxMax, boxMin);
+
+            volumeData.name = grid->getName();
+            volumeData.data.clear();
+            volumeData.data.resize(size.x() * size.y() * size.z());
+
+            openvdb::Coord xyz;
+            auto accessor = grid->getAccessor();
+
+            auto& z = xyz.z();
+            auto& y = xyz.y();
+            auto& x = xyz.x();
+
+            auto to_uvw = [=](openvdb::Coord& xyz){
+                glm::vec3 x{xyz.x(), xyz.y(), xyz.z()};
+                glm::vec3 a = to_glm_vec3(boxMin);
+                glm::vec3 b = to_glm_vec3(boxMax);
+                glm::vec3 c{0};
+                glm::vec3 d{size.x(), size.y(), size.z()};
+                d -= 1.0f;
+
+                auto uvw = remap(x, a, b, c, d);
+                return glm::ivec3(uvw);
+            };
+
+            static int count = 0;
+            float maxDensity = MIN_FLOAT;
+            for(z = boxMin.z(); z <= boxMax.z(); z++){
+                for(y = boxMin.y(); y <= boxMax.y(); y++){
+                    for(x = boxMin.x(); x <= boxMax.x(); x++){
+                        auto voxel = accessor.getValue(xyz);
+                        if(voxel != 0 && count < 10){
+                            count++;
+                            spdlog::info("value: {}", voxel);
+                        }
+                        auto uvw = to_uvw(xyz);
+                        auto i = (uvw.z * size.y() + uvw.y) * size.x() + uvw.x;
+                        volumeData.data[i] = voxel;
+                        maxDensity = glm::max(voxel, maxDensity);
+                    }
+                }
+            }
+
+            volumeData.boxMin = to_glm_vec3(boxMin);
+            volumeData.boxMax = to_glm_vec3(boxMax);
+            volumeData.invMaxDensity = 1/maxDensity;
+            file.close();
+            spdlog::info("loading volume grid {} successfully loaded", volumeData.name);
+
+        },
+        [&]() {
+            spdlog::info("registering task on main thread to export volume to GPU");
+            onIdle([&]{
+                vkDeviceWaitIdle(device);
+                spdlog::info("exporting volume to GPU");
+                vdbPath.clear();
+                loadState = LoadState::READY;
+                auto& buffer = volumeData.data;
+                auto size = glm::ivec3(volumeData.boxMax - volumeData.boxMin);
+                textures::create(device, volumeTexture, VK_IMAGE_TYPE_3D, VK_FORMAT_R32_SFLOAT, buffer.data(),
+                                 size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, sizeof(float));
+
+                volumeUbo->boxMin = volumeData.boxMin;
+                volumeUbo->boxMax = volumeData.boxMax;
+                volumeUbo->invMaxDensity = volumeData.invMaxDensity;
+                updateCamera();
+
+                auto scale = size;
+                auto max = glm::max(scale.x, glm::max(scale.y, scale.z));
+                sliceRenderer.constants.scale = scale/max;
+
+                light.position = (volumeUbo->boxMax + volumeUbo->boxMin) * .5f;
+                light.position.y += size.y * 0.01f;
+                light.scale = max * 0.01f;
+
+                updateVolumeDescriptorSets();
+                spdlog::info("loaded volume {} with dimensions [[{}], [{}]]", volumeData.name, volumeUbo->boxMin, volumeUbo->boxMax);
+            });
+        }
+    );
+    A.precede(B);
+    B.succeed(A);
+
+    executor.run(taskflow);
+}
+
+void OpenVdbViewer::fileInfo() {
+    if(loadState == LoadState::REQUESTED){
+        loadVolume2();
+//        openvdb::io::File file(vdbPath);
+//
+//        try{
+//            file.open();
+//            loadVolume(file);
 //            std::stringstream ss;
 //
 //            openvdb::GridBase::Ptr grid;
@@ -606,11 +910,11 @@ void OpenVdbViewer::fileInfo() {
 ////        ss << "Grid" << iter.getCoord() << " = " << *iter << "\n";
 ////    }
 //            spdlog::info("{}", ss.str());
-            file.close();
-            vdbPath.clear();
-        }catch(...){
-            fileValid = false;
-        }
+//            file.close();
+//            vdbPath.clear();
+//        }catch(...){
+//            fileValid = false;
+//        }
     }
 }
 
@@ -685,6 +989,10 @@ void OpenVdbViewer::loadVolume(openvdb::io::File& file) {
 
     updateVolumeDescriptorSets();
     spdlog::info("loaded volume {} with dimensions [[{}], [{}]]", grid->getName(), volumeUbo->boxMin, volumeUbo->boxMax);
+}
+
+void OpenVdbViewer::newFrame() {
+    offscreenRender();
 }
 
 int main(){

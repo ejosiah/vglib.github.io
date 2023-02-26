@@ -2,11 +2,20 @@
 #include "VulkanDescriptorSet.h"
 #include <glm/glm.hpp>
 #include <openvdb/openvdb.h>
+#include <taskflow/taskflow.hpp>
+#include "blur_image.hpp"
+#include "Canvas.hpp"
+
+enum class LoadState{
+    READY, REQUESTED, LOADING
+};
 
 struct VolumeData{
+    std::string name;
     glm::vec3 boxMin;
     glm::vec3 boxMax;
     std::vector<float> data;
+    float invMaxDensity;
 };
 
 struct CameraUbo{
@@ -50,6 +59,8 @@ protected:
 
     void createBuffers();
 
+    void createRenderTarget();
+
     void createDescriptorPool();
 
     void createDescriptorSetLayouts();
@@ -59,6 +70,8 @@ protected:
     void updateVolumeDescriptorSets();
 
     void loadVolume(openvdb::io::File& file);
+
+    void loadVolume2();
 
     void createCommandPool();
 
@@ -72,6 +85,8 @@ protected:
 
     VkCommandBuffer *buildCommandBuffers(uint32_t imageIndex, uint32_t &numCommandBuffers) override;
 
+    void offscreenRender();
+
     void renderUI(VkCommandBuffer commandBuffer);
 
     void renderVolume(VkCommandBuffer commandBuffer);
@@ -83,6 +98,8 @@ protected:
     void renderWithRayMarching(VkCommandBuffer commandBuffer);
 
     void renderWithDeltaTracking(VkCommandBuffer commandBuffer);
+
+    void renderFullscreenQuad(VkCommandBuffer commandBuffer);
 
     void renderVolumeSlices(VkCommandBuffer commandBuffer);
 
@@ -97,6 +114,8 @@ protected:
     void onPause() override;
 
     void fileInfo();
+
+    void newFrame() override;
 
 protected:
     struct {
@@ -123,6 +142,11 @@ protected:
         float scale{1};
         float intensity;
     } light;
+
+    struct {
+        VulkanPipelineLayout layout;
+        VulkanPipeline pipeline;
+    } screenQuad;
 
     VulkanDescriptorPool descriptorPool;
     VulkanCommandPool commandPool;
@@ -152,7 +176,9 @@ protected:
 
     } sliceRenderer;
 
-    std::future<VolumeData> volumeData;
+    VolumeData volumeData{};
+    LoadState loadState{LoadState::READY};
+    tf::Future<void> loadVolumeFuture;
 
     VulkanBuffer cameraUboBuffer;
     VulkanBuffer volumeUboBuffer;
@@ -162,4 +188,22 @@ protected:
     VolumeUbo* volumeUbo{};
     VulkanBuffer uboBuffer;
     Renderer renderer{Renderer::RAY_MARCHING};
+    tf::Executor executor;
+    tf::Taskflow taskflow{};
+    std::unique_ptr<Blur> blur;
+    bool doBlur{};
+    int blurIterations{3};
+
+    struct {
+        VulkanFramebuffer framebuffer;
+        VulkanRenderPass renderPass;
+    } renderTarget;
+
+    Canvas canvas;
+    VkPhysicalDeviceSynchronization2Features syncFeatures;
+
+    struct {
+        ColorBuffer color;
+        DepthBuffer  depth;
+    } GBuffer;
 };
