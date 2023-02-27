@@ -66,6 +66,11 @@ InputAssemblyStateBuilder &InputAssemblyStateBuilder::triangleStripWithAdjacency
 }
 
 VkPipelineInputAssemblyStateCreateInfo& InputAssemblyStateBuilder::buildInputAssemblyState() {
+    if(_topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP || _topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP){
+        _primitiveRestartEnable = VK_TRUE;
+    }else{
+        _primitiveRestartEnable = VK_FALSE;
+    }
     _info = initializers::inputAssemblyState(_topology, _primitiveRestartEnable);
 
     return _info;

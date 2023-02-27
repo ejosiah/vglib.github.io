@@ -38,6 +38,30 @@ include_directories(ImGuiPlugin/include)
 include_directories(BulletPhysicsPlugin/include)
 #include_directories(camera/include)
 
+# open vdb setup
+find_package(TBB CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(blosc  REQUIRED)
+find_package(Boost REQUIRED)
+
+include_directories(${CMAKE_CURRENT_LIST_DIR}/3rdParty/openvdb/include)
+
+find_library(OPENVDB_LIBRARY NAMES openvdb HINTS "${CMAKE_CURRENT_LIST_DIR}/3rdParty/openvdb/lib" REQUIRED)
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/3rdParty/openvdb/bin/openvdb.dll" DESTINATION "${CMAKE_BINARY_DIR}/bin/")
+
+set(OPEN_VDB_LIBS
+        ZLIB::ZLIB
+        TBB::tbb
+        TBB::tbbmalloc
+        TBB::tbbmalloc_proxy
+        blosc_shared
+        Boost::boost
+        ${OPENVDB_LIBRARY})
+
+#(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/3rdParty/openvdb/bin" DESTINATION "${CMAKE_BINARY_DIR}/bin/")
+# open vdb setup end
+
 message(STATUS "optix include directory: ${OptiX_INCLUDE}")
 
 if(${BUILD_EXAMPLES})
@@ -48,3 +72,4 @@ add_subdirectory(VulkanBase)
 add_subdirectory(ImGuiPlugin)
 add_subdirectory(BulletPhysicsPlugin)
 #add_subdirectory(camera)
+

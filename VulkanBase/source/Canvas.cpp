@@ -245,7 +245,7 @@ void Canvas::createImageStorage() {
                              0, nullptr, 0, nullptr, 1, &barrier);
 
     });
-
+    image.currentLayout = VK_IMAGE_LAYOUT_GENERAL;
     VkSamplerCreateInfo samplerCreateInfo = initializers::samplerCreateInfo();
     samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
     samplerCreateInfo.minFilter = VK_FILTER_LINEAR;

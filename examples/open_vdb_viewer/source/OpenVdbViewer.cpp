@@ -33,6 +33,7 @@ void OpenVdbViewer::initApp() {
     createBuffers();
     createPlaceHolderTexture();
     createDescriptorPool();
+    createSamplers();
     createDescriptorSetLayouts();
     updateDescriptorSets();
     updateVolumeDescriptorSets();
@@ -40,18 +41,18 @@ void OpenVdbViewer::initApp() {
     createPipelineCache();
     createRenderPipeline();
     blur = std::make_unique<Blur>(&device, &descriptorPool, &fileManager, width, height);
-    canvas = Canvas{this, VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_FORMAT_R32G32B32A32_SFLOAT};
-    canvas.init();
+
 }
 
 void OpenVdbViewer::createRenderTarget() {
-    VkImageCreateInfo info = initializers::imageCreateInfo(VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
-                                                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, width, height);
+    auto usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    VkImageCreateInfo info = initializers::imageCreateInfo(VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, usage, width, height);
 
     // create color buffer
     VkImageSubresourceRange subresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     GBuffer.color.image = device.createImage(info);
     GBuffer.color.imageView = GBuffer.color.image.createView(info.format, VK_IMAGE_VIEW_TYPE_2D, subresourceRange);
+    textures::create(device, previousFrameTexture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, {width, height, 1}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, sizeof(float));
 
     // create depth buffer
     info.format = VK_FORMAT_D32_SFLOAT;
@@ -70,6 +71,10 @@ void OpenVdbViewer::createRenderTarget() {
         GBuffer.color.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
                                                       subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
                                                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        previousFrameTexture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
+                                                    subresourceRange, VK_ACCESS_NONE, VK_ACCESS_SHADER_READ_BIT,
+                                                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     });
 
     VkAttachmentDescription attachment{
@@ -227,6 +232,20 @@ void OpenVdbViewer::createDescriptorPool() {
 
 }
 
+void OpenVdbViewer::createSamplers() {
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    linearSampler = device.createSampler(samplerInfo);
+}
+
 void OpenVdbViewer::createDescriptorSetLayouts() {
     descriptorSetLayout =
         device.descriptorSetLayoutBuilder()
@@ -248,9 +267,21 @@ void OpenVdbViewer::createDescriptorSetLayouts() {
                 .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
         .createLayout();
 
-    auto sets = descriptorPool.allocate({ descriptorSetLayout, volumeDescriptorSetLayout});
+    renderDescriptorSetSetLayout =
+        device.descriptorSetLayoutBuilder()
+            .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+                .immutableSamplers(linearSampler)
+            .createLayout();
+    
+    auto sets = descriptorPool.allocate({ descriptorSetLayout, volumeDescriptorSetLayout, renderDescriptorSetSetLayout});
+    
+    
     descriptorSet = sets[0];
     volumeDescriptor = sets[1];
+    renderDescriptorSet = sets[2];
 
 }
 
@@ -269,7 +300,7 @@ void OpenVdbViewer::updateDescriptorSets(){
 }
 
 void OpenVdbViewer::updateVolumeDescriptorSets() {
-    auto writes = initializers::writeDescriptorSets<2>();
+    auto writes = initializers::writeDescriptorSets<3>();
     
     writes[0].dstSet = volumeDescriptor;
     writes[0].dstBinding = 0;
@@ -284,6 +315,13 @@ void OpenVdbViewer::updateVolumeDescriptorSets() {
     writes[1].descriptorCount = 1;
     VkDescriptorImageInfo imageInfo{ volumeTexture.sampler, volumeTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     writes[1].pImageInfo = &imageInfo;
+    
+    writes[2].dstSet = renderDescriptorSet;
+    writes[2].dstBinding = 0;
+    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[2].descriptorCount = 1;
+    VkDescriptorImageInfo renderImageInfo{ VK_NULL_HANDLE, GBuffer.color.imageView, VK_IMAGE_LAYOUT_GENERAL };
+    writes[2].pImageInfo = &renderImageInfo;
     
     device.updateDescriptorSets(writes);
 }
@@ -407,6 +445,8 @@ void OpenVdbViewer::createRenderPipeline() {
             .inputAssemblyState()
                 .triangleStrip()
                 .enablePrimitiveRestart()
+            .rasterizationState()
+                .cullNone()
             .depthStencilState()
                 .enableDepthWrite()
                 .enableDepthTest()
@@ -434,6 +474,7 @@ void OpenVdbViewer::createRenderPipeline() {
             .colorBlendState()
                 .attachments(1)
             .layout().clear()
+                .addDescriptorSetLayout(renderDescriptorSetSetLayout)
             .renderPass(renderPass)
             .name("screen_quad")
         .build(screenQuad.layout);
@@ -449,22 +490,9 @@ void OpenVdbViewer::onSwapChainRecreation() {
     updateDescriptorSets();
     createRenderPipeline();
     blur->refresh(width, height);
-    canvas.recreate();
 }
 
 void OpenVdbViewer::offscreenRender() {
-//    static VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-//    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-//    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-//    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-//    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-//    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//    barrier.subresourceRange.baseArrayLayer = 0;
-//    barrier.subresourceRange.layerCount = 1;
-//    barrier.subresourceRange.baseMipLevel = 0;
-//    barrier.subresourceRange.levelCount = 1;
-//    barrier.image = .image;
-
     device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
         static std::array<VkClearValue, 2> clearValues;
         clearValues[0].color = {0, 0, 0, 1};
@@ -480,25 +508,24 @@ void OpenVdbViewer::offscreenRender() {
 
         vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         renderBackground(commandBuffer);
+        renderLight(commandBuffer);
         renderVolume(commandBuffer);
         vkCmdEndRenderPass(commandBuffer);
 
+        device.imageOps()
+            .srcImage(GBuffer.color.image)
+                .aspectMask(VK_ACCESS_SHADER_WRITE_BIT)
+                .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+            .dstImage(previousFrameTexture.image)
+                .aspectMask(VK_ACCESS_SHADER_READ_BIT)
+                .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+            .imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1)
+            .extent(width, height, 1)
+        .copy(commandBuffer);
+
         if(doBlur){
-            blur->execute(commandBuffer, GBuffer.color.image, canvas.image, blurIterations);
-        }else{
-            device.imageOps()
-                .srcImage(GBuffer.color.image)
-                    .aspectMask(VK_ACCESS_SHADER_WRITE_BIT)
-                    .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-                .dstImage(canvas.image)
-                    .aspectMask(VK_ACCESS_SHADER_READ_BIT)
-                    .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-                .imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1)
-                .extent(width, height, 1)
-            .copy(commandBuffer);
+            blur->execute(commandBuffer, GBuffer.color.image, GBuffer.color.image, blurIterations);
         }
-
-
     });
 }
 
@@ -523,10 +550,7 @@ VkCommandBuffer *OpenVdbViewer::buildCommandBuffers(uint32_t imageIndex, uint32_
 
     vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-//    renderBackground(commandBuffer);
-//    renderLight(commandBuffer);
-//    renderVolume(commandBuffer);
-    canvas.draw(commandBuffer);
+    renderFullscreenQuad(commandBuffer);
     renderUI(commandBuffer);
 
     vkCmdEndRenderPass(commandBuffer);
@@ -538,11 +562,9 @@ VkCommandBuffer *OpenVdbViewer::buildCommandBuffers(uint32_t imageIndex, uint32_
 
 void OpenVdbViewer::renderFullscreenQuad(VkCommandBuffer commandBuffer) {
     static std::array<VkDescriptorSet, 1> sets;
-//    sets[0] = fullscreenDecriptorSet;
-    VkDeviceSize  offset = 0;
+    sets[0] = renderDescriptorSet;
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, screenQuad.pipeline);
-//    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, background.layout, 0, COUNT(sets), sets.data(), 0, 0);
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffer, &offset);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, screenQuad.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
 
@@ -757,8 +779,8 @@ void OpenVdbViewer::onPause() {
 
 void OpenVdbViewer::loadVolume2() {
     loadState = LoadState::LOADING;
-    taskflow.clear();
-    auto [A, B] = taskflow.emplace(
+    loadVolumeFlow.clear();
+    auto [A, B] = loadVolumeFlow.emplace(
         [&]() {
             spdlog::info("loading volume grid from {}", fs::path(vdbPath).filename().string());
             openvdb::io::File file(vdbPath);
@@ -860,7 +882,7 @@ void OpenVdbViewer::loadVolume2() {
     A.precede(B);
     B.succeed(A);
 
-    executor.run(taskflow);
+    executor.run(loadVolumeFlow);
 }
 
 void OpenVdbViewer::fileInfo() {

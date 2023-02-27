@@ -933,8 +933,8 @@ void VulkanBaseApp::addImageMemoryBarriers(VkCommandBuffer commandBuffer, const 
         barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barriers[i].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; // TODO add as param
         barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;  // TODO add as param
-        barriers[i].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barriers[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barriers[i].oldLayout = images[i].get().currentLayout;
+        barriers[i].newLayout = images[i].get().currentLayout;
         barriers[i].image = images[i].get();
         barriers[i].subresourceRange = DEFAULT_SUB_RANGE;
     }

@@ -1,6 +1,8 @@
 #include "clouds.hpp"
 
 #include <utility>
+#include <stb_image_write.h>
+#include "dds.hpp"
 
 Clouds::Clouds(const VulkanDevice &device, const VulkanDescriptorPool &descriptorPool, const FileManager &fileManager,
                uint32_t width, uint32_t height, std::shared_ptr<SceneGBuffer> gBuffer, std::shared_ptr<AtmosphereLookupTable> atmosphereLUT)
@@ -113,7 +115,10 @@ void Clouds::generateNoise() {
     writes[1].pImageInfo = &imageInfo1;
 
     device().updateDescriptorSets(writes);
-    
+
+    VulkanBuffer lowFreqNoiseBuffer = device().createStagingBuffer(textures.lowFrequencyNoise.image.size);
+    VulkanBuffer highFreqNoiseBuffer = device().createStagingBuffer(textures.highFrequencyNoise.image.size);
+
     device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
         textures.lowFrequencyNoise.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, DEFAULT_SUB_RANGE,
             VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -133,12 +138,45 @@ void Clouds::generateNoise() {
         vkCmdPushConstants(commandBuffer, layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int), &noiseType);
         vkCmdDispatch(commandBuffer,4, 4, 4);
 
+        textures.lowFrequencyNoise.image.copyToBuffer(commandBuffer, lowFreqNoiseBuffer, VK_IMAGE_LAYOUT_GENERAL);
+        textures.highFrequencyNoise.image.copyToBuffer(commandBuffer, highFreqNoiseBuffer, VK_IMAGE_LAYOUT_GENERAL);
+
         textures.lowFrequencyNoise.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, DEFAULT_SUB_RANGE,
                                                           VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
         textures.highFrequencyNoise.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, DEFAULT_SUB_RANGE,
                                                            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     });
+
+
+
+    VkDeviceSize layerSize = lowFreqNoiseBuffer.sizeAs<float>()/128;
+    spdlog::info("low frequency noise layer size: {}", lowFreqNoiseBuffer.size + sizeof(glm::ivec3));
+
+    auto data = reinterpret_cast<char*>(lowFreqNoiseBuffer.map());
+
+    std::ofstream fout{ "c:/temp/low_frequency_noise.dat", std::ios::binary };
+    glm::ivec3 dim{128, 128, 128};
+    fout.write(reinterpret_cast<char*>(&dim), sizeof(dim));
+    fout.write(data, lowFreqNoiseBuffer.size);
+    fout.flush();
+    fout.close();
+
+    lowFreqNoiseBuffer.unmap();
+
+    layerSize = highFreqNoiseBuffer.sizeAs<float>()/32;
+    spdlog::info("high frequency noise layer size: {}", highFreqNoiseBuffer.size + sizeof(glm::ivec3));
+    data = reinterpret_cast<char*>(highFreqNoiseBuffer.map());
+    dim = {32, 32, 32};
+
+    fout = std::ofstream { "c:/temp/high_frequency_noise.dat", std::ios::binary };
+    fout.write(reinterpret_cast<char*>(&dim), sizeof(dim));
+    fout.write(data, highFreqNoiseBuffer.size);
+    fout.flush();
+    fout.close();
+
+    highFreqNoiseBuffer.unmap();
+
 }
 
 

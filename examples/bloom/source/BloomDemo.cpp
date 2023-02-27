@@ -603,7 +603,7 @@ void BloomDemo::blurImage(VkCommandBuffer commandBuffer) {
 
     // TODO blits intensity image for blur
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blur.pipeline);
-    int blurAmount = blur.steps;
+    int blurAmount = blur.steps * 2;
     for(int i = 0; i < blurAmount; i++){
         blur.constants.horizontal = i%2 == 0;
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blur.layout, 0, 2, sets.data(), 0, VK_NULL_HANDLE);

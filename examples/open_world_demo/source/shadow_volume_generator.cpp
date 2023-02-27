@@ -185,7 +185,6 @@ void ShadowVolumeGenerator::createFrameBuffer() {
                 VK_ACCESS_SHADER_READ_BIT,
                 0
             }
-
     };
 
     m_shadowVolumeRenderPass = device().createRenderPass(attachmentDesc, subpasses, dependencies);

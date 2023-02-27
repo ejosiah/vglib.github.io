@@ -8,7 +8,7 @@
 #define EPSILON3 vec3(EPSILON)
 #define PI 3.1415926535897932384626433832795
 
-#extension GL_EXT_debug_printf : require
+//#extension GL_EXT_debug_printf : require
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
@@ -69,9 +69,9 @@ vec3 loadHighFreqencyNoise(vec3 p){
 WeatherData loadWeatherDataForPoint(vec3 p){
     vec3 w = texture(weatherMap, p.xz).xyz;
     WeatherData wd = WeatherData(w.x, w.y, w.z);
-
-//    wd.cloudCoverage = coverage;
-    wd.cloudType = cloudType;
+    wd.cloudType = .5;
+    wd.cloudCoverage = .6;
+    wd.precipitation = 0;
     return wd;
 }
 
@@ -130,7 +130,7 @@ float heightFractionForPoint(vec3 p){
 }
 
 vec3 samplePointForPoint(vec3 p){
-    return p/20;
+    return p * 0.1;
     //return ((p - boxMin * boxScale)/(((boxMax - boxMin) * boxScale)));
 }
 
@@ -302,7 +302,7 @@ void main(){
             }
 
             if(i > MaxSteps){
-                debugPrintfEXT("[tMin: %.32f, t: %.32f, tMax: %.32f, stepSize: %.32f]\n,", tMin, t, tMax, stepSize);
+//                debugPrintfEXT("[tMin: %.32f, t: %.32f, tMax: %.32f, stepSize: %.32f]\n,", tMin, t, tMax, stepSize);
                 break;
             }
         }
@@ -361,11 +361,11 @@ bool test2(inout Ray ray, Box box){
     ray.tMin = min(t0, t1);
     ray.tMax = max(t0, t1);
 
-//    if((ray.tMin < 0 && ray.tMax < 0) && (ray.origin.y > box.min.y && ray.origin.y < box.max.y)){
-//        ray.tMin = 0;
-//        ray.tMax = distance(box.min, box.max);
-//        return true;
-//    }
+    if((ray.tMin < 0 && ray.tMax < 0) && (ray.origin.y > box.min.y && ray.origin.y < box.max.y)){
+        ray.tMin = 0;
+        ray.tMax = distance(box.min, box.max);
+        return true;
+    }
 
     ray.tMin = max(0, ray.tMin);
 

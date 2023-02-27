@@ -32,6 +32,53 @@
 #include "Mesh.h"
 #include "dds.hpp"
 #include "stb_image.h"
+#include <openvdb/openvdb.h>
+
+void vdbEval(){
+    std::filesystem::current_path(R"(C:\Users\Josiah Ebhomenye\OneDrive\media\volumes\VDB-Clouds-Pack-Pixel-Lab\VDB Cloud Files)");
+    openvdb::initialize();
+
+    openvdb::io::File file("cloud_v001_0.02.vdb");
+    file.open();
+
+    openvdb::GridBase::Ptr grid;
+    std::cout << "grids:\n";
+    for(auto nameIter = file.beginName(); nameIter != file.endName(); ++nameIter){
+        std::cout << "\tgrid: " << nameIter.gridName() << "\n";
+    }
+
+    grid = file.readGrid(file.beginName().gridName());
+
+    std::cout << "\n\nMetadata:\n";
+    for(auto metaItr = grid->beginMeta(); metaItr != grid->endMeta(); metaItr++){
+        std::cout << "\tmetadata: [" << metaItr->first << ", " << metaItr->second->str() <<  "]" << ", type: " << metaItr->second->typeName() << "\n";
+    }
+
+
+    auto fGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(grid);
+    std::cout << "\nbackground: " << fGrid->background() << "\n";
+
+    auto accessor = fGrid->getAccessor();
+    openvdb::Coord xyz(8, 38, 20);
+    std::cout << "value at center: " << accessor.getValue(xyz) << "\n";
+
+    auto boxMin = fGrid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_min")->value();
+    auto boxMax = fGrid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_max")->value();
+    decltype(boxMin) center{};
+    center = center.add(boxMin, boxMax);
+    center = center.div(2, center);
+
+    std::cout << "min bounds: " << boxMin  << "\n";
+    std::cout << "center:" << center << "\n";
+    std::cout << "max bounds:" << boxMax << "\n";
+
+//    std::cout << "\n\nvalues in grid";
+//    for(auto iter = fGrid->cbeginValueOn(); iter; ++iter){
+//        std::cout << "Grid" << iter.getCoord() << " = " << *iter << "\n";
+//    }
+
+    file.close();
+}
 
 glm::vec3 rRotate(float angle, glm::vec3 v, glm::vec3 axis){
     return v * glm::cos(angle) + glm::cross(axis, v) * glm::sin(angle)
@@ -534,24 +581,27 @@ int main(){
 //    save(R"(D:\Program Files\SHADERed\sphere_color.dat)", colors);
 //    save(R"(D:\Program Files\SHADERed\sphere_uv.dat)", uvs);
 
-    auto input = R"(C:\Users\Josiah Ebhomenye\OneDrive\media\textures\Portrait-8.jpg)";
-    int width, height, channels;
-    auto pixels = stbi_load(input, &width, &height, &channels, STBI_rgb_alpha);
-    if(!pixels){
-        spdlog::error("failed to load texture image {}\n", input);
-        return 100;
-    }
-    auto size = width * height * STBI_rgb_alpha;
-    std::vector<char> data(size);
-    std::memcpy(data.data(), pixels, size);
-    stbi_image_free(pixels);
+//    auto input = R"(C:\Users\Josiah Ebhomenye\OneDrive\media\textures\Portrait-8.jpg)";
+//    int width, height, channels;
+//    auto pixels = stbi_load(input, &width, &height, &channels, STBI_rgb_alpha);
+//    if(!pixels){
+//        spdlog::error("failed to load texture image {}\n", input);
+//        return 100;
+//    }
+//    auto size = width * height * STBI_rgb_alpha;
+//    std::vector<char> data(size);
+//    std::memcpy(data.data(), pixels, size);
+//    stbi_image_free(pixels);
+//
+//
+//    dds::SaveInfo info{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+//
+//    info.channelSize = 1;
+//    info.numChannels = STBI_rgb_alpha;
+//    info.path = R"(D:\Program Files\SHADERed\portrait.dds)";
+//
+//    dds::save(info, data.data());
 
-
-    dds::SaveInfo info{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
-
-    info.channelSize = 1;
-    info.numChannels = STBI_rgb_alpha;
-    info.path = R"(D:\Program Files\SHADERed\portrait.dds)";
-
-    dds::save(info, data.data());
+    vdbEval();
+    fmt::print("Hello World!");
 }

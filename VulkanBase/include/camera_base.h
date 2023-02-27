@@ -124,6 +124,7 @@ public:
     float zfar;
     float minZoom;
     float maxZoom;
+    float zoomDelta = 0.1;
     float rotationSpeed;
     float accumPitchDegrees;
     float floorOffset;

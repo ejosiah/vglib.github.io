@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <vector>
+#include <array>
 
 struct ShaderInfo{
     VkShaderModule module;

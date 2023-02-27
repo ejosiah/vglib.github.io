@@ -3,9 +3,9 @@
 #include "model.glsl"
 
 #ifndef PI
-#define PI 3.14159265
+#define PI 3.1415926535897932384626433832795
 #endif // PI
-
+#define KM 1000
 #define GEN_REMAP(Type) Type remap(Type x, Type a, Type b, Type c, Type d){ return mix(c, d, (x - a)/(b - a)); }
 
 GEN_REMAP(vec3)
@@ -131,13 +131,13 @@ void main(){
         int i = 0;
         for(float t = tMin; t < tMax; t += StepSize){
             if(color.a > 0.99) break;
-            if(i > 5) break;
+//            if(i > 1) break;
             vec3 point = ray.origin + ray.direction * t;
 
             if(point.z > obstacle.z) break;
-
+            point +=  vec3(1, 0, 1) * ubo.time * 100;
             vec3 samplePoint = getRelativePositionInAtmosphere(point);
-            samplePoint /= 1;
+//            vec3 samplePoint = (point * 8)/100000000;
             float height_fraction = getRelativeHeightInAtmosphere(point, entryPoint, ray);
 
             float cloud = sampleCloudDensity(samplePoint, height_fraction);

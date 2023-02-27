@@ -63,6 +63,8 @@ protected:
 
     void createDescriptorPool();
 
+    void createSamplers();
+
     void createDescriptorSetLayouts();
 
     void updateDescriptorSets();
@@ -163,6 +165,7 @@ protected:
     VkDescriptorSet descriptorSet;
     VkDescriptorSet volumeDescriptor;
     Texture volumeTexture;
+    Texture previousFrameTexture;
 
     struct {
         VulkanPipelineLayout layout;
@@ -189,21 +192,25 @@ protected:
     VulkanBuffer uboBuffer;
     Renderer renderer{Renderer::RAY_MARCHING};
     tf::Executor executor;
-    tf::Taskflow taskflow{};
+    tf::Taskflow loadVolumeFlow{};
     std::unique_ptr<Blur> blur;
-    bool doBlur{};
-    int blurIterations{3};
+    bool doBlur{true};
+    int blurIterations{1};
+
+    VulkanDescriptorSetLayout  renderDescriptorSetSetLayout;
+    VkDescriptorSet renderDescriptorSet;
 
     struct {
         VulkanFramebuffer framebuffer;
         VulkanRenderPass renderPass;
     } renderTarget;
 
-    Canvas canvas;
     VkPhysicalDeviceSynchronization2Features syncFeatures;
 
     struct {
         ColorBuffer color;
         DepthBuffer  depth;
     } GBuffer;
+
+    VulkanSampler linearSampler;
 };

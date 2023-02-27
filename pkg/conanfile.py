@@ -29,6 +29,7 @@ class VgLibConan(ConanFile):
                 "meshoptimizer/0.17",
                 "openexr/3.1.5",
                 "taskflow/3.4.0",
+                "openvdb/8.0.1"
                 ]
 
     def config_options(self):

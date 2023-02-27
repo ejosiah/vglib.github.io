@@ -1,4 +1,5 @@
 #include "VertexInputStateBuilder.hpp"
+#include <spdlog/spdlog.h>
 
 VertexInputStateBuilder::VertexInputStateBuilder(VulkanDevice *device, GraphicsPipelineBuilder *parent)
         : GraphicsPipelineBuilder(device, parent) {
@@ -20,10 +21,7 @@ VertexInputStateBuilder::addVertexAttributeDescription(uint32_t location, uint32
 
 void VertexInputStateBuilder::validate() const {
     if(_bindings.empty()){
-        throw std::runtime_error{ "No vertex binding descriptions defined for vertexInputState"};
-    }
-    if(_attributes.empty()){
-        throw std::runtime_error{ "No vertex attributes descriptions defined for vertexInputState"};
+        spdlog::warn("No vertex binding descriptions defined for vertexInputState");
     }
 
     for(const auto& binding : _bindings){

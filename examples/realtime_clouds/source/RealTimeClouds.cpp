@@ -4,6 +4,7 @@
 #include "ImGuiPlugin.hpp"
 #include "implot.h"
 #include "utility/dft.hpp"
+#include "vulkan_image_ops.h"
 
 RealTimeClouds::RealTimeClouds(const Settings& settings) : VulkanBaseApp("Real time clouds", settings) {
     fileManager.addSearchPathFront(".");
@@ -68,7 +69,7 @@ void RealTimeClouds::createNoiseTexture() {
     textures::create(device, highFrequencyNoiseTexture, VK_IMAGE_TYPE_3D, VK_FORMAT_R32G32B32A32_SFLOAT, dim, VK_SAMPLER_ADDRESS_MODE_REPEAT, sizeof(float));
     highFrequencyNoiseTexture.image.transitionLayout(device.graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
 
-    textures::fromFile(device, weatherTexture, resource("weather0.png"));
+    textures::fromFile(device, weatherTexture, resource("weatherMap.png"));
     textures::fromFile(device, curlNoiseTexture, resource("curlNoise.png"));
 }
 

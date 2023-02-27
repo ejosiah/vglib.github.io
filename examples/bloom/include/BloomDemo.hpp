@@ -128,7 +128,7 @@ protected:
             std::array<float, 3> weights{0.2270270270, 0.3162162162, 0.0702702703};
             int horizontal{1};
         } constants;
-        int steps{10};
+        int steps{9};
     } blur;
 
     struct {
