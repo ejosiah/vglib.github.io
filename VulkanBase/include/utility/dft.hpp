@@ -5,10 +5,108 @@
 #include <complex>
 #include <tuple>
 #include <algorithm>
+#include <fmt/format.h>
 
 #ifndef PI
 #define PI 3.1415926535897932384626433832795
 #endif // PI
+
+template<typename T>
+struct fmt::formatter<std::complex<T>> {
+    char presentation = 'f';    // TODO extract and send to fmt;
+
+    // Parses format specifications of the form ['f' | 'e'].
+    constexpr auto parse(format_parse_context& ctx) {
+        auto it = ctx.begin(), end = ctx.end();
+        if (it != end && (*it == 'f' || *it == 'e')) presentation = *it++;
+
+        if (it != end && *it != '}')
+            throw format_error("invalid format");
+
+        return it;
+    }
+
+    template <typename FormatContext>
+    auto format(const std::complex<T>& c, FormatContext& ctx) {
+        return format_to(
+                ctx.out(),
+//                presentation == 'f' ? "{:.3f} + {:.3f}i" : "{:.3e} + {:.3e}i",
+                presentation == 'f' ? "({:.3f}, {:.3f})" : "({:.3e}, {:.3e})",
+                std::real(c), std::imag(c));
+
+    }
+};
+
+int bitReverse(int x, int N) {
+    int log2n = static_cast<int>(std::log2(N));
+    int n = 0;
+    for (int i=0; i < log2n; i++) {
+        n <<= 1;
+        n |= (x & 1);
+        x >>= 1;
+    }
+    return n;
+}
+
+std::complex<double> ComputeWeight(int N, int k, bool inverse = false){
+    std::complex<double> J{0, 1};
+    auto kN = static_cast<double>(k)/static_cast<double>(N);
+    double sign = inverse ? 1 : -1;
+    return std::exp(sign * J * 2.0 * PI * kN);
+}
+
+
+void createButterflyLookups(std::vector<int>& lookupIndex, std::vector<std::complex<double>>& bufferflyLookup, int NButterflies, bool inverse = false){
+    const int N = 1 << NButterflies;
+    auto log2N = NButterflies;
+    auto *ptr0 = lookupIndex.data();
+    auto *ptr1 = bufferflyLookup.data();
+
+    int i, j, k, i1, i2, j1, j2;
+    int nBlocks, nHInputs;
+    std::complex<double> w;
+    int *qtr0;
+    std::complex<double> *qtr1;
+
+    for (i = 0; i < NButterflies; i++) {
+        nBlocks  = powf(2.0, (float)(NButterflies - 1 - i));
+        nHInputs = powf(2.0, (float)(i));
+        qtr0 = ptr0;
+        qtr1 = ptr1;
+        for (j = 0; j < nBlocks; j++) {
+
+            for (k = 0; k < nHInputs; k++) {
+
+                if (i == 0) {
+                    i1 = j*nHInputs*2 + k;
+                    i2 = j*nHInputs*2 + nHInputs + k;
+                    j1 = bitReverse(i1, N);
+                    j2 = bitReverse(i2, N);
+                }
+                else {
+                    i1 = j*nHInputs*2 + k;
+                    i2 = j*nHInputs*2 + nHInputs + k;
+                    j1 = i1;
+                    j2 = i2;
+                }
+
+                w = ComputeWeight(N, k*nBlocks, inverse);
+
+                *(qtr0 + 2*i1)   = j1;
+                *(qtr0 + 2*i1+1) = j2;
+                *(qtr1 + i1) = w;
+
+                *(qtr0 + 2*i2)   = j1;
+                *(qtr0 + 2*i2+1) = j2;
+                *(qtr1 + i2) = -w;
+
+            }
+        }
+        ptr0 += 2*N;
+        ptr1 += N;
+    }
+}
+
 
 template<typename T>
 inline std::vector<T> evenIndices(const std::vector<T>& v){
@@ -33,11 +131,6 @@ inline std::vector<T> oddIndices(const std::vector<T>& v){
     }
 
     return result;
-}
-
-inline glm::vec2 rootsOfUnity(float n){
-    auto f = glm::two_pi<float>() * n;
-    return {glm::cos(f), glm::sin(f)};
 }
 
 inline std::vector<std::complex<double>> fft(const std::vector<std::complex<double>>& p){

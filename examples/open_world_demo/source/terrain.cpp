@@ -216,6 +216,17 @@ void Terrain::createPatches() {
     indexBuffer = device().createDeviceLocalBuffer(indices.data(), BYTE_SIZE(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
     ubo->numPatches = {w, h};
+
+    std::ofstream fout{R"(D:\Program Files\SHADERed\quad_patch_normals.dat)", std::ios::binary};
+    if(fout.good()){
+        std::vector<glm::vec3> patches;
+        for(auto index : indices){
+            patches.push_back(vertices[index].normal);
+        }
+        fout.write(reinterpret_cast<char*>(patches.data()), sizeof(glm::vec3) * patches.size());
+        fout.close();
+        spdlog::info("quad patches written to destination");
+    }
 }
 
 void Terrain::initUBO() {

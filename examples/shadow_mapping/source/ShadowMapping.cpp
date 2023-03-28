@@ -468,12 +468,36 @@ void ShadowMapping::updateShadowMapDescriptorSet() {
     device.updateDescriptorSets(writes);
 }
 
+void ShadowMapping::calculateFittingFrustum() {
+    if(lightType == LightType::DIRECTIONAL) {
+        auto inverseViewProjection = glm::inverse(cameraController->cam().proj * cameraController->cam().view);
+
+        auto cameraInWorldSpace = Ndc::points;
+        for(auto& point : cameraInWorldSpace){
+            point = inverseViewProjection * point;
+            point /= point.w;
+            spdlog::info("{}", point.xyz());
+        }
+
+        glm::vec3 minBounds{MAX_FLOAT};
+        glm::vec3 maxBounds{MIN_FLOAT};
+        auto cameraInLightSpace = cameraInWorldSpace;
+        for(auto& point : cameraInLightSpace){
+            point = shadowMap.lightView * point;
+            minBounds = glm::min(minBounds, point.xyz());
+            maxBounds = glm::max(maxBounds, point.xyz());
+        }
+        shadowMap.lightProjection = vkn::ortho(minBounds.x, maxBounds.x, minBounds.y, maxBounds.y, minBounds.z, maxBounds.x);
+    }
+}
+
 void ShadowMapping::initFrustum() {
     auto createFrustum = [&]{
         auto vertices = Ndc::points;
         auto worldSpaceMatrix = glm::inverse(shadowMap.lightProjection * shadowMap.lightView);
         for(auto& vertex : vertices){
             vertex = worldSpaceMatrix * vertex;
+            vertex /= vertex.w;
         }
         frustum.vertices = device.createDeviceLocalBuffer(vertices.data(), BYTE_SIZE(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
         frustum.indices = device.createDeviceLocalBuffer(Ndc::indices.data(), BYTE_SIZE(Ndc::indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);

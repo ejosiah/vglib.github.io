@@ -37,6 +37,7 @@ void OpenVdbViewer::initApp() {
     createDescriptorSetLayouts();
     updateDescriptorSets();
     updateVolumeDescriptorSets();
+    updateSceneDescriptorSets();
     createCommandPool();
     createPipelineCache();
     createRenderPipeline();
@@ -172,6 +173,7 @@ void OpenVdbViewer::updateCamera() {
 void OpenVdbViewer::createBuffers() {
     cameraUboBuffer = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(CameraUbo));
     volumeUboBuffer = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(VolumeUbo));
+    sceneBuffer = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(SceneUbo));
 
     cameraUbo = reinterpret_cast<CameraUbo*>(cameraUboBuffer.map());
     volumeUbo = reinterpret_cast<VolumeUbo*>(volumeUboBuffer.map());
@@ -187,7 +189,13 @@ void OpenVdbViewer::createBuffers() {
     volumeUbo->height = height;
     volumeUbo->invMaxDensity = 0;
     volumeUbo->lightPosition = glm::vec3(0);
+    volumeUbo->scatteringCoefficient = 9;
+    volumeUbo->absorptionCoefficient = 1;
+    volumeUbo->extinctionCoefficient = volumeUbo->scatteringCoefficient + volumeUbo->absorptionCoefficient;
     updateCamera();
+
+    sceneUbo = reinterpret_cast<SceneUbo*>(sceneBuffer.map());
+    *sceneUbo = SceneUbo{width, height, 0, 0, 0, MAX_SAMPLES, 0, 5};
 
     auto vertices = ClipSpace::Quad::positions;
     vertexBuffer = device.createDeviceLocalBuffer(vertices.data(), BYTE_SIZE(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
@@ -197,6 +205,7 @@ void OpenVdbViewer::createBuffers() {
     light.vertexBuffer = device.createDeviceLocalBuffer(sphere.vertices.data(), BYTE_SIZE(sphere.vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     light.indexBuffer = device.createDeviceLocalBuffer(sphere.indices.data(), BYTE_SIZE(sphere.indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     light.intensity = 200;
+
 }
 
 void OpenVdbViewer::createPlaceHolderTexture() {
@@ -267,6 +276,18 @@ void OpenVdbViewer::createDescriptorSetLayouts() {
                 .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
         .createLayout();
 
+    sceneDescriptorSetLayout =
+        device.descriptorSetLayoutBuilder()
+            .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .binding(1)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+        .createLayout();
+
     renderDescriptorSetSetLayout =
         device.descriptorSetLayoutBuilder()
             .binding(0)
@@ -276,12 +297,13 @@ void OpenVdbViewer::createDescriptorSetLayouts() {
                 .immutableSamplers(linearSampler)
             .createLayout();
     
-    auto sets = descriptorPool.allocate({ descriptorSetLayout, volumeDescriptorSetLayout, renderDescriptorSetSetLayout});
+    auto sets = descriptorPool.allocate({ descriptorSetLayout, volumeDescriptorSetLayout, renderDescriptorSetSetLayout, sceneDescriptorSetLayout});
     
     
     descriptorSet = sets[0];
     volumeDescriptor = sets[1];
     renderDescriptorSet = sets[2];
+    sceneDescriptorSet = sets[3];
 
 }
 
@@ -323,6 +345,26 @@ void OpenVdbViewer::updateVolumeDescriptorSets() {
     VkDescriptorImageInfo renderImageInfo{ VK_NULL_HANDLE, GBuffer.color.imageView, VK_IMAGE_LAYOUT_GENERAL };
     writes[2].pImageInfo = &renderImageInfo;
     
+    device.updateDescriptorSets(writes);
+}
+
+void OpenVdbViewer::updateSceneDescriptorSets() {
+    auto writes = initializers::writeDescriptorSets<2>();
+
+    writes[0].dstSet = sceneDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorBufferInfo bufferInfo{ sceneBuffer, 0, VK_WHOLE_SIZE };
+    writes[0].pBufferInfo = &bufferInfo;
+
+    writes[1].dstSet = sceneDescriptorSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[1].descriptorCount = 1;
+    VkDescriptorImageInfo imageInfo{ linearSampler, previousFrameTexture.imageView, VK_IMAGE_LAYOUT_GENERAL };
+    writes[1].pImageInfo = &imageInfo;
+
     device.updateDescriptorSets(writes);
 }
 
@@ -391,6 +433,15 @@ void OpenVdbViewer::createRenderPipeline() {
                 .fragmentShader(resource("delta_tracking.frag.spv"))
             .name("delta_tracking")
         .build(deltaTracking.layout);
+
+    pathTracer.pipeline =
+        builder
+            .shaderStage()
+                .fragmentShader(resource("path_tracing.frag.spv"))
+            .layout()
+                .addDescriptorSetLayout(sceneDescriptorSetLayout)
+            .name("path_tracing")
+        .build(pathTracer.layout);
 
     background.pipeline =
         builder
@@ -487,44 +538,72 @@ void OpenVdbViewer::onSwapChainDispose() {
 
 void OpenVdbViewer::onSwapChainRecreation() {
     createRenderTarget();
+
+    sceneUbo->width = width;
+    sceneUbo->height = height;
+    sceneUbo->currentSample = 0;
+
     updateDescriptorSets();
+    updateVolumeDescriptorSets();
+    updateSceneDescriptorSets();
     createRenderPipeline();
     blur->refresh(width, height);
+
 }
 
 void OpenVdbViewer::offscreenRender() {
     device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-        static std::array<VkClearValue, 2> clearValues;
-        clearValues[0].color = {0, 0, 0, 1};
-        clearValues[1].depthStencil = {1.0, 0u};
+        if(renderer == Renderer::PATH_TRACING){
+            static std::array<VkClearValue, 2> clearValues;
+            clearValues[0].color = {0, 0, 0, 1};
+            clearValues[1].depthStencil = {1.0, 0u};
 
-        VkRenderPassBeginInfo rPassInfo = initializers::renderPassBeginInfo();
-        rPassInfo.clearValueCount = COUNT(clearValues);
-        rPassInfo.pClearValues = clearValues.data();
-        rPassInfo.framebuffer = renderTarget.framebuffer;
-        rPassInfo.renderArea.offset = {0u, 0u};
-        rPassInfo.renderArea.extent = swapChain.extent;
-        rPassInfo.renderPass = renderTarget.renderPass;
+            VkRenderPassBeginInfo rPassInfo = initializers::renderPassBeginInfo();
+            rPassInfo.clearValueCount = COUNT(clearValues);
+            rPassInfo.pClearValues = clearValues.data();
+            rPassInfo.framebuffer = renderTarget.framebuffer;
+            rPassInfo.renderArea.offset = {0u, 0u};
+            rPassInfo.renderArea.extent = swapChain.extent;
+            rPassInfo.renderPass = renderTarget.renderPass;
 
-        vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        renderBackground(commandBuffer);
-        renderLight(commandBuffer);
-        renderVolume(commandBuffer);
-        vkCmdEndRenderPass(commandBuffer);
+            vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            renderWithPathTracing(commandBuffer);
+            vkCmdEndRenderPass(commandBuffer);
 
-        device.imageOps()
-            .srcImage(GBuffer.color.image)
-                .aspectMask(VK_ACCESS_SHADER_WRITE_BIT)
-                .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-            .dstImage(previousFrameTexture.image)
-                .aspectMask(VK_ACCESS_SHADER_READ_BIT)
-                .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-            .imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1)
-            .extent(width, height, 1)
-        .copy(commandBuffer);
+            device.imageOps()
+                .srcImage(GBuffer.color.image)
+                    .aspectMask(VK_ACCESS_SHADER_WRITE_BIT)
+                    .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+                .dstImage(previousFrameTexture.image)
+                    .aspectMask(VK_ACCESS_SHADER_READ_BIT)
+                    .pipelineStage(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+                .imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1)
+                .extent(width, height, 1)
+            .copy(commandBuffer);
 
-        if(doBlur){
-            blur->execute(commandBuffer, GBuffer.color.image, GBuffer.color.image, blurIterations);
+        }else{
+            static std::array<VkClearValue, 2> clearValues;
+            clearValues[0].color = {0, 0, 0, 1};
+            clearValues[1].depthStencil = {1.0, 0u};
+
+            VkRenderPassBeginInfo rPassInfo = initializers::renderPassBeginInfo();
+            rPassInfo.clearValueCount = COUNT(clearValues);
+            rPassInfo.pClearValues = clearValues.data();
+            rPassInfo.framebuffer = renderTarget.framebuffer;
+            rPassInfo.renderArea.offset = {0u, 0u};
+            rPassInfo.renderArea.extent = swapChain.extent;
+            rPassInfo.renderPass = renderTarget.renderPass;
+
+            vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            renderBackground(commandBuffer);
+            renderLight(commandBuffer);
+            renderVolume(commandBuffer);
+
+            vkCmdEndRenderPass(commandBuffer);
+
+            if(doBlur){
+                blur->execute(commandBuffer, GBuffer.color.image, GBuffer.color.image, blurIterations);
+            }
         }
     });
 }
@@ -599,7 +678,7 @@ void OpenVdbViewer::renderWithRayMarching(VkCommandBuffer commandBuffer) {
     sets[1] = volumeDescriptor;
     VkDeviceSize  offset = 0;
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rayMarching.pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rayMarching.layout, 0, COUNT(sets), sets.data(), 0, 0);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rayMarching.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffer, &offset);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
@@ -610,7 +689,19 @@ void OpenVdbViewer::renderWithDeltaTracking(VkCommandBuffer commandBuffer) {
     sets[1] = volumeDescriptor;
     VkDeviceSize  offset = 0;
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, deltaTracking.pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, deltaTracking.layout, 0, COUNT(sets), sets.data(), 0, 0);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, deltaTracking.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffer, &offset);
+    vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+}
+
+void OpenVdbViewer::renderWithPathTracing(VkCommandBuffer commandBuffer) {
+    static std::array<VkDescriptorSet, 3> sets;
+    sets[0] = descriptorSet;
+    sets[1] = volumeDescriptor;
+    sets[2] = sceneDescriptorSet;
+    VkDeviceSize  offset = 0;
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pathTracer.pipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pathTracer.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffer, &offset);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
@@ -621,7 +712,7 @@ void OpenVdbViewer::renderBackground(VkCommandBuffer commandBuffer) {
     sets[1] = volumeDescriptor;
     VkDeviceSize  offset = 0;
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, background.pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, background.layout, 0, COUNT(sets), sets.data(), 0, 0);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, background.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffer, &offset);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
@@ -654,12 +745,12 @@ void OpenVdbViewer::renderUI(VkCommandBuffer commandBuffer) {
 
     openFileDialog();
 
-    if(!fileValid){
+    if(loadState == LoadState::FAILED){
         ImGui::Begin("Alert");
         ImGui::SetWindowSize({350, 150});
-        ImGui::Text("failed opening file %s", fs::path{vdbPath}.filename().c_str());
+        ImGui::Text("failed opening file %s", fs::path{vdbPath}.filename().string().c_str());
         if(ImGui::Button("Close")){
-            fileValid = true;
+            loadState = LoadState::READY;
             vdbPath.clear();
         }
         ImGui::End();
@@ -685,13 +776,20 @@ void OpenVdbViewer::renderUI(VkCommandBuffer commandBuffer) {
 
     ImGui::Separator();
 
-    ImGui::Text("Blur:");
-    ImGui::Indent(16);
-    ImGui::Checkbox("blur", &doBlur);
-    if(doBlur){
-        ImGui::SliderInt("iterations", &blurIterations, 1, 9);
+    if(renderer == Renderer::PATH_TRACING){
+        ImGui::Text("Path tracing:");
+        ImGui::Indent(16);
+        ImGui::Text("%d of %d samples remaining", sceneUbo->currentSample, sceneUbo->numSamples);
+        ImGui::Indent(-16);
+    }else {
+        ImGui::Text("Blur:");
+        ImGui::Indent(16);
+        ImGui::Checkbox("blur", &doBlur);
+        if (doBlur) {
+            ImGui::SliderInt("iterations", &blurIterations, 1, 9);
+        }
+        ImGui::Indent(-16);
     }
-    ImGui::Indent(-16);
     ImGui::End();
 
     plugin(IM_GUI_PLUGIN).draw(commandBuffer);
@@ -733,6 +831,11 @@ void OpenVdbViewer::update(float time) {
 
     sliceRenderer.constants.mvp = cam.proj * cam.view * cam.model;
     sliceRenderer.constants.viewDir = camera->viewDir;
+
+    sceneUbo->frame++;
+    sceneUbo->timeDelta = time;
+    sceneUbo->elapsedTime += time;
+    sceneUbo->currentSample++;
 
     fileInfo();
 
@@ -777,15 +880,21 @@ void OpenVdbViewer::onPause() {
     VulkanBaseApp::onPause();
 }
 
-void OpenVdbViewer::loadVolume2() {
+void OpenVdbViewer::loadVolume() {
     loadState = LoadState::LOADING;
     loadVolumeFlow.clear();
     auto [A, B] = loadVolumeFlow.emplace(
         [&]() {
             spdlog::info("loading volume grid from {}", fs::path(vdbPath).filename().string());
             openvdb::io::File file(vdbPath);
-            file.open();
 
+            try {
+                file.open();
+            }catch(...){
+                onIdle([&]{ loadState = LoadState::FAILED; });
+                loadVolumeRequest.cancel();
+                return;
+            }
 
             static auto remap = [](auto x, auto a, auto b, auto c, auto d){
                 return glm::mix(c, d, (x - a)/(b - a));
@@ -882,139 +991,28 @@ void OpenVdbViewer::loadVolume2() {
     A.precede(B);
     B.succeed(A);
 
-    executor.run(loadVolumeFlow);
+    loadVolumeRequest = executor.run(loadVolumeFlow);
 }
 
 void OpenVdbViewer::fileInfo() {
     if(loadState == LoadState::REQUESTED){
-        loadVolume2();
-//        openvdb::io::File file(vdbPath);
-//
-//        try{
-//            file.open();
-//            loadVolume(file);
-//            std::stringstream ss;
-//
-//            openvdb::GridBase::Ptr grid;
-//            ss << "grids:\n";
-//            for (auto nameIter = file.beginName(); nameIter != file.endName(); ++nameIter) {
-//                ss << "\tgrid: " << nameIter.gridName() << "\n";
-//            }
-//
-//            grid = file.readGrid(file.beginName().gridName());
-//
-//            ss << "\n\nMetadata:\n";
-//            for (auto metaItr = grid->beginMeta(); metaItr != grid->endMeta(); metaItr++) {
-//                ss << "\tmetadata: [" << metaItr->first << ", " << metaItr->second->str() << "]" << ", type: "
-//                   << metaItr->second->typeName() << "\n";
-//            }
-//
-//
-//            auto fGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(grid);
-//            ss << "\nbackground: " << fGrid->background() << "\n";
-//
-//            auto accessor = fGrid->getAccessor();
-//            openvdb::Coord xyz(8, 38, 20);
-//            ss << "value at center: " << accessor.getValue(xyz) << "\n";
-//
-//            auto boxMin = fGrid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_min")->value();
-//            auto boxMax = fGrid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_max")->value();
-//            decltype(boxMin) center{};
-//            center = center.add(boxMin, boxMax);
-//            center = center.div(2, center);
-//
-//            ss << "min bounds: " << boxMin << "\n";
-//            ss << "center:" << center << "\n";
-//            ss << "max bounds:" << boxMax << "\n";
-//
-////    ss << "\n\nvalues in grid";
-////    for(auto iter = fGrid->cbeginValueOn(); iter; ++iter){
-////        ss << "Grid" << iter.getCoord() << " = " << *iter << "\n";
-////    }
-//            spdlog::info("{}", ss.str());
-//            file.close();
-//            vdbPath.clear();
-//        }catch(...){
-//            fileValid = false;
-//        }
+        spdlog::info("requesting load of vdb file {}", vdbPath);
+        loadVolume();
     }
 }
 
-void OpenVdbViewer::loadVolume(openvdb::io::File& file) {
-    static auto remap = [](auto x, auto a, auto b, auto c, auto d){
-        return glm::mix(c, d, (x - a)/(b - a));
-    };
-
-    static auto to_glm_vec3 = [](openvdb::Vec3i v){
-        return glm::vec3(v.x(), v.y(), v.z());
-    };
-    auto grid = openvdb::gridPtrCast<openvdb::FloatGrid>(file.readGrid(file.beginName().gridName()));
-    auto boxMin = grid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_min")->value();
-    auto boxMax = grid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_max")->value();
-
-    decltype(boxMin) size;
-    size = size.sub(boxMax, boxMin);
-
-    std::vector<float> buffer(size.x() * size.y() * size.z());
-
-    openvdb::Coord xyz;
-    auto accessor = grid->getAccessor();
-
-    auto& z = xyz.z();
-    auto& y = xyz.y();
-    auto& x = xyz.x();
-
-    auto to_uvw = [=](openvdb::Coord& xyz){
-        glm::vec3 x{xyz.x(), xyz.y(), xyz.z()};
-        glm::vec3 a = to_glm_vec3(boxMin);
-        glm::vec3 b = to_glm_vec3(boxMax);
-        glm::vec3 c{0};
-        glm::vec3 d{size.x(), size.y(), size.z()};
-        d -= 1.0f;
-
-        auto uvw = remap(x, a, b, c, d);
-        return glm::ivec3(uvw);
-    };
-
-    static int count = 0;
-    float maxDensity = MIN_FLOAT;
-    for(z = boxMin.z(); z <= boxMax.z(); z++){
-        for(y = boxMin.y(); y <= boxMax.y(); y++){
-            for(x = boxMin.x(); x <= boxMax.x(); x++){
-                auto voxel = accessor.getValue(xyz);
-                if(voxel != 0 && count < 10){
-                    count++;
-                    spdlog::info("value: {}", voxel);
-                }
-                auto uvw = to_uvw(xyz);
-                auto i = (uvw.z * size.y() + uvw.y) * size.x() + uvw.x;
-                buffer[i] = voxel;
-                maxDensity = glm::max(voxel, maxDensity);
-            }
-        }
-    }
-    textures::create(device, volumeTexture, VK_IMAGE_TYPE_3D, VK_FORMAT_R32_SFLOAT, buffer.data(),
-                     {size.x(), size.y(), size.z()}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, sizeof(float));
-
-    volumeUbo->boxMin = to_glm_vec3(boxMin);
-    volumeUbo->boxMax = to_glm_vec3(boxMax);
-    volumeUbo->invMaxDensity = 1/maxDensity;
-    updateCamera();
-
-    auto scale = to_glm_vec3(size);
-    auto max = glm::max(scale.x, glm::max(scale.y, scale.z));
-    sliceRenderer.constants.scale = scale/max;
-
-    light.position = (volumeUbo->boxMax + volumeUbo->boxMin) * .5f;
-    light.position.y += size.y() * 0.01f;
-    light.scale = max * 0.01f;
-
-    updateVolumeDescriptorSets();
-    spdlog::info("loaded volume {} with dimensions [[{}], [{}]]", grid->getName(), volumeUbo->boxMin, volumeUbo->boxMax);
-}
 
 void OpenVdbViewer::newFrame() {
+    camera->newFrame();
     offscreenRender();
+}
+
+void OpenVdbViewer::endFrame() {
+    sceneUbo->currentSample = glm::clamp(sceneUbo->currentSample, 0, sceneUbo->numSamples - 1);
+
+    if(camera->moved()){
+        sceneUbo->currentSample = 0;
+    }
 }
 
 int main(){

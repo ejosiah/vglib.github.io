@@ -24,6 +24,13 @@ layout(set = 0, binding = 1) uniform CameraProperties{
     mat4 projInverse;
     mat4 view_projection;
 } cam;
+
+layout(set = 0, binding = 4) uniform CameraPropertiesPrevious{
+    mat4 viewInverse;
+    mat4 projInverse;
+    mat4 view_projection;
+} previous_cam;
+
 layout(set = 0, binding = 2, rgba32f) uniform image2D image;
 layout(set = 0, binding = 3) uniform sampler2D envMap;
 
@@ -101,17 +108,18 @@ void updateDenoiserGuideData(uint bounce, HitData hitData){
             imageStore(albedoGuide, id, vec4(hitData.surface.albedo, 1));
             imageStore(normalGuide, id, vec4(0.5 * hitData.surface.sN + 0.5, 1));
 
-//            vec4 pos = cam.view_projection * vec4(hitData.surface.x, 1);
-//            pos.xyz /= pos.w;
-//            pos.xy = (.5 * pos.xy + .5) * vec2(gl_LaunchSize);
-//
-//            vec2 prevPos = imageLoad(flowGuide, id).xy;
-//            vec2 v = pos.xy - prevPos;
-            imageStore(flowGuide, id, vec4(hitData.surface.x, 0));
+            vec4 oldClipPoint = previous_cam.view_projection * vec4(hitData.surface.x, 1);
+            oldClipPoint /= oldClipPoint.w;
+
+            vec4 newClipPoint = cam.view_projection * vec4(hitData.surface.x, 1);
+            newClipPoint /= newClipPoint.w;
+
+            vec2 velocity = newClipPoint.xy - oldClipPoint.xy;
+
+            imageStore(flowGuide, id, vec4(velocity, 0, 0));
         }else{
             imageStore(albedoGuide, id, vec4(0));
             imageStore(normalGuide, id, vec4(0));
-            imageStore(flowGuide, id, vec4(0));
         }
     }
 }

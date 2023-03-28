@@ -23,6 +23,121 @@ namespace IMF = OPENEXR_IMF_NAMESPACE;
 using namespace IMF;
 using namespace IMATH_NAMESPACE;
 
+bool isIntegral(VkFormat format){
+    switch(format){
+        case VK_FORMAT_R32_SINT:
+        case VK_FORMAT_R32G32_SINT:
+        case VK_FORMAT_R32G32B32_SINT:
+        case VK_FORMAT_R32G32B32A32_SINT:
+        case VK_FORMAT_R32_UINT:
+        case VK_FORMAT_R32G32_UINT:
+        case VK_FORMAT_R32G32B32_UINT:
+        case VK_FORMAT_R32G32B32A32_UINT:
+            return true;
+        default:
+            return false;
+    }
+}
+
+VkDeviceSize byteSize(VkFormat format){
+    switch(format){
+        case VK_FORMAT_R8_UNORM:
+        case VK_FORMAT_R8_SNORM:
+        case VK_FORMAT_R8_USCALED:
+        case VK_FORMAT_R8_SSCALED:
+        case VK_FORMAT_R8_UINT:
+        case VK_FORMAT_R8_SINT:
+        case VK_FORMAT_R8_SRGB:
+        case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R8G8_SNORM:
+        case VK_FORMAT_R8G8_USCALED:
+        case VK_FORMAT_R8G8_SSCALED:
+        case VK_FORMAT_R8G8_UINT:
+        case VK_FORMAT_R8G8_SINT:
+        case VK_FORMAT_R8G8_SRGB:
+        case VK_FORMAT_R8G8B8_UNORM:
+        case VK_FORMAT_R8G8B8_SNORM:
+        case VK_FORMAT_R8G8B8_USCALED:
+        case VK_FORMAT_R8G8B8_SSCALED:
+        case VK_FORMAT_R8G8B8_UINT:
+        case VK_FORMAT_R8G8B8_SINT:
+        case VK_FORMAT_R8G8B8_SRGB:
+        case VK_FORMAT_B8G8R8_UNORM:
+        case VK_FORMAT_B8G8R8_SNORM:
+        case VK_FORMAT_B8G8R8_USCALED:
+        case VK_FORMAT_B8G8R8_SSCALED:
+        case VK_FORMAT_B8G8R8_UINT:
+        case VK_FORMAT_B8G8R8_SINT:
+        case VK_FORMAT_B8G8R8_SRGB:
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_R8G8B8A8_SNORM:
+        case VK_FORMAT_R8G8B8A8_USCALED:
+        case VK_FORMAT_R8G8B8A8_SSCALED:
+        case VK_FORMAT_R8G8B8A8_UINT:
+        case VK_FORMAT_R8G8B8A8_SINT:
+        case VK_FORMAT_R8G8B8A8_SRGB:
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_SNORM:
+        case VK_FORMAT_B8G8R8A8_USCALED:
+        case VK_FORMAT_B8G8R8A8_SSCALED:
+        case VK_FORMAT_B8G8R8A8_UINT:
+        case VK_FORMAT_B8G8R8A8_SINT:
+        case VK_FORMAT_B8G8R8A8_SRGB:
+        case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+        case VK_FORMAT_A8B8G8R8_SNORM_PACK32:
+        case VK_FORMAT_A8B8G8R8_USCALED_PACK32:
+        case VK_FORMAT_A8B8G8R8_SSCALED_PACK32:
+        case VK_FORMAT_A8B8G8R8_UINT_PACK32:
+        case VK_FORMAT_A8B8G8R8_SINT_PACK32:
+        case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+            return 1;
+        case VK_FORMAT_R16_UNORM:
+        case VK_FORMAT_R16_SNORM:
+        case VK_FORMAT_R16_USCALED:
+        case VK_FORMAT_R16_SSCALED:
+        case VK_FORMAT_R16_UINT:
+        case VK_FORMAT_R16_SINT:
+        case VK_FORMAT_R16_SFLOAT:
+        case VK_FORMAT_R16G16_UNORM:
+        case VK_FORMAT_R16G16_SNORM:
+        case VK_FORMAT_R16G16_USCALED:
+        case VK_FORMAT_R16G16_SSCALED:
+        case VK_FORMAT_R16G16_UINT:
+        case VK_FORMAT_R16G16_SINT:
+        case VK_FORMAT_R16G16_SFLOAT:
+        case VK_FORMAT_R16G16B16_UNORM:
+        case VK_FORMAT_R16G16B16_SNORM:
+        case VK_FORMAT_R16G16B16_USCALED:
+        case VK_FORMAT_R16G16B16_SSCALED:
+        case VK_FORMAT_R16G16B16_UINT:
+        case VK_FORMAT_R16G16B16_SINT:
+        case VK_FORMAT_R16G16B16_SFLOAT:
+        case VK_FORMAT_R16G16B16A16_UNORM:
+        case VK_FORMAT_R16G16B16A16_SNORM:
+        case VK_FORMAT_R16G16B16A16_USCALED:
+        case VK_FORMAT_R16G16B16A16_SSCALED:
+        case VK_FORMAT_R16G16B16A16_UINT:
+        case VK_FORMAT_R16G16B16A16_SINT:
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+            return 2;
+        case VK_FORMAT_R32_UINT:
+        case VK_FORMAT_R32_SINT:
+        case VK_FORMAT_R32_SFLOAT:
+        case VK_FORMAT_R32G32_UINT:
+        case VK_FORMAT_R32G32_SINT:
+        case VK_FORMAT_R32G32_SFLOAT:
+        case VK_FORMAT_R32G32B32_UINT:
+        case VK_FORMAT_R32G32B32_SINT:
+        case VK_FORMAT_R32G32B32_SFLOAT:
+        case VK_FORMAT_R32G32B32A32_UINT:
+        case VK_FORMAT_R32G32B32A32_SINT:
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            return 4;
+        default:
+            throw std::runtime_error{fmt::format("format: {} not implemented", format)};
+    }
+}
+
 VkImageViewType getImageViewType(VkImageType imageType){
     switch(imageType){
         case VK_IMAGE_TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;
@@ -38,9 +153,11 @@ uint32_t nunChannels(VkFormat format) {
         case VK_FORMAT_R8_SRGB:
         case VK_FORMAT_R32_SFLOAT:
         case VK_FORMAT_D32_SFLOAT:
+        case VK_FORMAT_R8_UNORM:
             return 1;
         case VK_FORMAT_R8G8_SRGB:
         case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R32G32_SINT:
         case VK_FORMAT_R32G32_SFLOAT:
             return 2;
         case VK_FORMAT_R8G8B8_SRGB:
@@ -220,7 +337,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
                       Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode, uint32_t sizeMultiplier, VkImageTiling tiling) {
 
     texture.format = format;
-    VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * sizeMultiplier;
+    VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * byteSize(format);
 
     VulkanBuffer stagingBuffer = device.createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, imageSize);
     stagingBuffer.copy(data, imageSize);
@@ -279,13 +396,13 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
     if(!texture.sampler.handle) {
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.magFilter = isIntegral(format) ? VK_FILTER_NEAREST :  VK_FILTER_LINEAR;
+        samplerInfo.minFilter = isIntegral(format) ? VK_FILTER_NEAREST :  VK_FILTER_LINEAR;;
         samplerInfo.addressModeU = addressMode;
         samplerInfo.addressModeV = addressMode;
         samplerInfo.addressModeW = addressMode;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipmapMode = isIntegral(format) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
         texture.sampler = device.createSampler(samplerInfo);
     }
@@ -416,7 +533,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
                       VkImageTiling tiling) {
 
     texture.format = format;
-    VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * sizeMultiplier;
+    VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * byteSize(format);
 
     VkImageCreateInfo imageCreateInfo{};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;

@@ -500,6 +500,10 @@ void PathTracer::createDescriptorSetLayouts() {
                 .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+            .binding(4)
+                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_RAYGEN_BIT_KHR)
         .createLayout();
 
     const uint32_t numInstances = drawables.size();
@@ -634,7 +638,7 @@ void PathTracer::updateDescriptorSets(){
     device.setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("denoiser_guide", envMapDescriptorSet);
 
 
-    auto writes = initializers::writeDescriptorSets<11>();
+    auto writes = initializers::writeDescriptorSets<12>();
 
     VkWriteDescriptorSetAccelerationStructureKHR asWrites{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
     asWrites.accelerationStructureCount = 1;
@@ -746,6 +750,13 @@ void PathTracer::updateDescriptorSets(){
     writes[10].descriptorCount = 1;
     VkDescriptorBufferInfo lightsInfo{lightsBuffer, 0, VK_WHOLE_SIZE};
     writes[10].pBufferInfo = &lightsInfo;
+
+    writes[11].dstSet = raytrace.descriptorSet;
+    writes[11].dstBinding = 4;
+    writes[11].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writes[11].descriptorCount = 1;
+    VkDescriptorBufferInfo prevCamInfo{ previousInverseCamProj, 0, VK_WHOLE_SIZE};
+    writes[11].pBufferInfo = &prevCamInfo;
 
     device.updateDescriptorSets(writes);
     
@@ -891,6 +902,7 @@ void PathTracer::initCanvas() {
 
 void PathTracer::createInverseCam() {
     inverseCamProj = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(glm::mat4) * 3);
+    previousInverseCamProj = device.createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(glm::mat4) * 3);
 }
 
 void PathTracer::createRayTracingPipeline() {
@@ -1410,6 +1422,16 @@ void PathTracer::endFrame() {
             saveId++;
         });
     }
+
+    auto cam = camera->cam();
+    previousInverseCamProj.map<glm::mat4>([&](auto ptr){
+        auto view = glm::inverse(cam.view);
+        auto proj = glm::inverse(cam.proj);
+        auto viewProjection = proj * view;
+        *ptr = view;
+        *(ptr+1) = proj;
+        *(ptr+2) = viewProjection;
+    });
 }
 
 void PathTracer::checkAppInputs() {

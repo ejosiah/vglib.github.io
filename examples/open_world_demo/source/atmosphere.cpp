@@ -1,5 +1,7 @@
 #include "atmosphere.hpp"
 #include "GraphicsPipelineBuilder.hpp"
+#include "../../atmospheric_scattering2/include/atmosphere.hpp"
+
 
 #include <utility>
 

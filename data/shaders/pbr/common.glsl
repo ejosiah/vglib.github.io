@@ -1,8 +1,7 @@
 #ifndef PI
 #define PI 3.1415926535897932384626
 #endif
-float RadicalInverse_VdC(uint bits)
-{
+float RadicalInverse_VdC(uint bits){
     bits = (bits << 16u) | (bits >> 16u);
     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
@@ -11,8 +10,7 @@ float RadicalInverse_VdC(uint bits)
     return float(bits) * 2.3283064365386963e-10; // / 0x100000000
 }
 
-vec2 hammersley(uint i, uint N)
-{
+vec2 hammersley(uint i, uint N){
     return vec2(float(i)/float(N), RadicalInverse_VdC(i));
 }
 

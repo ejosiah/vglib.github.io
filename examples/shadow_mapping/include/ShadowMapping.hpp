@@ -43,6 +43,7 @@ protected:
 
     void initFrustum();
 
+    void calculateFittingFrustum();
 
     void createUboBuffer();
 

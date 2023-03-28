@@ -291,6 +291,12 @@ protected:
                                         ,VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
                                         , VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
+    void addMemoryBarrier(VkCommandBuffer commandBuffer
+                          ,VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+                          ,VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT
+                          , VkAccessFlags srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT
+                          , VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT);
+
     void invalidateSwapChain();
 
     void save(const FramebufferAttachment& attachment);

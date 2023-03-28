@@ -7,7 +7,7 @@
 #include "Canvas.hpp"
 
 enum class LoadState{
-    READY, REQUESTED, LOADING
+    READY, REQUESTED, LOADING, FAILED
 };
 
 struct VolumeData{
@@ -30,6 +30,9 @@ struct VolumeUbo{
     alignas(16) glm::vec3 boxMax;
     alignas(16) glm::vec3 lightPosition;
     float invMaxDensity;
+    float scatteringCoefficient;
+    float absorptionCoefficient;
+    float extinctionCoefficient;
     int numSamples;
     float coneSpread;
     float g;
@@ -38,6 +41,17 @@ struct VolumeUbo{
     int frame;
     int width;
     int height;
+};
+
+struct SceneUbo{
+    int width;
+    int height;
+    int frame;
+    float timeDelta;
+    float elapsedTime;
+    int numSamples;
+    int currentSample;
+    int bounces;
 };
 
 enum class Renderer :  int {
@@ -71,9 +85,9 @@ protected:
 
     void updateVolumeDescriptorSets();
 
-    void loadVolume(openvdb::io::File& file);
+    void updateSceneDescriptorSets();
 
-    void loadVolume2();
+    void loadVolume();
 
     void createCommandPool();
 
@@ -101,6 +115,8 @@ protected:
 
     void renderWithDeltaTracking(VkCommandBuffer commandBuffer);
 
+    void renderWithPathTracing(VkCommandBuffer commandBuffer);
+
     void renderFullscreenQuad(VkCommandBuffer commandBuffer);
 
     void renderVolumeSlices(VkCommandBuffer commandBuffer);
@@ -119,6 +135,8 @@ protected:
 
     void newFrame() override;
 
+    void endFrame() override;
+
 protected:
     struct {
         VulkanPipelineLayout layout;
@@ -129,6 +147,11 @@ protected:
         VulkanPipelineLayout layout;
         VulkanPipeline pipeline;
     } deltaTracking;
+
+    struct {
+        VulkanPipelineLayout layout;
+        VulkanPipeline pipeline;
+    } pathTracer;
 
     struct {
         VulkanPipelineLayout layout;
@@ -156,7 +179,6 @@ protected:
     VulkanPipelineCache pipelineCache;
     std::unique_ptr<OrbitingCameraController> camera;
     std::string vdbPath;
-    bool fileValid = true;
     std::string startPath = R"(C:\Users\Josiah Ebhomenye\OneDrive\media\volumes\VDB-Clouds-Pack-Pixel-Lab\VDB Cloud Files)";
 
 
@@ -166,6 +188,9 @@ protected:
     VkDescriptorSet volumeDescriptor;
     Texture volumeTexture;
     Texture previousFrameTexture;
+
+    VulkanDescriptorSetLayout sceneDescriptorSetLayout;
+    VkDescriptorSet sceneDescriptorSet;
 
     struct {
         VulkanPipelineLayout layout;
@@ -181,7 +206,6 @@ protected:
 
     VolumeData volumeData{};
     LoadState loadState{LoadState::READY};
-    tf::Future<void> loadVolumeFuture;
 
     VulkanBuffer cameraUboBuffer;
     VulkanBuffer volumeUboBuffer;
@@ -190,9 +214,14 @@ protected:
     CameraUbo* cameraUbo{};
     VolumeUbo* volumeUbo{};
     VulkanBuffer uboBuffer;
+
+    SceneUbo* sceneUbo{};
+    VulkanBuffer sceneBuffer;
+
     Renderer renderer{Renderer::RAY_MARCHING};
     tf::Executor executor;
     tf::Taskflow loadVolumeFlow{};
+    tf::Future<void> loadVolumeRequest;
     std::unique_ptr<Blur> blur;
     bool doBlur{true};
     int blurIterations{1};
@@ -211,6 +240,8 @@ protected:
         ColorBuffer color;
         DepthBuffer  depth;
     } GBuffer;
+
+    static constexpr int MAX_SAMPLES = 100000000;
 
     VulkanSampler linearSampler;
 };

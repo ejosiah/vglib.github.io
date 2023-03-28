@@ -943,6 +943,13 @@ void VulkanBaseApp::addImageMemoryBarriers(VkCommandBuffer commandBuffer, const 
             , 0, nullptr, COUNT(barriers), barriers.data());
 }
 
+void VulkanBaseApp::addMemoryBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask
+                                     , VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask
+                                     , VkAccessFlags dstAccessMask) {
+    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, VK_NULL_HANDLE, srcAccessMask, dstAccessMask};
+    vkCmdPipelineBarrier(commandBuffer, srcStageMask, dstStageMask, 0, 1, &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
+}
+
 void VulkanBaseApp::invalidateSwapChain() {
     swapChainInvalidated = true;
 }

@@ -751,6 +751,10 @@ struct VulkanDevice{
         return VulkanShaderModule(path, logicalDevice);
     }
 
+    inline void wait() const {
+        vkDeviceWaitIdle(logicalDevice);
+    }
+
 };
 
 #include "DescriptorSetBuilder.hpp"

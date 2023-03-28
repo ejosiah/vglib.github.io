@@ -6,14 +6,11 @@
 
 GJKDemo::GJKDemo(const Settings& settings) : VulkanBaseApp("GJK Collision detection", settings) {
     fileManager.addSearchPath(".");
-    fileManager.addSearchPath("../../examples/gjk");
-    fileManager.addSearchPath("../../examples/gjk/spv");
-    fileManager.addSearchPath("../../examples/gjk/models");
-    fileManager.addSearchPath("../../examples/gjk/textures");
-    fileManager.addSearchPath("../../data/shaders");
-    fileManager.addSearchPath("../../data/models");
-    fileManager.addSearchPath("../../data/textures");
-    fileManager.addSearchPath("../../data");
+    fileManager.addSearchPathFront("../../examples/gjk");
+    fileManager.addSearchPathFront("../../examples/gjk/spv");
+    fileManager.addSearchPathFront("../../examples/gjk/models");
+    fileManager.addSearchPathFront("../../examples/gjk/textures");
+
 
     move.forward = &mapToKey(Key::UP, "move_forward");
     move.back = &mapToKey(Key::DOWN, "move_back");
@@ -113,8 +110,8 @@ void GJKDemo::createRenderPipeline() {
     render.pipeline =
         builder
             .shaderStage()
-                .vertexShader("../../data/shaders/flat.vert.spv")
-                .fragmentShader("../../data/shaders/flat.frag.spv")
+                .vertexShader(resource("flat.vert.spv"))
+                .fragmentShader(resource("flat.frag.spv"))
             .vertexInputState()
                 .addVertexBindingDescriptions(Vertex::bindingDisc())
                 .addVertexAttributeDescriptions(Vertex::attributeDisc())

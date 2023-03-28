@@ -33,6 +33,9 @@
 #include "dds.hpp"
 #include "stb_image.h"
 #include <openvdb/openvdb.h>
+#include <taskflow/taskflow.hpp>
+#include "fft.hpp"
+#include "dft.hpp"
 
 void vdbEval(){
     std::filesystem::current_path(R"(C:\Users\Josiah Ebhomenye\OneDrive\media\volumes\VDB-Clouds-Pack-Pixel-Lab\VDB Cloud Files)");
@@ -78,6 +81,28 @@ void vdbEval(){
 //    }
 
     file.close();
+}
+
+void taskFlowEval(){
+    tf::Executor executor;
+    tf::Taskflow flow;
+    tf::Future<void> future;
+
+    auto [A, B, C] = flow.emplace(
+        []{ spdlog::info("task A executes"); },
+        [&]{  spdlog::info("cancelling flow"); future.cancel(); },
+        []{ spdlog::info("task A executes"); }
+    );
+
+    A.precede(B, C);
+    C.succeed(A, B);
+    future = executor.run(flow);
+
+    try {
+        future.wait();
+    }catch (std::string& err){
+        spdlog::error("{}", err);
+    }
 }
 
 glm::vec3 rRotate(float angle, glm::vec3 v, glm::vec3 axis){
@@ -537,6 +562,20 @@ bool test2(const Ray& r, const Sphere& s, float& t0, float& t1){
     return true;
 }
 
+template<typename Iterator>
+void rearrange(Iterator first, Iterator last, int log2N){
+    if(log2N <= 1) return;
+
+    auto even = first;
+    auto odd = std::partition(first, last, [log2N](auto i){
+        int mask = 8 >> log2N;
+        return (i & mask) == 0;
+    });
+
+    rearrange(even, odd, log2N - 1);
+    rearrange(odd, last, log2N - 1);
+}
+
 int main(){
 //    std::vector<mesh::Mesh> meshes;
 //    mesh::load(meshes, R"(C:\Users\Josiah Ebhomenye\OneDrive\media\models\ChineseDragon.obj)");
@@ -602,6 +641,37 @@ int main(){
 //
 //    dds::save(info, data.data());
 
-    vdbEval();
-    fmt::print("Hello World!");
+   // taskFlowEval();
+    using cx = std::complex<double>;
+
+    int N = 8;
+   int NUM_BUTTER_FLIES = static_cast<int>(std::log2(N));
+
+    std::vector<std::complex<double>> butterflyLookup(N * NUM_BUTTER_FLIES);
+    std::vector<int> lookupIndex(N * NUM_BUTTER_FLIES * 2);
+
+    createButterflyLookups(lookupIndex, butterflyLookup, NUM_BUTTER_FLIES);
+
+//    for(int i = 0; i < lookupIndex.size(); i++){
+//        if(i != 0 && i % (N * 2) == 0) fmt::print("\n");
+//        fmt::print("{} ", lookupIndex[i]);
+//    }
+//    std::complex<double> w{1, 0};
+//    std::complex<double> a{0, 0};
+//    std::complex<double> b{4, 4};
+//    auto res = a - b * w;
+   // fmt::print("res: {}", res);
+    std::vector<cx> a { cx(0,0), cx(1,1), cx(3,3), cx(4,4),
+               cx(4, 4), cx(3, 3), cx(1,1), cx(0,0) };
+    std::vector<cx> b(8);
+
+    fft_butterfly(a.data(), b.data(), 3);
+    fmt::print("{}\n", b);
+
+//    fft(a.data(), b.data(), 3);
+//    fmt::print("{}\n", b);
+//
+//    b = fft(a);
+//    fmt::print("{}\n", b);
+
 }

@@ -31,6 +31,9 @@ layout(set = 1, binding = 0) uniform VOLUME_UBO {
     vec3 boxMax;
     vec3 lightPosition;
     float invMaxDensity;
+    float scatteringCoefficient;
+    float absorptionCoefficient;
+    float extinctionCoefficient;
     int numSamples;
     float coneSpread;
     float g;

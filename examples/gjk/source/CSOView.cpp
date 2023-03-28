@@ -68,7 +68,7 @@ void CSOView::createFrameBuffer() {
 void CSOView::render() {
     device->graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
 
-        VkClearValue clearValue{ 0.0f, 0.0f, 0.0f, 1.0f };
+        VkClearValue clearValue{ 1.0f, 1.0f, 1.0f, 1.0f };
         VkRenderPassBeginInfo renderPassInfo = initializers::renderPassBeginInfo();
         renderPassInfo.renderPass = renderPass;
         renderPassInfo.framebuffer = framebuffer;

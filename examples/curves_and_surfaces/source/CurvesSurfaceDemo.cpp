@@ -927,6 +927,17 @@ void CurvesSurfaceDemo::createSpherePatch() {
     std::vector<uint16_t> indices{0, 1, 2, 3};
     sphere.points = device.createCpuVisibleBuffer(points.data(), BYTE_SIZE(points), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     sphere.indices = device.createCpuVisibleBuffer(indices.data(), BYTE_SIZE(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
+    std::ofstream fout{R"(D:\Program Files\SHADERed\uv_sphere_patch.dat)", std::ios::binary};
+    if(fout.good()){
+        std::vector<glm::vec3> patches;
+        for(auto index : indices){
+            patches.push_back(points[index]);
+        }
+        fout.write(reinterpret_cast<char*>(patches.data()), sizeof(glm::vec3) * patches.size());
+        fout.close();
+        spdlog::info("cube patches written to destination");
+    }
 }
 
 void CurvesSurfaceDemo::createIcoSpherePatch() {
@@ -967,6 +978,18 @@ void CurvesSurfaceDemo::createIcoSpherePatch() {
             5, 10, 9,
             1, 6, 10
     };
+
+    std::ofstream fout{R"(D:\Program Files\SHADERed\ico_sphere_patch.dat)", std::ios::binary};
+    if(fout.good()){
+        std::vector<glm::vec3> patches;
+        for(auto index : indices){
+            patches.push_back(points[index]);
+        }
+        fout.write(reinterpret_cast<char*>(patches.data()), sizeof(glm::vec3) * patches.size());
+        fout.close();
+        spdlog::info("cube patches written to destination");
+    }
+
     icoSphere.points = device.createCpuVisibleBuffer(points.data(), BYTE_SIZE(points), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     icoSphere.indices = device.createCpuVisibleBuffer(indices.data(), BYTE_SIZE(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
@@ -985,6 +1008,17 @@ void CurvesSurfaceDemo::createCubePatch() {
         3, 2, 6, 7, // top
         4, 5, 1, 0 //  bottom
     };
+
+    std::ofstream fout{R"(D:\Program Files\SHADERed\cube_patch.dat)", std::ios::binary};
+    if(fout.good()){
+        std::vector<glm::vec3> patches;
+        for(auto index : indices){
+            patches.push_back(points[index]);
+        }
+        fout.write(reinterpret_cast<char*>(patches.data()), sizeof(glm::vec3) * patches.size());
+        fout.close();
+        spdlog::info("cube patches written to destination");
+    }
 
     cube.points = device.createCpuVisibleBuffer(points.data(), BYTE_SIZE(points), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     cube.indices = device.createCpuVisibleBuffer(indices.data(), BYTE_SIZE(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);

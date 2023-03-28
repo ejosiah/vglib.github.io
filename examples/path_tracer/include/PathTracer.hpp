@@ -129,6 +129,7 @@ protected:
     ShaderBindingTables bindingTables;
 
     VulkanBuffer inverseCamProj;
+    VulkanBuffer previousInverseCamProj;
     Canvas canvas{};
 
     VulkanDescriptorPool descriptorPool;
