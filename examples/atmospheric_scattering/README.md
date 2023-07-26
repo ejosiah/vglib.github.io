@@ -1,1 +1,0 @@
-# Precomputed Atmospheric scattering

@@ -37,12 +37,6 @@ message(STATUS "optix include directory: ${OptiX_INCLUDE}")
 
 include(GNUInstallDirs)
 
-option(BUILD_EXAMPLES "build project examples" FALSE)
-
-if(${BUILD_EXAMPLES})
-    add_subdirectory(examples)
-endif()
-
 add_subdirectory(VulkanBase)
 add_subdirectory(ImGuiPlugin)
 add_subdirectory(BulletPhysicsPlugin)
