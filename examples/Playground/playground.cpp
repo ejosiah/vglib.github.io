@@ -32,7 +32,6 @@
 #include "Mesh.h"
 #include "dds.hpp"
 #include "stb_image.h"
-#include <openvdb/openvdb.h>
 #include <taskflow/taskflow.hpp>
 #include "fft.hpp"
 #include "dft.hpp"
@@ -43,52 +42,8 @@
 #endif // STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 #endif // STBI_MSC_SECURE_CRT
+#include "hexdump.h"
 
-void vdbEval(){
-    std::filesystem::current_path(R"(C:\Users\Josiah Ebhomenye\OneDrive\media\volumes\VDB-Clouds-Pack-Pixel-Lab\VDB Cloud Files)");
-    openvdb::initialize();
-
-    openvdb::io::File file("cloud_v001_0.02.vdb");
-    file.open();
-
-    openvdb::GridBase::Ptr grid;
-    std::cout << "grids:\n";
-    for(auto nameIter = file.beginName(); nameIter != file.endName(); ++nameIter){
-        std::cout << "\tgrid: " << nameIter.gridName() << "\n";
-    }
-
-    grid = file.readGrid(file.beginName().gridName());
-
-    std::cout << "\n\nMetadata:\n";
-    for(auto metaItr = grid->beginMeta(); metaItr != grid->endMeta(); metaItr++){
-        std::cout << "\tmetadata: [" << metaItr->first << ", " << metaItr->second->str() <<  "]" << ", type: " << metaItr->second->typeName() << "\n";
-    }
-
-
-    auto fGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(grid);
-    std::cout << "\nbackground: " << fGrid->background() << "\n";
-
-    auto accessor = fGrid->getAccessor();
-    openvdb::Coord xyz(8, 38, 20);
-    std::cout << "value at center: " << accessor.getValue(xyz) << "\n";
-
-    auto boxMin = fGrid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_min")->value();
-    auto boxMax = fGrid->getMetadata<openvdb::Vec3IMetadata>("file_bbox_max")->value();
-    decltype(boxMin) center{};
-    center = center.add(boxMin, boxMax);
-    center = center.div(2, center);
-
-    std::cout << "min bounds: " << boxMin  << "\n";
-    std::cout << "center:" << center << "\n";
-    std::cout << "max bounds:" << boxMax << "\n";
-
-//    std::cout << "\n\nvalues in grid";
-//    for(auto iter = fGrid->cbeginValueOn(); iter; ++iter){
-//        std::cout << "Grid" << iter.getCoord() << " = " << *iter << "\n";
-//    }
-
-    file.close();
-}
 
 void taskFlowEval(){
     tf::Executor executor;
@@ -330,40 +285,40 @@ const float gamma = 2.2;
 //    return rgb;
 //}
 
-void macbethChart(){
-
-    auto getColorChecker = []{
-        std::string spdPath = "../../data/spd";
-        std::array<glm::vec3, 24> colorChecker{};
-        for(int i = 1; i <= 24; i++){
-            auto filename = fmt::format("{}/macbeth-{}.spd", spdPath, i);
-            auto spd = spectrum::loadSpd(filename);
-            auto sampled = spectrum::Sampled<>::fromSampled(spd);
-            auto rgb = sampled.toRGB();
-            rgb = pow(rgb, vec3(1/gamma));
-            colorChecker[i - 1] = rgb;
-        }
-        return colorChecker;
-    };
-
-    const auto colorChecker = getColorChecker();
-    ivec2 res{1200, 800};
-    std::ofstream fout{R"(C:\Users\Josiah Ebhomenye\Pictures\macbeth_chart.ppm)"};
-    if(fout.bad()) throw std::runtime_error{"unable to create macbeth file"};
-    auto header = fmt::format("P3\n{} {}\n{}\n", res.x, res.y, 255);
-    fout << header;
-    for(int i = 0; i < res.y; i++){
-        for(int j = 0; j < res.x; j++){
-            vec2 uv{static_cast<float>(j) / res.x, static_cast<float>(i) / res.y };
-            ivec2 id{floor(uv * vec2(6, 4))};
-//            auto c = getColor(id) * 255.f;
-            auto c = colorChecker[id.y * 6 + id.x] * 255.f;
-            fout << fmt::format("{} {} {}\n", int(c.x), int(c.y), int(c.z));
-        }
-    }
-    fout.close();
-    fmt::print("macbeth_chart.ppm successfully created");
-}
+//void macbethChart(){
+//
+//    auto getColorChecker = []{
+//        std::string spdPath = "../../data/spd";
+//        std::array<glm::vec3, 24> colorChecker{};
+//        for(int i = 1; i <= 24; i++){
+//            auto filename = fmt::format("{}/macbeth-{}.spd", spdPath, i);
+//            auto spd = spectrum::loadSpd(filename);
+//            auto sampled = spectrum::Sampled<>::fromSampled(spd);
+//            auto rgb = sampled.toRGB();
+//            rgb = pow(rgb, vec3(1/gamma));
+//            colorChecker[i - 1] = rgb;
+//        }
+//        return colorChecker;
+//    };
+//
+//    const auto colorChecker = getColorChecker();
+//    ivec2 res{1200, 800};
+//    std::ofstream fout{R"(C:\Users\Josiah Ebhomenye\Pictures\macbeth_chart.ppm)"};
+//    if(fout.bad()) throw std::runtime_error{"unable to create macbeth file"};
+//    auto header = fmt::format("P3\n{} {}\n{}\n", res.x, res.y, 255);
+//    fout << header;
+//    for(int i = 0; i < res.y; i++){
+//        for(int j = 0; j < res.x; j++){
+//            vec2 uv{static_cast<float>(j) / res.x, static_cast<float>(i) / res.y };
+//            ivec2 id{floor(uv * vec2(6, 4))};
+////            auto c = getColor(id) * 255.f;
+//            auto c = colorChecker[id.y * 6 + id.x] * 255.f;
+//            fout << fmt::format("{} {} {}\n", int(c.x), int(c.y), int(c.z));
+//        }
+//    }
+//    fout.close();
+//    fmt::print("macbeth_chart.ppm successfully created");
+//}
 
 int search(std::vector<int> array, int value){
     auto loop = [=](int low, int high){
@@ -650,30 +605,32 @@ int main(){
 
    // taskFlowEval();
 
-   int N = 512;
-   int NUM_BUTTER_FLIES = static_cast<int>(std::log2(N));
+//   int N = 512;
+//   int NUM_BUTTER_FLIES = static_cast<int>(std::log2(N));
+//
+//    std::vector<std::complex<double>> butterflyLookup(N * NUM_BUTTER_FLIES);
+//    std::vector<int> lookupIndex(N * NUM_BUTTER_FLIES * 2);
+//
+//    createButterflyLookups(lookupIndex, butterflyLookup, NUM_BUTTER_FLIES, true);
+//
+//    std::vector<vec4> cx_out;
+//    for(const auto& c : butterflyLookup){
+//        cx_out.emplace_back(c.real(), c.imag(), 0, 0);
+//    }
+//    int width = N;
+//    int height = NUM_BUTTER_FLIES;
+//    std::string path = fmt::format(R"(D:\Program Files\SHADERed\butter_fly_lookup_weights_{}.hdr)", N);
+//    stbi_write_hdr(path.c_str(), width, height, 4, reinterpret_cast<const float*>(cx_out.data()));
+//
+//
+//    std::vector<vec4> index_out;
+//    for(int i = 0; i < lookupIndex.size(); i += 2){
+//        index_out.emplace_back(lookupIndex[i], lookupIndex[i+1], 0, 0);
+//    }
+//    path = fmt::format(R"(D:\Program Files\SHADERed\butter_fly_lookup_index_{}.hdr)", N);
+//    stbi_write_hdr(path.c_str(), width, height, 4, reinterpret_cast<const float*>(index_out.data()));
 
-    std::vector<std::complex<double>> butterflyLookup(N * NUM_BUTTER_FLIES);
-    std::vector<int> lookupIndex(N * NUM_BUTTER_FLIES * 2);
-
-    createButterflyLookups(lookupIndex, butterflyLookup, NUM_BUTTER_FLIES, true);
-
-    std::vector<vec4> cx_out;
-    for(const auto& c : butterflyLookup){
-        cx_out.emplace_back(c.real(), c.imag(), 0, 0);
-    }
-    int width = N;
-    int height = NUM_BUTTER_FLIES;
-    std::string path = fmt::format(R"(D:\Program Files\SHADERed\butter_fly_lookup_weights_{}.hdr)", N);
-    stbi_write_hdr(path.c_str(), width, height, 4, reinterpret_cast<const float*>(cx_out.data()));
-
-
-    std::vector<vec4> index_out;
-    for(int i = 0; i < lookupIndex.size(); i += 2){
-        index_out.emplace_back(lookupIndex[i], lookupIndex[i+1], 0, 0);
-    }
-    path = fmt::format(R"(D:\Program Files\SHADERed\butter_fly_lookup_index_{}.hdr)", N);
-    stbi_write_hdr(path.c_str(), width, height, 4, reinterpret_cast<const float*>(index_out.data()));
-
-
+    std::string path = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\algorithm\scan.comp.spv)";
+    auto result = hexdump(path);
+    fmt::print("{}\n", result);
 }
