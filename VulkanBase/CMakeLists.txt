@@ -30,14 +30,14 @@ file(GLOB_RECURSE GTEST_LIBS ${CONAN_LIB_DIRS_GTEST}/*.lib)
 
 add_library(VulkanBase ${CPP_FILES} ${HPP_FILES})
 add_library(VgLib::VulkanBase ALIAS VulkanBase)
-target_link_libraries(VulkanBase Vulkan::Vulkan ${CONAN_LIBS})
+target_link_libraries(VulkanBase PUBLIC Vulkan::Vulkan ${CONAN_LIBS})
 
 target_include_directories(VulkanBase PUBLIC ${VGLIB_INCLUDE_DIRS} ${VGLIB_INSTALL_INCLUDE_DIRS})
 
 if (OpenCL_FOUND)
     include_directories("${OpenCL_INCLUDE_DIRS}")
     add_definitions( -DOPENCL_FOUND=1 )
-    target_link_libraries(VulkanBase ${OpenCL_LIBRARIES})
+    target_link_libraries(VulkanBase PUBLIC ${OpenCL_LIBRARIES})
     message(STATUS "openCL found ${OpenCL_LIBRARIES}")
 else()
     message(WARNING "OpenCL not found")
