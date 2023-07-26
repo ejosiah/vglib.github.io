@@ -6,7 +6,7 @@ ComputePipelines::ComputePipelines(VulkanDevice *device): device(device) {
 
 void ComputePipelines::createPipelines() {
     for(auto& metaData : pipelineMetaData()){
-        auto shaderModule = VulkanShaderModule{ metaData.shadePath, *device};
+        auto shaderModule = std::move(get(metaData.shadePath, device));
         auto stage = initializers::shaderStage({ shaderModule, VK_SHADER_STAGE_COMPUTE_BIT});
         auto& sc = metaData.specializationConstants;
         VkSpecializationInfo specialization{COUNT(sc.entries), sc.entries.data(), sc.dataSize, sc.data };
@@ -41,4 +41,11 @@ VkPipeline ComputePipelines::pipeline(const std::string& name) const {
 VkPipelineLayout ComputePipelines::layout(const std::string& name) const {
     assert(pipelines.find(name) != end(pipelines));
     return pipelines[name].layout;
+}
+
+VulkanShaderModule ComputePipelines::get(std::variant<std::string, std::vector<uint32_t>>& shaderPath, VulkanDevice* device) {
+    return std::visit(overloaded{
+       [&](std::string path){ return VulkanShaderModule{ path, *device }; },
+       [&](std::vector<uint32_t> data){ return VulkanShaderModule{ data, *device }; }
+    }, shaderPath);
 }

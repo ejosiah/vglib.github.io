@@ -123,7 +123,7 @@ protected:
     void createPipelines(){
         if(_autoCreatePipeline) {
             for (auto &metaData : pipelineMetaData()) {
-                auto shaderModule = VulkanShaderModule{ metaData.shadePath, device};
+                auto shaderModule = ComputePipelines::get(metaData.shadePath, &device);
                 auto stage = initializers::shaderStage({ shaderModule, VK_SHADER_STAGE_COMPUTE_BIT});
                 auto& sc = metaData.specializationConstants;
                 VkSpecializationInfo specialization{COUNT(sc.entries), sc.entries.data(), sc.dataSize, sc.data };

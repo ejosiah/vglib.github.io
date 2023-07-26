@@ -4,6 +4,8 @@
 #include "VulkanDevice.h"
 #include "VulkanShaderModule.h"
 #include "VulkanExtensions.h"
+#include <variant>
+#include <vector>
 
 struct SpecializationConstants{
     std::vector<VkSpecializationMapEntry> entries{};
@@ -13,7 +15,7 @@ struct SpecializationConstants{
 
 struct PipelineMetaData{
     std::string name;
-    std::string shadePath;
+    std::variant<std::string, std::vector<uint32_t>> shadePath{std::string{}};
     std::vector<VulkanDescriptorSetLayout*> layouts;
     std::vector<VkPushConstantRange> ranges;
     SpecializationConstants specializationConstants{};
@@ -35,6 +37,8 @@ public:
     VkPipeline pipeline(const std::string& name) const;
 
     VkPipelineLayout layout(const std::string& name) const;
+
+    static VulkanShaderModule get(std::variant<std::string, std::vector<uint32_t>>& shaderPath, VulkanDevice* device);
 
 protected:
     VulkanDevice* device{};
