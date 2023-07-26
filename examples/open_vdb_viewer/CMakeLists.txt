@@ -1,3 +1,28 @@
+# open vdb setup
+set(CMAKE_TOOLCHAIN_FILE d:vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "vcpkg build system")
+
+find_package(TBB CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(blosc  REQUIRED)
+find_package(Boost REQUIRED)
+
+include_directories(${CMAKE_CURRENT_LIST_DIR}/3rdParty/openvdb/include)
+
+find_library(OPENVDB_LIBRARY NAMES openvdb HINTS "${CMAKE_CURRENT_LIST_DIR}/3rdParty/openvdb/lib" REQUIRED)
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/3rdParty/openvdb/bin/openvdb.dll" DESTINATION "${CMAKE_BINARY_DIR}/bin/")
+
+set(OPEN_VDB_LIBS
+        ZLIB::ZLIB
+        TBB::tbb
+        TBB::tbbmalloc
+        TBB::tbbmalloc_proxy
+        blosc_shared
+        Boost::boost
+        ${OPENVDB_LIBRARY})
+
+# open vdb setup end
+
 if (NOT NO_OPENCL)
     find_package(OpenCL QUIET)
 endif()

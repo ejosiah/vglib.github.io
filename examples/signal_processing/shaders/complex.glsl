@@ -29,6 +29,10 @@ Complex norm(Complex c){
     return Complex(v.x, v.y);
 }
 
+Complex conjugate(Complex c){
+    return Complex(c.real, -c.imaginary);
+}
+
 float magnitude(Complex c){
     return length(vec2(c.real, c.imaginary));
 }

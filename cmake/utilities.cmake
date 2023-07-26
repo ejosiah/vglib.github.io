@@ -1,6 +1,9 @@
 include_guard(GLOBAL)
 
 function(compile_glsl)
+    if(NOT DEFINED GLSLC)
+        message(FATAL_ERROR "glsl complier path not defined")
+    endif()
     set(noValues "")
     set(singleValues SRC_FILE OUT_FILE SPV_VERSION)
     set(multiValues INCLUDE_DIRS)

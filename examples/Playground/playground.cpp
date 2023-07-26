@@ -36,6 +36,13 @@
 #include <taskflow/taskflow.hpp>
 #include "fft.hpp"
 #include "dft.hpp"
+#ifndef STBI_MSC_SECURE_CRT
+#define STBI_MSC_SECURE_CRT
+#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif // STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+#endif // STBI_MSC_SECURE_CRT
 
 void vdbEval(){
     std::filesystem::current_path(R"(C:\Users\Josiah Ebhomenye\OneDrive\media\volumes\VDB-Clouds-Pack-Pixel-Lab\VDB Cloud Files)");
@@ -642,36 +649,31 @@ int main(){
 //    dds::save(info, data.data());
 
    // taskFlowEval();
-    using cx = std::complex<double>;
 
-    int N = 8;
+   int N = 512;
    int NUM_BUTTER_FLIES = static_cast<int>(std::log2(N));
 
     std::vector<std::complex<double>> butterflyLookup(N * NUM_BUTTER_FLIES);
     std::vector<int> lookupIndex(N * NUM_BUTTER_FLIES * 2);
 
-    createButterflyLookups(lookupIndex, butterflyLookup, NUM_BUTTER_FLIES);
+    createButterflyLookups(lookupIndex, butterflyLookup, NUM_BUTTER_FLIES, true);
 
-//    for(int i = 0; i < lookupIndex.size(); i++){
-//        if(i != 0 && i % (N * 2) == 0) fmt::print("\n");
-//        fmt::print("{} ", lookupIndex[i]);
-//    }
-//    std::complex<double> w{1, 0};
-//    std::complex<double> a{0, 0};
-//    std::complex<double> b{4, 4};
-//    auto res = a - b * w;
-   // fmt::print("res: {}", res);
-    std::vector<cx> a { cx(0,0), cx(1,1), cx(3,3), cx(4,4),
-               cx(4, 4), cx(3, 3), cx(1,1), cx(0,0) };
-    std::vector<cx> b(8);
+    std::vector<vec4> cx_out;
+    for(const auto& c : butterflyLookup){
+        cx_out.emplace_back(c.real(), c.imag(), 0, 0);
+    }
+    int width = N;
+    int height = NUM_BUTTER_FLIES;
+    std::string path = fmt::format(R"(D:\Program Files\SHADERed\butter_fly_lookup_weights_{}.hdr)", N);
+    stbi_write_hdr(path.c_str(), width, height, 4, reinterpret_cast<const float*>(cx_out.data()));
 
-    fft_butterfly(a.data(), b.data(), 3);
-    fmt::print("{}\n", b);
 
-//    fft(a.data(), b.data(), 3);
-//    fmt::print("{}\n", b);
-//
-//    b = fft(a);
-//    fmt::print("{}\n", b);
+    std::vector<vec4> index_out;
+    for(int i = 0; i < lookupIndex.size(); i += 2){
+        index_out.emplace_back(lookupIndex[i], lookupIndex[i+1], 0, 0);
+    }
+    path = fmt::format(R"(D:\Program Files\SHADERed\butter_fly_lookup_index_{}.hdr)", N);
+    stbi_write_hdr(path.c_str(), width, height, 4, reinterpret_cast<const float*>(index_out.data()));
+
 
 }

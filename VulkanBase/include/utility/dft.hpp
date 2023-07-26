@@ -143,7 +143,7 @@ inline std::vector<std::complex<double>> fft(const std::vector<std::complex<doub
     auto yEven = fft(even);
     auto yOdd = fft(odd);
     static std::complex<double> J{0, 1};
-    auto dw = std::exp(J * 2.0 * PI/static_cast<double>(n));
+    auto dw = std::exp(-J * 2.0 * PI/static_cast<double>(n));
     std::complex<double> w{1, 0};
 
     std::vector<std::complex<double>> y(n);

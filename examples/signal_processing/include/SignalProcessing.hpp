@@ -97,6 +97,7 @@ protected:
     std::unique_ptr<OrbitingCameraController> camera;
     Signal signal;
     Signal frequency;
+    Signal polarRep;
     Signal boxFilter;
     Signal SincFilter;
     ImTextureID imageSignalTexId{ };
@@ -170,8 +171,13 @@ protected:
     } compute_mask;
 
     VkPhysicalDeviceSynchronization2Features syncFeatures;
-    const char* images[3] = { "lena.png", "box_01.png", "box_001.png"};
+    std::array<const char*, 9> images{
+        "lena.png", "box_01.png", "box_001.png", "box_0001.png"
+        ,"circle_01.png", "circle_001.png", "circle_0001.png"
+        ,"horizontal_strips_low.png", "horizontal_strips_high.png"
+    };
     int selectedImage = 0;
+    int previousSelectedImage = 0;
     bool recomputeDFT = false;
 
     static constexpr int N = 512;

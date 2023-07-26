@@ -78,7 +78,7 @@ void ImGuiPlugin::createDescriptorSetLayout() {
 
 void ImGuiPlugin::createDescriptorPool() {
     std::vector<VkDescriptorPoolSize> pool_sizes =   {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100}};
-    descriptorPool = data.device->createDescriptorPool(COUNT(pool_sizes) * 10, pool_sizes, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
+    descriptorPool = data.device->createDescriptorPool(COUNT(pool_sizes) * 100, pool_sizes, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
 }
 
 

@@ -18,7 +18,7 @@ public:
         void* source = reinterpret_cast<void*>(&*_first);
         VkBufferUsageFlags flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         VulkanBuffer buffer = device->createCpuVisibleBuffer(source, size, flags);
-        device->graphicsCommandPool().oneTimeCommand([&buffer, this](auto cmdBuffer){
+        device->commandPoolFor(device->findFirstActiveQueue().value()).oneTimeCommand([&buffer, this](auto cmdBuffer){
             operator()(cmdBuffer, buffer);
         });
         void* sorted = buffer.map();

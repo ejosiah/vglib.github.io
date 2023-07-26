@@ -35,7 +35,7 @@ void main(){
 
     Complex res = add(a, mul(b, w));
 
-    imageStore(dst_image_real, i, vec4(res.real, 0, 0, 0));
+    imageStore(dst_image_real, i, vec4(res.real, res.imaginary, 0, 0));
     imageStore(dst_image_imaginary, i, vec4(res.imaginary, 0, 0, 0));
 
 }

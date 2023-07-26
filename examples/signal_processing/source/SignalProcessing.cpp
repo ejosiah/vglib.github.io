@@ -95,6 +95,7 @@ void SignalProcessing::initData() {
     std::vector<float> imaginary(N);
     float dt = (1.0f/static_cast<float>(N));
     float t = 0;
+    float freq = 50;
     for(int i = 0; i < N; i++){
         float x = t;
         auto y = 0.f;
@@ -107,12 +108,15 @@ void SignalProcessing::initData() {
         data.push_back(y);
 
         x = 2 * x - 1;
-        x *= 10;
         boxFilter.real[i] = glm::step(abs(x), 0.5f);
         boxFilter.imaginary[i] = 0;
         boxFilter.xData.push_back(x);
 
-        SincFilter.real[i] = glm::sin(glm::pi<float>() * x)/(glm::pi<float>() * x);
+        float num = glm::sin(glm::pi<float>() * x * freq);
+        float denum = glm::pi<float>() * x * freq;
+
+        SincFilter.real[i] = denum == 0 ? 1 : num/denum;
+//        if(i%2 != 0) SincFilter.real[i] *= -1;
         SincFilter.imaginary[i] = 0;
         SincFilter.xData.push_back(x);
 
@@ -140,14 +144,19 @@ void SignalProcessing::computeFFT() {
     std::vector<std::complex<double>> data;
     for(int i = 0; i < N; i++){
         std::complex<double> c{signal.real[i], 0};
+//        std::complex<double> c{SincFilter.real[i], 0};
         data.push_back(c);
     }
     auto freq_space_values = fft(data);
 
     for(int i = 0; i < N; i++){
+        const auto& c = freq_space_values[i];
         frequency.xData.push_back(static_cast<float>(i));
-        frequency.real[i] = static_cast<float>(freq_space_values[i].real());
-        frequency.imaginary[i] = static_cast<float>(freq_space_values[i].imag());
+        frequency.real[i] = static_cast<float>(c.real());
+        frequency.imaginary[i] = static_cast<float>(c.imag());
+//        frequency.real[i] = static_cast<float>(std::abs(c));
+//        frequency.imaginary[i] = static_cast<float>(std::arg(c));
+        spdlog::info("{}", frequency.real[i]);
     }
 }
 
@@ -777,7 +786,7 @@ void SignalProcessing::renderImage() {
     ImGui::SetWindowSize({0, 0});
     ImGui::Image(imageSignalTexId, {w, h}); ImGui::SameLine();
     ImGui::Image(imageFourierXformSignalTexId, {w, h});
-    recomputeDFT |= ImGui::Combo("image", &selectedImage, images, 3);
+    recomputeDFT |= ImGui::Combo("image", &selectedImage, images.data(), images.size());
     ImGui::Image(maskTextureId, {w, h});
     std::array<const char*, 5> filters{"None", "Ideal", "Gaussian", "Butterworth", "box"};
     recomputeDFT |= ImGui::Combo("filters", &compute_mask.constants.maskId, filters.data(), filters.size());
@@ -829,7 +838,6 @@ void SignalProcessing::plotGraph(VkCommandBuffer commandBuffer) {
 void SignalProcessing::update(float time) {
     camera->update(time);
     auto cam = camera->cam();
-
 }
 
 void SignalProcessing::checkAppInputs() {
@@ -847,8 +855,12 @@ void SignalProcessing::onPause() {
 void SignalProcessing::newFrame() {
     if(!ImGui::IsAnyItemActive() && recomputeDFT){
         device.wait();
+        if(previousSelectedImage != selectedImage){
+            previousSelectedImage = selectedImage;
+            loadImageSignal();
+            updateDescriptorSets();
+        }
         recomputeDFT = false;
-        updateDescriptorSets();
         run2DFFT();
     }
 }

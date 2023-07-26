@@ -16,7 +16,7 @@ protected:
 TEST_F(GpuAlgorithms, averageLargeValues){
 
     std::vector<float> data(1 << 20);
-    auto rng = rngFunc<float>(0.0f, 100.0f, 1 << 200);
+    auto rng = rngFunc<float>(0.0f, 100.0f, 1 << 20);
     std::generate(begin(data), end(data), [&]{ return rng(); });
 
     auto sum = std::accumulate(begin(data), end(data), 0.0f);
