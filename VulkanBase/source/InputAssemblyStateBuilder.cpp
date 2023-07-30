@@ -35,6 +35,11 @@ InputAssemblyStateBuilder &InputAssemblyStateBuilder::triangles() {
     return *this;
 }
 
+InputAssemblyStateBuilder &InputAssemblyStateBuilder::triangleFan() {
+    _topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+    return *this;
+}
+
 InputAssemblyStateBuilder &InputAssemblyStateBuilder::triangleStrip() {
     _topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     return *this;
