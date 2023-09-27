@@ -2,10 +2,16 @@
 
 #include "ComputePipelins.hpp"
 #include "DescriptorSetBuilder.hpp"
+#include <string>
+#include <string_view>
 
 class PrefixSum : public ComputePipelines{
 public:
-    PrefixSum(VulkanDevice* device = nullptr, VulkanCommandPool* commandPool = nullptr);
+    PrefixSum() = default;
+
+    PrefixSum(VulkanDevice* device, VulkanCommandPool* commandPool = nullptr);
+
+    PrefixSum(VulkanDevice* device, std::string_view scanPath, std::string_view addPath);
 
     void init();
 
@@ -67,6 +73,8 @@ private:
     VulkanDescriptorPool descriptorPool;
     VulkanCommandPool* _commandPool{};
     VulkanBuffer stagingBuffer;
+    std::string scanShader{"../../data/shaders/prefix_scan/scan.comp.spv"};
+    std::string addShader{"../../data/shaders/prefix_scan/add.comp.spv"};
 
     struct {
         int itemsPerWorkGroup = ITEMS_PER_WORKGROUP;

@@ -6,6 +6,13 @@ PrefixSum::PrefixSum(VulkanDevice *device, VulkanCommandPool* commandPool)
 
 }
 
+PrefixSum::PrefixSum(VulkanDevice* device, std::string_view scanPath, std::string_view addPath)
+: ComputePipelines(device)
+, scanShader(scanPath)
+, addShader(addPath)
+{}
+
+
 void PrefixSum::init() {
     bufferOffsetAlignment = device->getLimits().minStorageBufferOffsetAlignment;
     createDescriptorPool();
@@ -35,12 +42,12 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
     return {
             {
                     "prefix_scan",
-                    "../../data/shaders/prefix_scan/scan.comp.spv",
+                    scanShader,
                     { &setLayout }
             },
             {
                     "add",
-                    "../../data/shaders/prefix_scan/add.comp.spv",
+                    addShader,
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
             }
@@ -70,20 +77,17 @@ void PrefixSum::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) 
 void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
     (*this)(commandBuffer, buffer);
     VkDeviceSize offset = sizeof(int);
+
     VkBufferCopy region{offset, 0, buffer.size - offset};
     vkCmdCopyBuffer(commandBuffer, buffer, stagingBuffer, 1, &region);
     addBufferTransferBarriers(commandBuffer, { &stagingBuffer });
-    region.srcOffset = sumsBuffer.size - offset;
-    region.dstOffset = buffer.size - offset;
-    region.size = offset;
 
+    region = VkBufferCopy{sumsBuffer.size - offset, buffer.size - offset, offset};
     vkCmdCopyBuffer(commandBuffer, sumsBuffer, stagingBuffer, 1, &region);
 
     addBufferTransferBarriers(commandBuffer, { &stagingBuffer });
 
-    region.srcOffset = 0;
-    region.dstOffset = 0;
-    region.size = stagingBuffer.size;
+    region = VkBufferCopy{0, 0, stagingBuffer.size};
     vkCmdCopyBuffer(commandBuffer, stagingBuffer, buffer, 1, &region);
 }
 
