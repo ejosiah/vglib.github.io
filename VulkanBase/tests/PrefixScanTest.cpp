@@ -89,3 +89,18 @@ TEST_F(PrefixScanTest, scanOverAMillionItems){
         ASSERT_EQ(expected[i], data[i]);
     }
 }
+
+TEST_F(PrefixScanTest, incusiveScan) {
+    std::vector<int> data((2 << 20) );
+    auto rng = rngFunc<int>(0, 100, 1 << 20);
+    std::generate(begin(data), end(data), [&]{ return rng(); });
+
+    auto expected = data;
+    std::inclusive_scan(begin(expected), end(expected), begin(expected));
+
+    _prefix_sum.inclusive(begin(data), end(data));
+
+    for(int i = 0; i < data.size(); i++){
+        ASSERT_EQ(expected[i], data[i]);
+    }
+}
