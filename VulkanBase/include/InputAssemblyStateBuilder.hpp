@@ -18,6 +18,8 @@ public:
 
     InputAssemblyStateBuilder& triangles();
 
+    InputAssemblyStateBuilder& triangleFan();
+
     InputAssemblyStateBuilder& triangleStrip();
 
     InputAssemblyStateBuilder& patches();
