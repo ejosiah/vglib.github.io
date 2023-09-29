@@ -11,8 +11,6 @@ public:
 
     PrefixSum(VulkanDevice* device, VulkanCommandPool* commandPool = nullptr);
 
-    PrefixSum(VulkanDevice* device, std::string_view scanPath, std::string_view addPath);
-
     void init();
 
     std::vector<PipelineMetaData> pipelineMetaData() override;
@@ -73,8 +71,6 @@ private:
     VulkanDescriptorPool descriptorPool;
     VulkanCommandPool* _commandPool{};
     VulkanBuffer stagingBuffer;
-    std::string scanShader{"../../data/shaders/prefix_scan/scan.comp.spv"};
-    std::string addShader{"../../data/shaders/prefix_scan/add.comp.spv"};
 
     struct {
         int itemsPerWorkGroup = ITEMS_PER_WORKGROUP;

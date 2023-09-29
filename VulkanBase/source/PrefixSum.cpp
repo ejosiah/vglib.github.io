@@ -1,17 +1,11 @@
 #include "PrefixSum.hpp"
+#include "prefix_sum_glsl_shaders.h"
 
 PrefixSum::PrefixSum(VulkanDevice *device, VulkanCommandPool* commandPool)
 : ComputePipelines(device)
 , _commandPool(commandPool){
 
 }
-
-PrefixSum::PrefixSum(VulkanDevice* device, std::string_view scanPath, std::string_view addPath)
-: ComputePipelines(device)
-, scanShader(scanPath)
-, addShader(addPath)
-{}
-
 
 void PrefixSum::init() {
     bufferOffsetAlignment = device->getLimits().minStorageBufferOffsetAlignment;
@@ -42,12 +36,12 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
     return {
             {
                     "prefix_scan",
-                    scanShader,
+                    __ps_glsl_scan_comp_spv,
                     { &setLayout }
             },
             {
                     "add",
-                    addShader,
+                    __ps_glsl_add_comp_spv,
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
             }
