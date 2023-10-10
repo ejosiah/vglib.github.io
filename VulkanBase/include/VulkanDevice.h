@@ -396,7 +396,7 @@ struct VulkanDevice{
     }
 
     inline void copy(const VulkanBuffer& source, const VulkanBuffer& destination, VkDeviceSize size, VkDeviceSize srcOffset = 0u, VkDeviceSize dstOffset = 0u) const {
-        commandPoolFor(*this->queueFamilyIndex.graphics).oneTimeCommand([&](auto cmdBuffer){
+        commandPoolFor(*findFirstActiveQueue()).oneTimeCommand([&](auto cmdBuffer){
             VkBufferCopy copy{};
             copy.size = size;
             copy.srcOffset = srcOffset;
