@@ -48,7 +48,7 @@ public:
         }
     }
 
-    void move(RefCounted&& source) noexcept {
+    void moveRef(RefCounted&& source) noexcept {
         _handle = std::exchange(source._handle, 0);
         _cleanup = std::exchange(source._cleanup, ResourceCleaner{});
     }
@@ -82,5 +82,3 @@ private:
     ResourceCleaner _cleanup;
     static std::unordered_map<ResourceHandle, std::atomic_uint32_t> counts;
 };
-
-std::unordered_map<ResourceHandle, std::atomic_uint32_t> RefCounted::counts{};
