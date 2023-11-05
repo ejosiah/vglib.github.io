@@ -5,7 +5,7 @@
 #include <array>
 
 struct ShaderInfo{
-    VkShaderModule module;
+    VulkanShaderModule module;
     VkShaderStageFlagBits stage;
     const char*  entry = "main";
 };
@@ -18,7 +18,7 @@ namespace initializers{
             VkPipelineShaderStageCreateInfo createInfo{};
             createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             createInfo.stage = shaderInfo.stage;
-            createInfo.module = shaderInfo.module;
+            createInfo.module = shaderInfo.module.handle;
             createInfo.pName = shaderInfo.entry;
 
             createInfos.push_back(createInfo);
@@ -35,7 +35,7 @@ namespace initializers{
         VkPipelineShaderStageCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         createInfo.stage = shaderInfo.stage;
-        createInfo.module = shaderInfo.module;
+        createInfo.module = shaderInfo.module.handle;
         createInfo.pName = shaderInfo.entry;
 
         return createInfo;
@@ -45,7 +45,7 @@ namespace initializers{
         VkPipelineShaderStageCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         createInfo.stage = shaderInfo.stage;
-        createInfo.module = shaderInfo.module;
+        createInfo.module = shaderInfo.module.handle;
         createInfo.pName = shaderInfo.entry;
 
         return createInfo;

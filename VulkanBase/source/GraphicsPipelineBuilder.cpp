@@ -86,7 +86,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::layout(VulkanPipelineLayout&  
     if(parent()){
         return parent()->layout(aLayout);
     }
-    _pipelineLayout = &aLayout;
+    _pipelineLayout = aLayout;
     return *this;
 }
 
@@ -169,7 +169,7 @@ VkGraphicsPipelineCreateInfo GraphicsPipelineBuilder::createInfo() {
         _pipelineLayoutOwned = _pipelineLayoutBuilder->buildPipelineLayout();
         info.layout = _pipelineLayoutOwned.handle;
     }else{
-        info.layout = _pipelineLayout->handle;
+        info.layout = _pipelineLayout.handle;
     }
     info.renderPass = _renderPass;
     info.subpass = _subpass;

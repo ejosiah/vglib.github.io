@@ -70,7 +70,7 @@ protected:
     VkPipelineCache _pipelineCache = VK_NULL_HANDLE;
     VkPipelineCreateFlags _flags = 0;
     VkRenderPass _renderPass = VK_NULL_HANDLE;
-    VulkanPipelineLayout* _pipelineLayout = nullptr;
+    VulkanPipelineLayout _pipelineLayout;
     VulkanPipelineLayout _pipelineLayoutOwned;
     uint32_t _subpass = 0;
     std::string _name;
