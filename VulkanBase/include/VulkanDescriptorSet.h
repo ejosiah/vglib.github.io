@@ -1,44 +1,49 @@
 #pragma once
 
 #include "common.h"
+#include "RefCounted.hpp"
 
-struct VulkanDescriptorPool{
+struct VulkanDescriptorPool : RefCounted {
 
-    DISABLE_COPY(VulkanDescriptorPool)
 
     VulkanDescriptorPool() = default;
 
-    template<typename PoolSizes>
-    VulkanDescriptorPool(VkDevice device, uint32_t maxSet, const PoolSizes& poolSizes, VkDescriptorPoolCreateFlags flags = 0)
-            :device(device)
-    {
-        VkDescriptorPoolCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        createInfo.flags = flags;
-        createInfo.maxSets = maxSet;
-        createInfo.poolSizeCount = COUNT(poolSizes);
-        createInfo.pPoolSizes = poolSizes.data();
+    VulkanDescriptorPool(VkDevice device, VkDescriptorPool pool)
+    : RefCounted((ResourceHandle)pool, [device, pool](ResourceHandle){ vkDestroyDescriptorPool(device, pool, VK_NULL_HANDLE); }, "VkDescriptorPool")
+    , device(device)
+    , pool(pool)
+    {}
 
-        ERR_GUARD_VULKAN(vkCreateDescriptorPool(device, &createInfo, nullptr, &pool));
-    }
+    VulkanDescriptorPool(const VulkanDescriptorPool& source)
+    : RefCounted(source)
+    , device(source.device)
+    , pool(source.pool)
+    {}
 
     VulkanDescriptorPool(VulkanDescriptorPool&& source) noexcept {
         operator=(static_cast<VulkanDescriptorPool&&>(source));
     }
 
-    ~VulkanDescriptorPool(){
-        if(pool){
-            vkDestroyDescriptorPool(device, pool, VK_NULL_HANDLE);
-        }
+    ~VulkanDescriptorPool() override = default;
+
+    VulkanDescriptorPool& operator=(const VulkanDescriptorPool& source) {
+        if(this == &source) return *this;
+
+        copyRef(source);
+        this->device = source.device;
+        this->pool = source.pool;
     }
 
     VulkanDescriptorPool& operator=(VulkanDescriptorPool&& source) noexcept {
         if(this == &source) return *this;
 
-        this->device = source.device;
-        this->pool = source.pool;
+        if(pool){
+            this->~VulkanDescriptorPool();
+        }
 
-        source.pool = VK_NULL_HANDLE;
+        moveRef(static_cast<RefCounted&&>(source));
+        this->device = std::exchange(source.device, VK_NULL_HANDLE);
+        this->pool = std::exchange(source.pool, VK_NULL_HANDLE);
 
         return *this;
     }

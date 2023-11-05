@@ -5,6 +5,8 @@
 #include <atomic>
 #include <functional>
 #include <utility>
+#include <spdlog/spdlog.h>
+#include <string>
 
 using ResourceHandle = uint64_t;
 using ResourceCleaner = std::function<void(ResourceHandle)>;
@@ -15,28 +17,34 @@ class RefCounted {
 public:
     RefCounted() = default;
 
-    RefCounted(ResourceHandle handle, ResourceCleaner cleaner)
+    RefCounted(ResourceHandle handle, const ResourceCleaner& cleaner, const std::string& name = "")
     : _handle{handle}
-    , _cleanup{ std::move(cleaner) } {
+    , _cleanup{ cleaner }
+    , _name{ name }
+    {
         if(!counts.contains(_handle)) {
             counts[_handle] = 0;
         }
         counts[_handle]++;
+        spdlog::debug("ref added, {} references to {}[{}]", counts[_handle], _name, _handle);
     }
 
     RefCounted(const RefCounted& source)
-    : RefCounted(source._handle, source._cleanup)
+    : RefCounted(source._handle, source._cleanup, source._name)
     {}
 
     RefCounted(RefCounted&& source) noexcept
     : _handle( std::exchange(_handle, 0) )
     , _cleanup( std::exchange(_cleanup, VoidCleaner ))
+    , _name( std::exchange(_name, ""))
     {}
 
 
     virtual ~RefCounted() {
-        if(decrementRef() == 0) {
+        if(_handle != 0 && decrementRef() == 0) {
+            spdlog::debug("no more references to {}[{}], deletion in progress", _name, _handle);
             _cleanup(_handle);
+            spdlog::debug("{}[{}] successfully deleted", _name, _handle);
         }
     }
 
@@ -44,6 +52,7 @@ public:
         if(this != &source) {
             _handle = source._handle;
             _cleanup = source._cleanup;
+            _name = source._name;
             incrementRef();
         }
     }
@@ -51,6 +60,7 @@ public:
     void moveRef(RefCounted&& source) noexcept {
         _handle = std::exchange(source._handle, 0);
         _cleanup = std::exchange(source._cleanup, ResourceCleaner{});
+        _name = std::exchange(source._name, "");
     }
 
     static uint32_t references(ResourceHandle handle) {
@@ -64,6 +74,7 @@ private:
         if(itr != counts.end()){
             ++itr->second;
         }
+        spdlog::debug("ref added, {} references to {}[{}]", itr->second, _name, _handle);
     }
 
     [[nodiscard]] uint32_t decrementRef() const {
@@ -74,11 +85,14 @@ private:
         auto count = --itr->second;
         if(count == 0){
             counts.erase(itr);
+        }else{
+            spdlog::debug("ref removed, {} references to {}[{}]", count, _name, _handle);
         }
         return count;
     }
 private:
-    ResourceHandle _handle;
-    ResourceCleaner _cleanup;
+    ResourceHandle _handle{};
+    ResourceCleaner _cleanup{};
+    std::string _name{};
     static std::unordered_map<ResourceHandle, std::atomic_uint32_t> counts;
 };

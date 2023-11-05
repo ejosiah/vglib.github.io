@@ -516,7 +516,16 @@ struct VulkanDevice{
     template<typename PoolSizes>
     [[nodiscard]] inline VulkanDescriptorPool createDescriptorPool(uint32_t maxSet, const PoolSizes& poolSizes, VkDescriptorPoolCreateFlags flags = 0) const {
         assert(logicalDevice);
-        return VulkanDescriptorPool{ logicalDevice, maxSet, poolSizes, flags};
+        VkDescriptorPoolCreateInfo createInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+        createInfo.flags = flags;
+        createInfo.maxSets = maxSet;
+        createInfo.poolSizeCount = COUNT(poolSizes);
+        createInfo.pPoolSizes = poolSizes.data();
+
+        VkDescriptorPool handle;
+        ERR_GUARD_VULKAN(vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &handle));
+
+        return VulkanDescriptorPool{ logicalDevice, handle};
     }
 
     template<typename Bindings>

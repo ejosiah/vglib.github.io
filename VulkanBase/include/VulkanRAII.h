@@ -3,15 +3,34 @@
 #include <vulkan/vulkan.h>
 #include "RefCounted.hpp"
 
+#include <string>
+
+inline std::string toString(VkObjectType objectType) {
+    switch(objectType) {
+        case VK_OBJECT_TYPE_PIPELINE:
+            return "VkPipeline";
+        case VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT:
+            return "VkDescriptorSetLayout";
+        case VK_OBJECT_TYPE_IMAGE_VIEW:
+            return "VkImageView";
+        case VK_OBJECT_TYPE_SAMPLER:
+            return "VkSampler";
+        case VK_OBJECT_TYPE_PIPELINE_CACHE:
+            return "VkPipelineCache";
+        default:
+            return "Object type unknown";
+    }
+}
 
 
-template<typename Handle, typename Deleter>
+
+template<typename Handle, typename Deleter, VkObjectType objectType>
 struct VulkanHandle : RefCounted {
 
     VulkanHandle() = default;
 
     VulkanHandle(VkDevice device, Handle handle)
-    : RefCounted((ResourceHandle)handle, [&](ResourceHandle){ Deleter()(device, handle); })
+    : RefCounted((ResourceHandle)handle, [device, handle](ResourceHandle){ Deleter()(device, handle); }, toString(objectType))
     , device(device)
     , handle(handle)
     {
@@ -81,17 +100,17 @@ struct VulkanHandle : RefCounted {
 //    }
 //};
 
-#define VULKAN_RAII(Resource) \
+#define VULKAN_RAII(Resource, ObjectType) \
 struct Resource##Deleter{ \
     inline void operator()(VkDevice device, Vk##Resource resource){ \
         vkDestroy##Resource(device, resource, nullptr);          \
     }      \
 };                       \
-using Vulkan##Resource = VulkanHandle<Vk##Resource, Resource##Deleter>;
+using Vulkan##Resource = VulkanHandle<Vk##Resource, Resource##Deleter, ObjectType>;
 
-VULKAN_RAII(Pipeline)
-VULKAN_RAII(DescriptorSetLayout)
-VULKAN_RAII(ImageView)
-VULKAN_RAII(Sampler)
-VULKAN_RAII(PipelineCache)
+VULKAN_RAII(Pipeline, VK_OBJECT_TYPE_PIPELINE)
+VULKAN_RAII(DescriptorSetLayout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT)
+VULKAN_RAII(ImageView, VK_OBJECT_TYPE_IMAGE_VIEW)
+VULKAN_RAII(Sampler, VK_OBJECT_TYPE_SAMPLER)
+VULKAN_RAII(PipelineCache, VK_OBJECT_TYPE_PIPELINE_CACHE)
 //VULKAN_RAII(QueryPool)
