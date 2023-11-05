@@ -19,6 +19,8 @@ inline std::string toString(VkObjectType objectType) {
             return "VkPipelineCache";
         case VK_OBJECT_TYPE_PIPELINE_LAYOUT:
             return "VkPipelineLayout";
+        case VK_OBJECT_TYPE_SHADER_MODULE:
+            return "VkShaderModule";
         default:
             return "Object type unknown";
     }
@@ -73,14 +75,6 @@ struct VulkanHandle : RefCounted {
         return *this;
     }
 
-    operator Handle() const {
-        return handle;
-    }
-
-    operator Handle*()  {
-        return &handle;
-    }
-
     operator uint64_t() const {
         return (uint64_t)handle;
     }
@@ -114,4 +108,5 @@ VULKAN_RAII(ImageView, VK_OBJECT_TYPE_IMAGE_VIEW)
 VULKAN_RAII(Sampler, VK_OBJECT_TYPE_SAMPLER)
 VULKAN_RAII(PipelineCache, VK_OBJECT_TYPE_PIPELINE_CACHE)
 VULKAN_RAII(PipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT)
+//VULKAN_RAII(ShaderModule, VK_OBJECT_TYPE_SHADER_MODULE)
 //VULKAN_RAII(QueryPool)

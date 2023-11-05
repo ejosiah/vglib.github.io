@@ -48,13 +48,13 @@ void Canvas::disposeImage(){
 
 void Canvas::draw(VkCommandBuffer commandBuffer) {
     assert(pipeline);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout.handle, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
 
     if(pushConstantMeta.has_value()){
         ASSERT(pushConstants != nullptr);
         auto meta = pushConstantMeta.value();
-        vkCmdPushConstants(commandBuffer, pipelineLayout, meta.stageFlags, meta.offset, meta.size, pushConstants);
+        vkCmdPushConstants(commandBuffer, pipelineLayout.handle, meta.stageFlags, meta.offset, meta.size, pushConstants);
     }
 
     std::array<VkDeviceSize, 1> offsets = {0u};
@@ -65,13 +65,13 @@ void Canvas::draw(VkCommandBuffer commandBuffer) {
 
 void Canvas::draw(VkCommandBuffer commandBuffer, VkDescriptorSet imageSet) {
     assert(pipeline);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &imageSet, 0, VK_NULL_HANDLE);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout.handle, 0, 1, &imageSet, 0, VK_NULL_HANDLE);
 
     if(pushConstantMeta.has_value()){
         ASSERT(pushConstants != nullptr);
         auto meta = pushConstantMeta.value();
-        vkCmdPushConstants(commandBuffer, pipelineLayout, meta.stageFlags, meta.offset, meta.size, pushConstants);
+        vkCmdPushConstants(commandBuffer, pipelineLayout.handle, meta.stageFlags, meta.offset, meta.size, pushConstants);
     }
 
     std::array<VkDeviceSize, 1> offsets = {0u};
@@ -103,9 +103,9 @@ void Canvas::createDescriptorSet() {
 
 
     std::array<VkDescriptorImageInfo, 1> imageInfo{};
-    imageInfo[0].imageView = imageView;
+    imageInfo[0].imageView = imageView.handle;
     imageInfo[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageInfo[0].sampler = sampler;
+    imageInfo[0].sampler = sampler.handle;
 
     auto writes = initializers::writeDescriptorSets<1>();
     writes[0].dstSet = descriptorSet;
@@ -119,10 +119,8 @@ void Canvas::createDescriptorSet() {
 }
 
 void Canvas::createPipeline() {
-    auto vertexShaderModule = VulkanShaderModule{
-        vertexShaderPath.value_or("../../data/shaders/quad.vert.spv"), app->device };
-    auto fragmentShaderModule = VulkanShaderModule{
-        fragmentShaderPath.value_or("../../data/shaders/quad.frag.spv"), app->device };
+    auto vertexShaderModule = app->device.createShaderModule(vertexShaderPath.value_or("../../data/shaders/quad.vert.spv"));
+    auto fragmentShaderModule = app->device.createShaderModule( fragmentShaderPath.value_or("../../data/shaders/quad.frag.spv"));
 
     auto stages = initializers::vertexShaderStages({
                                                              { vertexShaderModule, VK_SHADER_STAGE_VERTEX_BIT}
@@ -172,7 +170,7 @@ void Canvas::createPipeline() {
     }
 
     dispose(pipelineLayout);
-    pipelineLayout = app->device.createPipelineLayout({ descriptorSetLayout}, ranges);
+    pipelineLayout = app->device.createPipelineLayout({ descriptorSetLayout }, ranges);
 
 
     VkGraphicsPipelineCreateInfo createInfo = initializers::graphicsPipelineCreateInfo();
@@ -185,7 +183,7 @@ void Canvas::createPipeline() {
     createInfo.pMultisampleState = &multisampleState;
     createInfo.pDepthStencilState = &depthStencilState;
     createInfo.pColorBlendState = &colorBlendState;
-    createInfo.layout = pipelineLayout;
+    createInfo.layout = pipelineLayout.handle;
     createInfo.renderPass = app->renderPass;
     createInfo.subpass = 0;
 

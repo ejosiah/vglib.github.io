@@ -167,9 +167,9 @@ VkGraphicsPipelineCreateInfo GraphicsPipelineBuilder::createInfo() {
 
     if(!_pipelineLayout){
         _pipelineLayoutOwned = _pipelineLayoutBuilder->buildPipelineLayout();
-        info.layout = _pipelineLayoutOwned;
+        info.layout = _pipelineLayoutOwned.handle;
     }else{
-        info.layout = *_pipelineLayout;
+        info.layout = _pipelineLayout->handle;
     }
     info.renderPass = _renderPass;
     info.subpass = _subpass;
@@ -241,11 +241,11 @@ MultisampleStateBuilder &GraphicsPipelineBuilder::multisampleState() {
     return *_multisampleStateBuilder;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::pipelineCache(VkPipelineCache pCache) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::pipelineCache(VulkanPipelineCache pCache) {
     if(parent()){
         parent()->pipelineCache(pCache);
     }
-    pipelineCache_ = pCache;
+    pipelineCache_ = pCache.handle;
     return *this;
 }
 

@@ -41,6 +41,11 @@ public:
             return *this;
         }
 
+        const DescriptorSetLayoutBindingBuilder& immutableSamplers(const VulkanSampler& sampler) const {
+            _binding.pImmutableSamplers = &sampler.handle;
+            return *this;
+        }
+
         const DescriptorSetLayoutBindingBuilder& immutableSamplers(const VkSampler* samplers) const{
             _binding.pImmutableSamplers = samplers;
             return *this;

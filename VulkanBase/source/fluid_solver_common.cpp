@@ -336,22 +336,22 @@ void FluidSolver::initSimData(){
     textures::create(*device, diffuseHelper.texture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, allocation.data(), {width, height, depth}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
             , sizeof(float));
 
-    divergenceField.framebuffer[0] = device->createFramebuffer(renderPass, { divergenceField.texture[0].imageView }, width, height, depth);
+    divergenceField.framebuffer[0] = device->createFramebuffer(renderPass, { divergenceField.texture[0].imageView.handle }, width, height, depth);
     device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>("divergence_field", divergenceField.framebuffer[0].frameBuffer);
 
-    forceField.framebuffer[0] = device->createFramebuffer(renderPass, { forceField.texture[0].imageView }, width, height, depth);
-    forceField.framebuffer[1] = device->createFramebuffer(renderPass, { forceField.texture[1].imageView }, width, height, depth);
+    forceField.framebuffer[0] = device->createFramebuffer(renderPass, { forceField.texture[0].imageView.handle }, width, height, depth);
+    forceField.framebuffer[1] = device->createFramebuffer(renderPass, { forceField.texture[1].imageView.handle }, width, height, depth);
     device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>(fmt::format("{}_{}", "force_field", 0), forceField.framebuffer[0].frameBuffer);
     device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>(fmt::format("{}_{}", "force_field", 1), forceField.framebuffer[1].frameBuffer);
 
-    vorticityField.framebuffer[0] = device->createFramebuffer(renderPass, { vorticityField.texture[0].imageView }, width, height, depth);
+    vorticityField.framebuffer[0] = device->createFramebuffer(renderPass, { vorticityField.texture[0].imageView.handle }, width, height, depth);
     device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>("vorticity_field", vorticityField.framebuffer[0].frameBuffer);
 
     for(auto i = 0; i < 2; i++){
-        vectorField.framebuffer[i] = device->createFramebuffer(renderPass, { vectorField.texture[i].imageView }, width, height, depth);
+        vectorField.framebuffer[i] = device->createFramebuffer(renderPass, { vectorField.texture[i].imageView.handle }, width, height, depth);
         device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>(fmt::format("{}_{}", "vector_field", i), vectorField.framebuffer[i].frameBuffer);
 
-        pressureField.framebuffer[i] = device->createFramebuffer(renderPass, { pressureField.texture[i].imageView }, width, height, depth);
+        pressureField.framebuffer[i] = device->createFramebuffer(renderPass, { pressureField.texture[i].imageView.handle }, width, height, depth);
         device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>(fmt::format("{}_{}", "pressure_field", i), pressureField.framebuffer[i].frameBuffer);
     }
 }
@@ -436,12 +436,12 @@ void FluidSolver::updateDescriptorSet(Field &field) {
     write.dstBinding = 0;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.descriptorCount = 1;
-    VkDescriptorImageInfo info0{VK_NULL_HANDLE, field.texture[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo info0{VK_NULL_HANDLE, field.texture[0].imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     write.pImageInfo = &info0;
 
     writes.push_back(write);
 
-    VkDescriptorImageInfo info1{VK_NULL_HANDLE, field.texture[1].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo info1{VK_NULL_HANDLE, field.texture[1].imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     if(field.descriptorSet[1]){
         write.dstSet = field.descriptorSet[1];
         write.pImageInfo = &info1;
@@ -491,7 +491,7 @@ void FluidSolver::updateDiffuseDescriptorSet() {
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[0].descriptorCount = 1;
-    VkDescriptorImageInfo diffuseInfo{VK_NULL_HANDLE, diffuseHelper.texture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo diffuseInfo{VK_NULL_HANDLE, diffuseHelper.texture.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     writes[0].pImageInfo = &diffuseInfo;
     device->updateDescriptorSets(writes);
 }
@@ -503,7 +503,7 @@ void FluidSolver::updateAdvectDescriptorSet() {
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     writes[0].descriptorCount = 1;
-    VkDescriptorImageInfo samplerInfo{linearSampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED};
+    VkDescriptorImageInfo samplerInfo{linearSampler.handle, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED};
     writes[0].pImageInfo = &samplerInfo;
 
     device->updateDescriptorSets(writes);

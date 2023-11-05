@@ -319,10 +319,10 @@ void VulkanBaseApp::createFramebuffer() {
         attachments[attachmentIndices[kAttachment_BACK]] = swapChain.imageViews[i];
         if(settings.depthTest){
             assert(depthBuffer.imageView.handle != VK_NULL_HANDLE);
-            attachments[attachmentIndices[kAttachment_DEPTH]] = depthBuffer.imageView;
+            attachments[attachmentIndices[kAttachment_DEPTH]] = depthBuffer.imageView.handle;
         }
         if(settings.msaaSamples != VK_SAMPLE_COUNT_1_BIT){
-            attachments[attachmentIndices[kAttachment_MSAA]] = colorBuffer.imageView;
+            attachments[attachmentIndices[kAttachment_MSAA]] = colorBuffer.imageView.handle;
         }
         framebuffers[i] = device.createFramebuffer(renderPass, attachments
                                                , static_cast<uint32_t>(width), static_cast<uint32_t>(height) );

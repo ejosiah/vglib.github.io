@@ -2,6 +2,11 @@
 #include "VulkanBaseApp.h"
 #include "VulkanShaderModule.h"
 
+VulkanShaderModule::VulkanShaderModule(VkDevice device, VkShaderModule handle)
+: device(device)
+, shaderModule(handle)
+{}
+
 VulkanShaderModule::VulkanShaderModule(const std::string& path, VkDevice device)
         :device(device) {
     auto data = loadFile(path);

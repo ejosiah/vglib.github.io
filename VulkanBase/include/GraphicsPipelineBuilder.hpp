@@ -55,7 +55,7 @@ public:
 
     GraphicsPipelineBuilder& basePipeline(VulkanPipeline& pipeline);
 
-    GraphicsPipelineBuilder& pipelineCache(VkPipelineCache pCache);
+    GraphicsPipelineBuilder& pipelineCache(VulkanPipelineCache pCache);
 
     [[nodiscard]]
     GraphicsPipelineBuilder *parent() override;

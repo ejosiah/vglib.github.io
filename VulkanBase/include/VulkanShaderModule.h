@@ -2,11 +2,13 @@
 
 #include "common.h"
 
-struct VulkanShaderModule{
+struct VulkanShaderModule {
 
     DISABLE_COPY(VulkanShaderModule);
 
     VulkanShaderModule() = default;
+
+    VulkanShaderModule(VkDevice device, VkShaderModule handle);
 
     VulkanShaderModule(const std::string& path, VkDevice device);
 

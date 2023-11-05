@@ -8,78 +8,78 @@ ShaderStageBuilder::ShaderStageBuilder(VulkanDevice *device, GraphicsPipelineBui
 }
 
 ShaderStageBuilder &ShaderStageBuilder::vertexShader(const std::string &path) {
-    _vertexModule = VulkanShaderModule{ path, device()};
+    _vertexModule = device().createShaderModule(path);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::vertexShader(const byte_string &data) {
-    _vertexModule = VulkanShaderModule{ data, device()};
+    _vertexModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::vertexShader(const std::vector<uint32_t> &data) {
-    _vertexModule = VulkanShaderModule{ data, device()};
+    _vertexModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::fragmentShader(const std::string &path) {
-    _fragmentModule = VulkanShaderModule{ path, device()};
+    _fragmentModule = device().createShaderModule(path);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::fragmentShader(const byte_string &data) {
-    _fragmentModule = VulkanShaderModule{ data, device()};
+    _fragmentModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::fragmentShader(const std::vector<uint32_t>& data) {
-    _fragmentModule = VulkanShaderModule{ data, device()};
+    _fragmentModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::geometryShader(const std::string &path) {
-    _geometryModule = VulkanShaderModule{ path, device()};
+    _geometryModule = device().createShaderModule(path);
     return *this;
 }
 
 
 ShaderStageBuilder &ShaderStageBuilder::geometryShader(const byte_string& data) {
-    _geometryModule = VulkanShaderModule{ data, device()};
+    _geometryModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::geometryShader(const std::vector<uint32_t>& data) {
-    _geometryModule = VulkanShaderModule{ data, device()};
+    _geometryModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::tessellationEvaluationShader(const std::string &path) {
-    _tessEvalModule = VulkanShaderModule{ path, device()};
+    _tessEvalModule = device().createShaderModule(path);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::tessellationEvaluationShader(const byte_string &data) {
-    _tessEvalModule = VulkanShaderModule{ data, device()};
+    _tessEvalModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::tessellationEvaluationShader(const std::vector<uint32_t> &data) {
-    _tessEvalModule = VulkanShaderModule{ data, device()};
+    _tessEvalModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::tessellationControlShader(const std::string &path) {
-    _tessControlModule = VulkanShaderModule{ path, device() };
+    _tessControlModule = device().createShaderModule(path);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::tessellationControlShader(const byte_string &data) {
-    _tessControlModule = VulkanShaderModule{ data, device()};
+    _tessControlModule = device().createShaderModule(data);
     return *this;
 }
 
 ShaderStageBuilder &ShaderStageBuilder::tessellationControlShader(const std::vector<uint32_t> &data) {
-    _tessControlModule = VulkanShaderModule{ data, device()};
+    _tessControlModule = device().createShaderModule(data);
     return *this;
 }
 

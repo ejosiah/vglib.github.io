@@ -5,7 +5,7 @@ PipelineLayoutBuilder::PipelineLayoutBuilder(VulkanDevice *device, GraphicsPipel
 
 }
 
-PipelineLayoutBuilder &PipelineLayoutBuilder::addDescriptorSetLayout(VkDescriptorSetLayout layout) {
+PipelineLayoutBuilder &PipelineLayoutBuilder::addDescriptorSetLayout(VulkanDescriptorSetLayout layout) {
     _descriptorSetLayouts.push_back(layout);
     return *this;
 }

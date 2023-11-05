@@ -62,24 +62,24 @@ namespace textures{
         write.dstBinding = 0;
         write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         write.descriptorCount = 1;
-        VkDescriptorImageInfo imageInfo{VK_NULL_HANDLE, texture.imageView, VK_IMAGE_LAYOUT_GENERAL};
+        VkDescriptorImageInfo imageInfo{VK_NULL_HANDLE, texture.imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
         write.pImageInfo = &imageInfo;
 
         device.updateDescriptorSets(writes);
     }
 
     Pipeline createPipeline1(const VulkanDevice& device, const VulkanDescriptorSetLayout& setLayout){
-        auto module = VulkanShaderModule{ "../../data/shaders/pbr/integrate_brdf.comp.spv", device};
+        auto module =  device.createShaderModule("../../data/shaders/pbr/integrate_brdf.comp.spv");
         auto stage = initializers::shaderStage({ module, VK_SHADER_STAGE_COMPUTE_BIT});
 
         Pipeline compute;
 
         std::vector<VkDescriptorSetLayout> setLayouts{ setLayout};
-        compute.layout = device.createPipelineLayout( setLayouts );
+        compute.layout = device.createPipelineLayout( { setLayout } );
 
         auto computeCreateInfo = initializers::computePipelineCreateInfo();
         computeCreateInfo.stage = stage;
-        computeCreateInfo.layout = compute.layout;
+        computeCreateInfo.layout = compute.layout.handle;
 
         compute.pipeline = device.createComputePipeline(computeCreateInfo);
 
@@ -96,8 +96,8 @@ namespace textures{
         auto pipeline = createPipeline1(device, setLayout);
 
         device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeline);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeline.handle);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.layout.handle, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
             vkCmdDispatch(commandBuffer, 1, 512, 512);
             texture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, DEFAULT_SUB_RANGE
                                            , VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
