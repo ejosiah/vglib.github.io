@@ -17,6 +17,8 @@ inline std::string toString(VkObjectType objectType) {
             return "VkSampler";
         case VK_OBJECT_TYPE_PIPELINE_CACHE:
             return "VkPipelineCache";
+        case VK_OBJECT_TYPE_PIPELINE_LAYOUT:
+            return "VkPipelineLayout";
         default:
             return "Object type unknown";
     }
@@ -33,9 +35,7 @@ struct VulkanHandle : RefCounted {
     : RefCounted((ResourceHandle)handle, [device, handle](ResourceHandle){ Deleter()(device, handle); }, toString(objectType))
     , device(device)
     , handle(handle)
-    {
-
-    }
+    {}
 
     VulkanHandle(const VulkanHandle& source)
     : RefCounted(source)
@@ -113,4 +113,5 @@ VULKAN_RAII(DescriptorSetLayout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT)
 VULKAN_RAII(ImageView, VK_OBJECT_TYPE_IMAGE_VIEW)
 VULKAN_RAII(Sampler, VK_OBJECT_TYPE_SAMPLER)
 VULKAN_RAII(PipelineCache, VK_OBJECT_TYPE_PIPELINE_CACHE)
+VULKAN_RAII(PipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT)
 //VULKAN_RAII(QueryPool)

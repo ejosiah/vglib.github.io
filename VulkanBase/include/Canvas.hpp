@@ -1,6 +1,5 @@
 #pragma once
 #include "VulkanImage.h"
-#include "VulkanPipelineLayout.h"
 #include "VulkanRAII.h"
 #include "VulkanDevice.h"
 #include "VulkanShaderModule.h"

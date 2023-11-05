@@ -5,7 +5,6 @@
 #include "VulkanBuffer.h"
 #include "VulkanRAII.h"
 #include "VulkanSemaphore.hpp"
-#include "VulkanPipelineLayout.h"
 #include "VulkanDescriptorSet.h"
 #include "VulkanCommandBuffer.h"
 #include "VulkanImage.h"
@@ -510,7 +509,19 @@ struct VulkanDevice{
     [[nodiscard]] inline VulkanPipelineLayout createPipelineLayout(const std::vector<VkDescriptorSetLayout>& layouts = {}
             , const std::vector<VkPushConstantRange>& ranges = {}) const {
         assert(logicalDevice);
-        return VulkanPipelineLayout{ logicalDevice, layouts, ranges };
+
+        VkPipelineLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        createInfo.setLayoutCount = COUNT(layouts);
+        createInfo.pSetLayouts = layouts.data();
+        createInfo.pushConstantRangeCount = COUNT(ranges);
+        createInfo.pPushConstantRanges = ranges.data();
+
+        VkPipelineLayout handle;
+        ERR_GUARD_VULKAN(vkCreatePipelineLayout(logicalDevice, &createInfo, nullptr, &handle));
+
+
+        return VulkanPipelineLayout{ logicalDevice, handle };
     }
 
     template<typename PoolSizes>
