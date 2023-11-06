@@ -105,3 +105,8 @@ RasterizationStateBuilder &RasterizationStateBuilder::lineWidth(float value) {
 VkPipelineRasterizationStateCreateInfo &RasterizationStateBuilder::buildRasterState() {
     return _info;
 }
+
+void RasterizationStateBuilder::copy(const RasterizationStateBuilder& source) {
+    _info = source._info;
+}
+

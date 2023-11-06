@@ -12,15 +12,15 @@ void ComputePipelines::createPipelines() {
         VkSpecializationInfo specialization{COUNT(sc.entries), sc.entries.data(), sc.dataSize, sc.data };
         stage.pSpecializationInfo = &specialization;
         Pipeline pipeline;
-        std::vector<VkDescriptorSetLayout> setLayouts;
-        for(auto& layout : metaData.layouts){
-            setLayouts.push_back(layout->handle);
+        std::vector<VulkanDescriptorSetLayout> setLayouts;
+        for(auto layout : metaData.layouts){
+            setLayouts.push_back(*layout);
         }
         pipeline.layout = device->createPipelineLayout(setLayouts, metaData.ranges);
 
         auto createInfo = initializers::computePipelineCreateInfo();
         createInfo.stage = stage;
-        createInfo.layout = pipeline.layout;
+        createInfo.layout = pipeline.layout.handle;
 
         pipeline.pipeline = device->createComputePipeline(createInfo);
         device->setName<VK_OBJECT_TYPE_PIPELINE>(metaData.name, pipeline.pipeline.handle);
@@ -35,17 +35,17 @@ std::vector<PipelineMetaData> ComputePipelines::pipelineMetaData() {
 
 VkPipeline ComputePipelines::pipeline(const std::string& name) const {
     assert(pipelines.find(name) != end(pipelines));
-    return pipelines[name].pipeline;
+    return pipelines[name].pipeline.handle;
 }
 
 VkPipelineLayout ComputePipelines::layout(const std::string& name) const {
     assert(pipelines.find(name) != end(pipelines));
-    return pipelines[name].layout;
+    return pipelines[name].layout.handle;
 }
 
 VulkanShaderModule ComputePipelines::get(std::variant<std::string, std::vector<uint32_t>>& shaderPath, VulkanDevice* device) {
     return std::visit(overloaded{
-       [&](std::string path){ return VulkanShaderModule{ path, *device }; },
-       [&](std::vector<uint32_t> data){ return VulkanShaderModule{ data, *device }; }
+       [&](std::string path){ return device->createShaderModule( path ); },
+       [&](std::vector<uint32_t> data){ return device->createShaderModule( data ); }
     }, shaderPath);
 }

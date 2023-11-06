@@ -33,7 +33,7 @@ struct VulkanDrawable{
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer.buffer, &offset);
         vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         for (auto i = 0; i < numPrims; i++) {
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &meshes[i].material.descriptorSet, 0, VK_NULL_HANDLE);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout.handle, 0, 1, &meshes[i].material.descriptorSet, 0, VK_NULL_HANDLE);
             meshes[i].drawIndexed(commandBuffer);
         }
     }

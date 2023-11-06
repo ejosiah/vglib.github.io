@@ -322,8 +322,8 @@ void SkyBox::updateDescriptorSet(SkyBox &skyBox) {
     skyBox.descriptorSet = g_descriptorPool.allocate({ g_descriptorSetLayout}).front();
 
     VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageView = skyBox.texture.imageView;
-    imageInfo.sampler = skyBox.texture.sampler;
+    imageInfo.imageView = skyBox.texture.imageView.handle;
+    imageInfo.sampler = skyBox.texture.sampler.handle;
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     auto writes = initializers::writeDescriptorSets<1>();

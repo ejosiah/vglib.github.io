@@ -110,7 +110,7 @@ namespace textures {
         write.dstBinding = 0;
         write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         write.descriptorCount = 1;
-        VkDescriptorImageInfo imageInfo{texture.sampler, texture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        VkDescriptorImageInfo imageInfo{texture.sampler.handle, texture.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         write.pImageInfo = &imageInfo;
 
         device.updateDescriptorSets(writes);
@@ -190,8 +190,8 @@ namespace textures {
 
             vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline.handle);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout.handle, 0, 1, &descriptorSet, 0, VK_NULL_HANDLE);
             VkDeviceSize offset = 0;
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, screenQuad, &offset);
             vkCmdDraw(commandBuffer, ClipSpace::Quad::positions.size(), 1, 0, 0);

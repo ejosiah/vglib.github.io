@@ -47,6 +47,13 @@ VkPipelineColorBlendStateCreateInfo &ColorBlendStateBuilder::buildColorBlendStat
     return _info;
 }
 
+void ColorBlendStateBuilder::copy(const ColorBlendStateBuilder& source) {
+    _colorBlendAttachmentStateBuilder->copy(*source._colorBlendAttachmentStateBuilder);
+    _logicOp = source._logicOp;
+    _info = source._info;
+}
+
+
 ColorBlendAttachmentStateBuilder::ColorBlendAttachmentStateBuilder(ColorBlendStateBuilder *parent)
  : ColorBlendStateBuilder(parent)
 {
@@ -98,6 +105,10 @@ ColorBlendAttachmentStateBuilder &ColorBlendAttachmentStateBuilder::add() {
 
 std::vector<VkPipelineColorBlendAttachmentState> &ColorBlendAttachmentStateBuilder::buildColorBlendAttachmentState() {
     return _states;
+}
+
+void ColorBlendAttachmentStateBuilder::copy(const ColorBlendAttachmentStateBuilder& source) {
+    _states = decltype(_states)(source._states.begin(), source._states.end());
 }
 
 ColorBlendAttachmentStateBuilder &ColorBlendAttachmentStateBuilder::attachment() {

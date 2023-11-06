@@ -136,14 +136,14 @@ public:
         writes[0].dstBinding = 0;
         writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[0].descriptorCount = 1;
-        VkDescriptorImageInfo envMapInfo{ envMap.sampler, envMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        VkDescriptorImageInfo envMapInfo{ envMap.sampler.handle, envMap.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
         writes[0].pImageInfo = &envMapInfo;
 
         writes[1].dstSet = irradianceCompute.descriptorSet;
         writes[1].dstBinding = 0;
         writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         writes[1].descriptorCount = 1;
-        VkDescriptorImageInfo irrInfo{ VK_NULL_HANDLE, irradianceMap.imageView, VK_IMAGE_LAYOUT_GENERAL};
+        VkDescriptorImageInfo irrInfo{ VK_NULL_HANDLE, irradianceMap.imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
         writes[1].pImageInfo = &irrInfo;
 
         device.updateDescriptorSets(writes);
@@ -159,7 +159,7 @@ public:
             writes[i].dstBinding = 0;
             writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             writes[i].descriptorCount = 1;
-            baseInfo[i] = VkDescriptorImageInfo {envMap.sampler, specularMipViews[i], VK_IMAGE_LAYOUT_GENERAL};
+            baseInfo[i] = VkDescriptorImageInfo {envMap.sampler.handle, specularMipViews[i].handle, VK_IMAGE_LAYOUT_GENERAL};
             writes[i].pImageInfo = &baseInfo[i];
         }
 
@@ -169,7 +169,7 @@ public:
             writes[i + 4].dstBinding = 0;
             writes[i + 4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             writes[i + 4].descriptorCount = 1;
-            specInfo[i] = VkDescriptorImageInfo {VK_NULL_HANDLE, specularMipViews[i], VK_IMAGE_LAYOUT_GENERAL};
+            specInfo[i] = VkDescriptorImageInfo {VK_NULL_HANDLE, specularMipViews[i].handle, VK_IMAGE_LAYOUT_GENERAL};
             writes[i + 4].pImageInfo = &specInfo[i];
         }
 
@@ -177,33 +177,33 @@ public:
     }
 
     void createPipelines(){
-        auto module = VulkanShaderModule{ "../../data/shaders/pbr/irradiance_map.comp.spv", device};
+        auto module = device.createShaderModule("../../data/shaders/pbr/irradiance_map.comp.spv");
         auto stage = initializers::shaderStage({ module, VK_SHADER_STAGE_COMPUTE_BIT});
 
-        std::vector<VkDescriptorSetLayout> setLayouts{ envMapSetLayout, setLayout };
+        std::vector<VulkanDescriptorSetLayout> setLayouts{ envMapSetLayout, setLayout };
         irradianceCompute.layout = device.createPipelineLayout( setLayouts );
 
         auto computeCreateInfo = initializers::computePipelineCreateInfo();
         computeCreateInfo.stage = stage;
-        computeCreateInfo.layout = irradianceCompute.layout;
+        computeCreateInfo.layout = irradianceCompute.layout.handle;
 
         irradianceCompute.pipeline = device.createComputePipeline(computeCreateInfo);
 
         // create specular map compute pipeline
-        module = VulkanShaderModule{ "../../data/shaders/pbr/specular_map.comp.spv", device};
+        module = device.createShaderModule( "../../data/shaders/pbr/specular_map.comp.spv");
         stage = initializers::shaderStage({ module, VK_SHADER_STAGE_COMPUTE_BIT});
         specular.layout = device.createPipelineLayout( setLayouts, { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)} });
 
         computeCreateInfo.stage = stage;
-        computeCreateInfo.layout = specular.layout;
+        computeCreateInfo.layout = specular.layout.handle;
         specular.pipeline = device.createComputePipeline(computeCreateInfo);
     }
 
     void computeIrradianceMap(){
         device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
             std::array<VkDescriptorSet, 2> sets{envMapDescriptorSet, irradianceCompute.descriptorSet};
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, irradianceCompute.pipeline);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, irradianceCompute.layout
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, irradianceCompute.pipeline.handle);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, irradianceCompute.layout.handle
                                     , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
             auto size = 512;
@@ -220,9 +220,9 @@ public:
             uint32_t height = specularMap.height;
 
             std::array<VkDescriptorSet, 2> sets{envMapDescriptorSet, specular.descriptorSet[0]};
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.pipeline);
-            vkCmdPushConstants(commandBuffer, specular.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &specular.roughness);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.layout
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.pipeline.handle);
+            vkCmdPushConstants(commandBuffer, specular.layout.handle, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &specular.roughness);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.layout.handle
                     , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
             vkCmdDispatch(commandBuffer, 1, width, height);
@@ -251,9 +251,9 @@ public:
                 sets[1] = specular.descriptorSet[mip];
 
                 spdlog::info("generating specular map, mip level {}, roughness {}, size {}", mip, specular.roughness, width);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.pipeline);
-                vkCmdPushConstants(commandBuffer, specular.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &specular.roughness);
-                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.layout
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.pipeline.handle);
+                vkCmdPushConstants(commandBuffer, specular.layout.handle, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &specular.roughness);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, specular.layout.handle
                         , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
                 vkCmdDispatch(commandBuffer, 1, width, height);
@@ -265,7 +265,7 @@ public:
                     , VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
                     , VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
         });
-        specularMap.imageView = std::move(specularMipViews.front());
+        specularMap.imageView = specularMipViews.front();
     }
 
     void compute(){

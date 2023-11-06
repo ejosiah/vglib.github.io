@@ -58,7 +58,7 @@ protected:
         writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[0].descriptorCount = 1;
 
-        VkDescriptorImageInfo dataImageInfo{data.sampler, data.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        VkDescriptorImageInfo dataImageInfo{data.sampler.handle, data.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         writes[0].pImageInfo = &dataImageInfo;
 
         writes[1].dstSet = descriptorSet;

@@ -40,6 +40,7 @@
 #include "Entity.hpp"
 #include "components.h"
 #include "ThreadPool.hpp"
+#include "Prototypes.hpp"
 
 #ifndef NDEBUG
 constexpr bool enableValidation = true;
@@ -369,6 +370,7 @@ protected:
     par::ThreadPool threadPool{1};
 
     void* queueSubmitNextChain{};
+    std::unique_ptr<Prototypes> prototypes;
 
 private:
     static VulkanBaseApp* appInstance;

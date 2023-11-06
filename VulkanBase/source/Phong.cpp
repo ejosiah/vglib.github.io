@@ -13,8 +13,8 @@ void phong::Material::init(const mesh::Mesh& mesh,  VulkanDevice& device, const 
         }else{
             textures::color(device, texture, matColor, {256, 256});
         }
-        info.imageView = texture.imageView;
-        info.sampler = texture.sampler;
+        info.imageView = texture.imageView.handle;
+        info.sampler = texture.sampler.handle;
         info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkWriteDescriptorSet write = initializers::writeDescriptorSet();
         write.dstSet = descriptorSet;

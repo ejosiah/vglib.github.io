@@ -31,15 +31,15 @@ void Blur::operator()(VkCommandBuffer commandBuffer, VulkanImage& inputImage, Vu
     inputImage.copyToBuffer(commandBuffer, m_transferBuffer, VK_IMAGE_LAYOUT_GENERAL);
     m_texture.image.copyFromBuffer(commandBuffer, m_transferBuffer, VK_IMAGE_LAYOUT_GENERAL);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline.handle);
 
 
     const int limit = iterations * 2;
     for (int i = 0; i < limit; i++) {
         int horizontal = 1 - (i % 2);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1,
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout.handle, 0, 1,
                                 &m_descriptorSet, 0, VK_NULL_HANDLE);
-        vkCmdPushConstants(commandBuffer, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int),
+        vkCmdPushConstants(commandBuffer, m_layout.handle, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int),
                            &horizontal);
         vkCmdDispatch(commandBuffer, m_width, m_height, 1);
 
@@ -101,14 +101,14 @@ void Blur::updateDescriptorSets() {
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[0].descriptorCount = 1;
-    VkDescriptorImageInfo iInfo{m_texture.sampler, m_texture.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    VkDescriptorImageInfo iInfo{m_texture.sampler.handle, m_texture.imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
     writes[0].pImageInfo = &iInfo;
 
     writes[1].dstSet = m_descriptorSet;
     writes[1].dstBinding = 1;
     writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     writes[1].descriptorCount = 1;
-    VkDescriptorImageInfo oInfo{VK_NULL_HANDLE, m_texture.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    VkDescriptorImageInfo oInfo{VK_NULL_HANDLE, m_texture.imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
     writes[1].pImageInfo = &oInfo;
 
     m_device->updateDescriptorSets(writes);
@@ -123,7 +123,7 @@ void Blur::createPipeline() {
 
 
     info.stage = stage;
-    info.layout = m_layout;
+    info.layout = m_layout.handle;
     m_pipeline = m_device->createComputePipeline(info);
 }
 

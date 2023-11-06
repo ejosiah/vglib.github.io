@@ -35,6 +35,9 @@ public:
 
     VkPipelineVertexInputStateCreateInfo& buildVertexInputState();
 
+    void copy(const VertexInputStateBuilder& source);
+
+
 private:
     std::vector<VkVertexInputBindingDescription> _bindings;
     std::vector<VkVertexInputAttributeDescription> _attributes;

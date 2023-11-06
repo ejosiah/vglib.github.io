@@ -272,7 +272,7 @@ struct ShaderTablesDescription{
         std::vector<uint8_t> shaderHandleStorage(sbtSize);
 
         auto groupCount = numGroups;
-        vkGetRayTracingShaderGroupHandlesKHR(device, pipeline, 0, groupCount, sbtSize, shaderHandleStorage.data());
+        vkGetRayTracingShaderGroupHandlesKHR(device, pipeline.handle, 0, groupCount, sbtSize, shaderHandleStorage.data());
 
         const VkBufferUsageFlags usageFlags = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 

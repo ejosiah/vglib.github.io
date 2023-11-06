@@ -55,3 +55,9 @@ VertexInputStateBuilder &VertexInputStateBuilder::clearAttributeDesc() {
     _attributes.clear();
     return *this;
 }
+
+
+void VertexInputStateBuilder::copy(const VertexInputStateBuilder& source) {
+    _bindings = std::vector<VkVertexInputBindingDescription>(source._bindings.begin(), source._bindings.end());
+    _attributes = std::vector<VkVertexInputAttributeDescription>(source._attributes.begin(), source._attributes.end());
+}

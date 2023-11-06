@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "RefCounted.hpp"
+#include "VulkanRAII.h"
 
 struct VulkanDescriptorPool : RefCounted {
 
@@ -49,12 +50,14 @@ struct VulkanDescriptorPool : RefCounted {
     }
 
     [[nodiscard]]
-    inline std::vector<VkDescriptorSet> allocate(const std::vector<VkDescriptorSetLayout>& layouts) const {
+    inline std::vector<VkDescriptorSet> allocate(const std::vector<VulkanDescriptorSetLayout>& layouts) const {
+        std::vector<VkDescriptorSetLayout> handles{};
+        for(const auto& layout : layouts) handles.push_back(layout.handle);
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = pool;
         allocInfo.descriptorSetCount = COUNT(layouts);
-        allocInfo.pSetLayouts = layouts.data();
+        allocInfo.pSetLayouts = handles.data();
 
         std::vector<VkDescriptorSet> sets(layouts.size());
         vkAllocateDescriptorSets(device, &allocInfo, sets.data());
@@ -63,14 +66,16 @@ struct VulkanDescriptorPool : RefCounted {
     }
 
     template<typename DescriptorSets>
-    inline void allocate(const std::vector<VkDescriptorSetLayout>& layouts, DescriptorSets& descriptorSets){
+    inline void allocate(const std::vector<VulkanDescriptorSetLayout>& layouts, DescriptorSets& descriptorSets){
         assert(descriptorSets.size() >= layouts.size());
 
+        std::vector<VkDescriptorSetLayout> handles{};
+        for(const auto& layout : layouts) handles.push_back(layout.handle);
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = pool;
         allocInfo.descriptorSetCount = COUNT(layouts);
-        allocInfo.pSetLayouts = layouts.data();
+        allocInfo.pSetLayouts = handles.data();
 
         vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data());
     }

@@ -17,6 +17,8 @@
 #include <bitset>
 #include "VulkanShaderModule.h"
 
+#include <span>
+
 class VulkanImageOps;
 
 // TODO make shared
@@ -506,14 +508,17 @@ struct VulkanDevice{
         return VulkanPipeline{logicalDevice, pipeline};
     }
 
-    [[nodiscard]] inline VulkanPipelineLayout createPipelineLayout(const std::vector<VkDescriptorSetLayout>& layouts = {}
+    [[nodiscard]] inline VulkanPipelineLayout createPipelineLayout(const std::vector<VulkanDescriptorSetLayout>& layouts = {}
             , const std::vector<VkPushConstantRange>& ranges = {}) const {
         assert(logicalDevice);
+
+        std::vector<VkDescriptorSetLayout> handles{};
+        for(const auto& layout : layouts) handles.push_back(layout.handle);
 
         VkPipelineLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         createInfo.setLayoutCount = COUNT(layouts);
-        createInfo.pSetLayouts = layouts.data();
+        createInfo.pSetLayouts = handles.data();
         createInfo.pushConstantRangeCount = COUNT(ranges);
         createInfo.pPushConstantRanges = ranges.data();
 
@@ -768,7 +773,34 @@ struct VulkanDevice{
     }
 
     inline VulkanShaderModule createShaderModule(const std::string& path) const {
-        return VulkanShaderModule(path, logicalDevice);
+        auto data = loadFile(path);
+        return createShaderModule(data);
+    }
+
+    inline VulkanShaderModule createShaderModule(const byte_string& data) const {
+        auto ptr = reinterpret_cast<uint32_t*>(const_cast<char*>(data.data()));
+        return createShaderModule(std::span<uint32_t>{
+                ptr,
+                data.size()/sizeof(uint32_t),
+        });
+    }
+
+    inline VulkanShaderModule createShaderModule(const std::vector<uint32_t> &data) const {
+        auto ptr = reinterpret_cast<uint32_t*>(const_cast<uint32_t*>(data.data()));
+        return createShaderModule( { ptr, data.size() } );
+    }
+
+    inline VulkanShaderModule createShaderModule(std::span<uint32_t> data) const {
+
+        VkShaderModuleCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = data.size() * sizeof(uint32_t);
+        createInfo.pCode = data.data();
+
+        VkShaderModule handle;
+        REPORT_ERROR(vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &handle), "Failed to create shader module");
+
+        return VulkanShaderModule{ logicalDevice, handle };
     }
 
     inline void wait() const {

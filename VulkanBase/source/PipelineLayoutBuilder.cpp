@@ -5,7 +5,7 @@ PipelineLayoutBuilder::PipelineLayoutBuilder(VulkanDevice *device, GraphicsPipel
 
 }
 
-PipelineLayoutBuilder &PipelineLayoutBuilder::addDescriptorSetLayout(VkDescriptorSetLayout layout) {
+PipelineLayoutBuilder &PipelineLayoutBuilder::addDescriptorSetLayout(VulkanDescriptorSetLayout layout) {
     _descriptorSetLayouts.push_back(layout);
     return *this;
 }
@@ -39,4 +39,11 @@ PipelineLayoutBuilder &PipelineLayoutBuilder::clear() {
     _ranges.clear();
     _descriptorSetLayouts.clear();
     return *this;
+}
+
+
+void PipelineLayoutBuilder::copy(const PipelineLayoutBuilder& source) {
+    _ranges = decltype(_ranges)(source._ranges.begin(), source._ranges.end());
+    _descriptorSetLayouts = decltype(_descriptorSetLayouts)(source._descriptorSetLayouts.begin(), source._descriptorSetLayouts.end());
+
 }

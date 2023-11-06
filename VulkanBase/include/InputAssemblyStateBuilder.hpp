@@ -34,6 +34,8 @@ public:
 
     VkPipelineInputAssemblyStateCreateInfo& buildInputAssemblyState();
 
+    void copy(const InputAssemblyStateBuilder& source);
+
 private:
     VkPrimitiveTopology  _topology{ VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
     VkBool32  _primitiveRestartEnable{ VK_FALSE };

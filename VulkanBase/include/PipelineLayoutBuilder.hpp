@@ -6,9 +6,9 @@ class PipelineLayoutBuilder : public GraphicsPipelineBuilder{
 public:
     PipelineLayoutBuilder(VulkanDevice* device, GraphicsPipelineBuilder* builder);
 
-    PipelineLayoutBuilder& addDescriptorSetLayout(VkDescriptorSetLayout layout);
+    PipelineLayoutBuilder& addDescriptorSetLayout(VulkanDescriptorSetLayout layout);
 
-    template<typename DescriptorSetLayouts = std::vector<VkDescriptorSetLayout>>
+    template<typename DescriptorSetLayouts = std::vector<VulkanDescriptorSetLayout>>
     PipelineLayoutBuilder& addDescriptorSetLayouts(const DescriptorSetLayouts& layouts){
         for(auto& layout : layouts){
             addDescriptorSetLayout(layout);
@@ -34,11 +34,13 @@ public:
 
     PipelineLayoutBuilder& clearLayouts();
 
+    void copy(const PipelineLayoutBuilder& source);
+
     [[nodiscard]]
     VulkanPipelineLayout buildPipelineLayout() const;
 
 
 private:
-    std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
+    std::vector<VulkanDescriptorSetLayout> _descriptorSetLayouts;
     std::vector<VkPushConstantRange> _ranges;
 };

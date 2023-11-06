@@ -152,8 +152,8 @@ void FluidSolver2D::computeVorticityConfinement(VkCommandBuffer commandBuffer) {
         static std::array<VkDescriptorSet, 2> sets;
         sets[0] = globalConstantsDescriptorSet;
         sets[1] = vectorField.descriptorSet[in];
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticity.pipeline);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticity.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticity.pipeline.handle);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticity.layout.handle, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
     });
     withRenderPass(commandBuffer, forceField.framebuffer[out], [&](auto commandBuffer){
@@ -161,9 +161,9 @@ void FluidSolver2D::computeVorticityConfinement(VkCommandBuffer commandBuffer) {
         sets[0] = globalConstantsDescriptorSet;
         sets[1] = vorticityField.descriptorSet[in];
         sets[2] = forceField.descriptorSet[in];
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticityForce.pipeline);
-        vkCmdPushConstants(commandBuffer, vorticityForce.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vorticityForce.constants), &vorticityForce.constants);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticityForce.layout, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticityForce.pipeline.handle);
+        vkCmdPushConstants(commandBuffer, vorticityForce.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vorticityForce.constants), &vorticityForce.constants);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticityForce.layout.handle, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
     });
     forceField.swap();
@@ -194,9 +194,9 @@ void FluidSolver2D::addSources(VkCommandBuffer commandBuffer, Field &sourceField
         static std::array<VkDescriptorSet, 2> sets;
         sets[0] = sourceField.descriptorSet[in];
         sets[1] = destinationField.descriptorSet[in];
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, addSourcePipeline.pipeline);
-        vkCmdPushConstants(commandBuffer, addSourcePipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(addSourcePipeline.constants), &addSourcePipeline.constants);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, addSourcePipeline.layout
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, addSourcePipeline.pipeline.handle);
+        vkCmdPushConstants(commandBuffer, addSourcePipeline.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(addSourcePipeline.constants), &addSourcePipeline.constants);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, addSourcePipeline.layout.handle
                 , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
     });
@@ -222,8 +222,8 @@ void FluidSolver2D::advect(VkCommandBuffer commandBuffer, const std::array<VkDes
     sets[2] = inSets[1];
     sets[3] = samplerDescriptorSet;
     withRenderPass(commandBuffer, framebuffer, [&](auto commandBuffer){
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, advectPipeline.pipeline);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, advectPipeline.layout
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, advectPipeline.pipeline.handle);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, advectPipeline.layout.handle
                 , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
@@ -243,8 +243,8 @@ void FluidSolver2D::computeDivergence(VkCommandBuffer commandBuffer) {
     sets[0] = globalConstantsDescriptorSet;
     sets[1] = vectorField.descriptorSet[in];
     withRenderPass(commandBuffer, divergenceField.framebuffer[0], [&](auto commandBuffer){
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergence.pipeline);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergence.layout
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergence.pipeline.handle);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergence.layout.handle
                 , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
@@ -270,11 +270,11 @@ void FluidSolver2D::jacobiIteration(VkCommandBuffer commandBuffer, VkDescriptorS
     sets[0] = globalConstantsDescriptorSet;
     sets[1] = solutionDescriptor;
     sets[2] = unknownDescriptor;
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, jacobi.pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, jacobi.layout
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, jacobi.pipeline.handle);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, jacobi.layout.handle
             , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
-    vkCmdPushConstants(commandBuffer, jacobi.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(jacobi.constants), &jacobi.constants);
+    vkCmdPushConstants(commandBuffer, jacobi.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(jacobi.constants), &jacobi.constants);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
 
@@ -284,8 +284,8 @@ void FluidSolver2D::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
         sets[0] = globalConstantsDescriptorSet;
         sets[1] = vectorField.descriptorSet[in];
         sets[2] = pressureField.descriptorSet[in];
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergenceFree.pipeline);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergenceFree.layout
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergenceFree.pipeline.handle);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergenceFree.layout.handle
                 , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
@@ -334,8 +334,8 @@ void FluidSolver2D::renderVectorField(VkCommandBuffer commandBuffer) {
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, arrows.vertexBuffer, &offset);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, arrows.pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, arrows.layout
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, arrows.pipeline.handle);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, arrows.layout.handle
             , 0, 1, &vectorField.descriptorSet[in], 0
             , VK_NULL_HANDLE);
 
@@ -350,10 +350,10 @@ void FluidSolver2D::add(Quantity& quantity) {
 
 void FluidSolver2D::createFrameBuffer(Quantity &quantity) {
     for(auto i = 0; i < 2; i++){
-        quantity.field.framebuffer[i] = device->createFramebuffer(renderPass, {quantity.field.texture[i].imageView }, width, height);
+        quantity.field.framebuffer[i] = device->createFramebuffer(renderPass, {quantity.field.texture[i].imageView.handle }, width, height);
         device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>(fmt::format("{}_{}", quantity.name, i), quantity.field.framebuffer[i].frameBuffer);
 
-        quantity.source.framebuffer[i] = device->createFramebuffer(renderPass, {quantity.source.texture[i].imageView }, width, height);
+        quantity.source.framebuffer[i] = device->createFramebuffer(renderPass, {quantity.source.texture[i].imageView.handle }, width, height);
         device->setName<VK_OBJECT_TYPE_FRAMEBUFFER>(fmt::format("{}_source_{}", quantity.name, i), quantity.field.framebuffer[i].frameBuffer);
     }
 }

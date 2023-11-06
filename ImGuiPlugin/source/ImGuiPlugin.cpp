@@ -66,7 +66,7 @@ void ImGuiPlugin::createFontSampler() {
 }
 
 void ImGuiPlugin::createDescriptorSetLayout() {
-    VkSampler sampler[1] = {fontTexture.sampler};
+    VkSampler sampler[1] = {fontTexture.sampler.handle};
     std::vector<VkDescriptorSetLayoutBinding> binding(1);
     binding[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     binding[0].descriptorCount = 1;
@@ -90,10 +90,8 @@ void ImGuiPlugin::createDescriptorSet() {
 }
 
 void ImGuiPlugin::createPipeline() {
-    VulkanShaderModule vertexShaderModule{
-        std::vector<uint32_t>{std::begin(__glsl_shader_vert_spv), std::end(__glsl_shader_vert_spv)}, data.device->logicalDevice};
-    VulkanShaderModule fragShaderModule{
-        std::vector<uint32_t>{std::begin(__glsl_shader_frag_spv), std::end(__glsl_shader_frag_spv)}, data.device->logicalDevice};
+    VulkanShaderModule vertexShaderModule = data.device->createShaderModule(std::vector<uint32_t>{std::begin(__glsl_shader_vert_spv), std::end(__glsl_shader_vert_spv)});
+    VulkanShaderModule fragShaderModule = data.device->createShaderModule(std::vector<uint32_t>{std::begin(__glsl_shader_frag_spv), std::end(__glsl_shader_frag_spv)});
 
     auto stage = initializers::vertexShaderStages({
         {vertexShaderModule, VK_SHADER_STAGE_VERTEX_BIT},
@@ -166,10 +164,10 @@ void ImGuiPlugin::createPipeline() {
     info.pDepthStencilState = &depth_info;
     info.pColorBlendState = &blend_info;
     info.pDynamicState = &dynamic_state;
-    info.layout = pipelineLayout;
+    info.layout = pipelineLayout.handle;
     info.renderPass = *data.renderPass;
     info.subpass = subpass;
-    pipeline = data.device->createGraphicsPipeline(info, pipelineCache);
+    pipeline = data.device->createGraphicsPipeline(info, pipelineCache.handle);
 }
 
 void ImGuiPlugin::createPipelineLayout() {
@@ -179,9 +177,8 @@ void ImGuiPlugin::createPipelineLayout() {
     push_constants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     push_constants[0].offset = sizeof(float) * 0;
     push_constants[0].size = sizeof(float) * 4;
-    std::vector<VkDescriptorSetLayout> set_layout{ descriptorSetLayout };
 
-    pipelineLayout = data.device->createPipelineLayout(set_layout, push_constants);
+    pipelineLayout = data.device->createPipelineLayout({ descriptorSetLayout }, push_constants);
 }
 
 
@@ -348,7 +345,7 @@ void ImGuiPlugin::loadFonts() {
                      , pixels, {width, height, 1}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(char));
 
     std::array<VkDescriptorImageInfo, 1> desc_image{
-            {fontTexture.sampler, fontTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
+            {fontTexture.sampler.handle, fontTexture.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
     };
 
     std::array<VkWriteDescriptorSet, 1> write_desc{};
@@ -567,8 +564,8 @@ void ImGuiPlugin::setupRenderState(FrameRenderBuffers* rb, ImDrawData* draw_data
         float translate[2];
         translate[0] = -1.0f - draw_data->DisplayPos.x * scale[0];
         translate[1] = -1.0f - draw_data->DisplayPos.y * scale[1];
-        vkCmdPushConstants(command_buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, scale);
-        vkCmdPushConstants(command_buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, translate);
+        vkCmdPushConstants(command_buffer, pipelineLayout.handle, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, scale);
+        vkCmdPushConstants(command_buffer, pipelineLayout.handle, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, translate);
     }
 }
 
@@ -600,7 +597,7 @@ ImTextureID ImGuiPlugin::addTexture(Texture& texture) {
     write.dstBinding = 0;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.descriptorCount = 1;
-    VkDescriptorImageInfo imageInfo{ texture.sampler, texture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo imageInfo{ texture.sampler.handle, texture.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     write.pImageInfo = &imageInfo;
 
     data.device->updateDescriptorSets(writes);
@@ -609,9 +606,9 @@ ImTextureID ImGuiPlugin::addTexture(Texture& texture) {
 }
 
 void ImGuiPlugin::bindDescriptorSet(VkCommandBuffer command_buffer, VkDescriptorSet aDescriptorSet) {
-    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
     VkDescriptorSet desc_set[1] = { aDescriptorSet ? aDescriptorSet : descriptorSet };
-    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, desc_set, 0, nullptr);
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout.handle, 0, 1, desc_set, 0, nullptr);
 }
 
 ImTextureID ImGuiPlugin::addTexture(VulkanImageView& imageView) {
@@ -624,7 +621,7 @@ ImTextureID ImGuiPlugin::addTexture(VulkanImageView& imageView) {
     write.dstBinding = 0;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.descriptorCount = 1;
-    VkDescriptorImageInfo imageInfo{ fontTexture.sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo imageInfo{ fontTexture.sampler.handle, imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     write.pImageInfo = &imageInfo;
 
     data.device->updateDescriptorSets(writes);
