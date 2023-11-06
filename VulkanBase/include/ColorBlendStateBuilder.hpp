@@ -27,6 +27,8 @@ public:
 
     VkPipelineColorBlendStateCreateInfo& buildColorBlendState();
 
+    void copy(const ColorBlendStateBuilder& source);
+
 private:
     VkPipelineColorBlendStateCreateInfo _info{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
     LogicOp<ColorBlendStateBuilder> _logicOp{};
@@ -83,6 +85,8 @@ public:
 
 
     std::vector<VkPipelineColorBlendAttachmentState>& buildColorBlendAttachmentState();
+
+    void copy(const ColorBlendAttachmentStateBuilder& source);
 
 private:
     inline void dirty(){

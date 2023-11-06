@@ -46,6 +46,8 @@ public:
 
     VkPipelineRasterizationStateCreateInfo& buildRasterState();
 
+    void copy(const RasterizationStateBuilder& source);
+
 private:
     VkPipelineRasterizationStateCreateInfo _info;
 };

@@ -24,6 +24,8 @@ public:
 
     VkPipelineMultisampleStateCreateInfo& buildMultisampleState();
 
+    void copy(const MultisampleStateBuilder& source);
+
 private:
     VkPipelineMultisampleStateCreateInfo _info;
 };

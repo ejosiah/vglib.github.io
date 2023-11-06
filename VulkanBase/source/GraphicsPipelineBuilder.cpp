@@ -23,6 +23,32 @@ GraphicsPipelineBuilder::GraphicsPipelineBuilder(VulkanDevice *device, GraphicsP
 {
 }
 
+GraphicsPipelineBuilder::GraphicsPipelineBuilder(GraphicsPipelineBuilder&& source) {
+    _shaderStageBuilder = std::move(source._shaderStageBuilder);
+    _vertexInputStateBuilder = std::move(source._vertexInputStateBuilder);
+    _inputAssemblyStateBuilder = std::move(source._inputAssemblyStateBuilder);
+    _pipelineLayoutBuilder = std::move(source._pipelineLayoutBuilder);
+    _viewportStateBuilder = std::move(source._viewportStateBuilder);
+    _rasterizationStateBuilder = std::move(source._rasterizationStateBuilder);
+    _multisampleStateBuilder = std::move(source._multisampleStateBuilder);
+    _depthStencilStateBuilder = std::move(source._depthStencilStateBuilder);
+    _colorBlendStateBuilder = std::move(source._colorBlendStateBuilder);
+    _dynamicStateBuilder = std::move(source._dynamicStateBuilder);
+    _tessellationStateBuilder = std::move(source._tessellationStateBuilder);
+    _name = std::move(source._name);
+    _flags = source._flags;
+    _renderPass = std::exchange(source._renderPass, VK_NULL_HANDLE);
+    _pipelineLayout = std::move(source._pipelineLayout);
+    _pipelineLayoutOwned = std::move(source._pipelineLayoutOwned);
+    _subpass = source._subpass;
+    _basePipeline = std::move(source._basePipeline);
+    _pipelineCache = std::move(source._pipelineCache);
+    nextChain = std::exchange(source.nextChain, nullptr);
+    _parent = std::exchange(source._parent, nullptr);
+    _device = std::exchange(source._device, VK_NULL_HANDLE);
+ }
+
+
 GraphicsPipelineBuilder::~GraphicsPipelineBuilder() = default;
 
 ShaderStageBuilder &GraphicsPipelineBuilder::shaderStage() {
@@ -161,7 +187,7 @@ VkGraphicsPipelineCreateInfo GraphicsPipelineBuilder::createInfo() {
 
     if(_flags & VK_PIPELINE_CREATE_DERIVATIVE_BIT){
         assert(_basePipeline);
-        info.basePipelineHandle = _basePipeline->handle;
+        info.basePipelineHandle = _basePipeline.handle;
         info.basePipelineIndex = -1;
     }
 
@@ -230,7 +256,7 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::basePipeline(VulkanPipeline &p
     if(parent()){
         parent()->basePipeline(pipeline);
     }
-    _basePipeline = &pipeline;
+    _basePipeline = pipeline;
     return *this;
 }
 
@@ -245,8 +271,15 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::pipelineCache(VulkanPipelineCa
     if(parent()){
         parent()->pipelineCache(pCache);
     }
-    pipelineCache_ = pCache.handle;
+    _pipelineCache = pCache;
     return *this;
+}
+
+GraphicsPipelineBuilder GraphicsPipelineBuilder::clone() const {
+    GraphicsPipelineBuilder aClone{_device };
+    aClone.copy(*this);
+
+    return aClone;
 }
 
 DynamicStateBuilder &GraphicsPipelineBuilder::dynamicState() {
@@ -254,4 +287,31 @@ DynamicStateBuilder &GraphicsPipelineBuilder::dynamicState() {
         return parent()->dynamicState();
     }
     return *_dynamicStateBuilder;
+}
+
+
+
+void GraphicsPipelineBuilder::copy(const GraphicsPipelineBuilder& source) {
+    _flags = source._flags;
+    _renderPass = source._renderPass;
+    _pipelineLayout = source._pipelineLayout;
+    _pipelineLayoutOwned = source._pipelineLayoutOwned;
+    _subpass = source._subpass;
+    _name = source._name;
+
+    _shaderStageBuilder->copy(*source._shaderStageBuilder);
+    _vertexInputStateBuilder->copy(*source._vertexInputStateBuilder);
+    _inputAssemblyStateBuilder->copy(*source._inputAssemblyStateBuilder);
+    _pipelineLayoutBuilder->copy(*source._pipelineLayoutBuilder);
+    _viewportStateBuilder->copy(*source._viewportStateBuilder);
+    _rasterizationStateBuilder->copy(*source._rasterizationStateBuilder);
+    _multisampleStateBuilder->copy(*source._multisampleStateBuilder);
+    _depthStencilStateBuilder->copy(*source._depthStencilStateBuilder);
+    _colorBlendStateBuilder->copy(*source._colorBlendStateBuilder);
+    _dynamicStateBuilder->copy(*source._dynamicStateBuilder);
+    _tessellationStateBuilder->copy(*source._tessellationStateBuilder);
+
+    _basePipeline = source._basePipeline;
+    _pipelineCache = source._pipelineCache;
+     nextChain = source.nextChain;
 }

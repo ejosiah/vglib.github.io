@@ -52,3 +52,7 @@ VkPipelineMultisampleStateCreateInfo &MultisampleStateBuilder::buildMultisampleS
     _info.alphaToOneEnable = VK_FALSE;
     return _info;
 }
+
+void MultisampleStateBuilder::copy(const MultisampleStateBuilder& source) {
+    _info = source._info;
+}

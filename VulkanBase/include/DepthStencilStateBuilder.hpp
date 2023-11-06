@@ -52,6 +52,8 @@ public:
 
     VkPipelineDepthStencilStateCreateInfo& buildDepthStencilState();
 
+    void copy(const DepthStencilStateBuilder& source);
+
 private:
     VkPipelineDepthStencilStateCreateInfo _info;
     StencilOpStateBuilder* _front = nullptr;

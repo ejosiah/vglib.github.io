@@ -19,6 +19,8 @@ public:
 
     VkPipelineViewportStateCreateInfo& buildViewportState();
 
+    void copy(const ViewportStateBuilder& source);
+
 protected:
     ViewportBuilder* _viewportBuilder{ nullptr };
     ScissorBuilder* _scissorBuilder{ nullptr };
@@ -64,6 +66,8 @@ public:
 
     std::vector<VkViewport>& buildViewports();
 
+    void copy(const ViewportBuilder& source);
+
 private:
     std::vector<VkViewport> _viewports{};
     VkViewport _scratchpad{};
@@ -95,6 +99,8 @@ public:
     ScissorBuilder &scissor() override;
 
     ViewportStateBuilder* parent() override;
+
+    void copy(const ScissorBuilder& source);
 
 private:
     std::vector<VkRect2D> _scissors;

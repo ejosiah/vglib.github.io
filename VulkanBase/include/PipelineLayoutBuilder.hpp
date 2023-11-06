@@ -34,6 +34,8 @@ public:
 
     PipelineLayoutBuilder& clearLayouts();
 
+    void copy(const PipelineLayoutBuilder& source);
+
     [[nodiscard]]
     VulkanPipelineLayout buildPipelineLayout() const;
 

@@ -15,6 +15,8 @@ public:
 
     GraphicsPipelineBuilder() = default;
 
+    GraphicsPipelineBuilder(GraphicsPipelineBuilder&& source);
+
     virtual ~GraphicsPipelineBuilder();
 
     virtual ShaderStageBuilder& shaderStage();
@@ -66,8 +68,12 @@ public:
 
     VkGraphicsPipelineCreateInfo createInfo();
 
+    [[nodiscard]]
+    GraphicsPipelineBuilder clone() const;
+
+    void copy(const GraphicsPipelineBuilder& source);
+
 protected:
-    VkPipelineCache _pipelineCache = VK_NULL_HANDLE;
     VkPipelineCreateFlags _flags = 0;
     VkRenderPass _renderPass = VK_NULL_HANDLE;
     VulkanPipelineLayout _pipelineLayout;
@@ -86,8 +92,8 @@ protected:
     std::unique_ptr<ColorBlendStateBuilder> _colorBlendStateBuilder = nullptr ;
     std::unique_ptr<DynamicStateBuilder> _dynamicStateBuilder = nullptr;
     std::unique_ptr<TessellationStateBuilder> _tessellationStateBuilder = nullptr;
-    VulkanPipeline* _basePipeline = nullptr;
-    VkPipelineCache pipelineCache_ = VK_NULL_HANDLE;
+    VulkanPipeline _basePipeline{};
+    VulkanPipelineCache _pipelineCache{};
     void* nextChain = nullptr;
 
 };

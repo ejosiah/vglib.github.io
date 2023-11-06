@@ -33,6 +33,12 @@ VkPipelineViewportStateCreateInfo& ViewportStateBuilder::buildViewportState() {
     return _info;
 }
 
+void ViewportStateBuilder::copy(const ViewportStateBuilder& source) {
+    _viewportBuilder->copy(*source._viewportBuilder);
+    _scissorBuilder->copy(*source._scissorBuilder);
+}
+
+
 ViewportBuilder::ViewportBuilder(ViewportStateBuilder *builder) : ViewportStateBuilder(builder) {
     resetScratchpad();
 }
@@ -118,6 +124,10 @@ void ViewportBuilder::checkpoint() {
     }
 }
 
+void ViewportBuilder::copy(const ViewportBuilder &source) {
+    _viewports = decltype(_viewports)(source._viewports.begin(), source._viewports.end());
+}
+
 ViewportStateBuilder *ViewportBuilder::parent() {
     return dynamic_cast<ViewportStateBuilder*>(_parent);
 }
@@ -183,6 +193,10 @@ ViewportStateBuilder *ScissorBuilder::parent() {
 
 bool ScissorBuilder::ready() const {
     return _scratchpad.extent.width > 0 && _scratchpad.extent.height > 0;
+}
+
+void ScissorBuilder::copy(const ScissorBuilder &source) {
+    _scissors = decltype(_scissors)(source._scissors.begin(), source._scissors.end());
 }
 
 ViewportBuilder &ScissorBuilder::viewport() {

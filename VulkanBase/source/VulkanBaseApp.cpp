@@ -68,6 +68,7 @@ void VulkanBaseApp::init() {
     framebufferReady();
 
     initPlugins();
+    prototypes = std::make_unique<Prototypes>( device, swapChain, renderPass);
     initApp();
     ready = true;
 }

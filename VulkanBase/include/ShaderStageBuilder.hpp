@@ -57,6 +57,8 @@ public:
 
    void validate() const;
 
+   void copy(const ShaderStageBuilder& source);
+
    [[nodiscard]]
    std::vector<VkPipelineShaderStageCreateInfo>& buildShaderStage();
 

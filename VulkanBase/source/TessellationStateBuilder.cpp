@@ -19,6 +19,12 @@ VkPipelineTessellationStateCreateInfo &TessellationStateBuilder::buildTessellati
     return _info;
 }
 
+void TessellationStateBuilder::copy(const TessellationStateBuilder& source) {
+    originStateInfo = source.originStateInfo;
+    _info = source._info;
+}
+
+
 GraphicsPipelineBuilder &TessellationStateBuilder::clear() {
     auto graphicsPipelineBuilder = reinterpret_cast<GraphicsPipelineBuilder*>(_parent);
     _info = {VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO};

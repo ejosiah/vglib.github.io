@@ -7,6 +7,7 @@
 #include <utility>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <mutex>
 
 using ResourceHandle = uint64_t;
 using ResourceCleaner = std::function<void(ResourceHandle)>;
@@ -22,10 +23,7 @@ public:
     , _cleanup{ cleaner }
     , _name{ name }
     {
-        if(!counts.contains(_handle)) {
-            counts[_handle] = 0;
-        }
-        counts[_handle]++;
+        counts[_handle]++; // TODO might race
         spdlog::debug("ref added, {} references to {}[{}]", counts[_handle], _name, _handle);
     }
 
@@ -78,12 +76,12 @@ private:
     }
 
     [[nodiscard]] uint32_t decrementRef() const {
-        auto itr = counts.find(_handle);
-        if(itr == counts.end()) {
-            return -1;
+        if(!counts.contains(_handle)) {
+            return ~0u;
         }
-        auto count = --itr->second;
-        if(count == 0){
+        auto count = --counts[_handle];
+        if(count == 0u){
+            auto itr = counts.find(_handle);
             counts.erase(itr);
         }else{
             spdlog::debug("ref removed, {} references to {}[{}]", count, _name, _handle);

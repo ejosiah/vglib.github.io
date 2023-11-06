@@ -80,3 +80,9 @@ VkPipelineInputAssemblyStateCreateInfo& InputAssemblyStateBuilder::buildInputAss
 
     return _info;
 }
+
+void InputAssemblyStateBuilder::copy(const InputAssemblyStateBuilder& source) {
+    _topology = source._topology;
+    _primitiveRestartEnable = source._primitiveRestartEnable;
+}
+

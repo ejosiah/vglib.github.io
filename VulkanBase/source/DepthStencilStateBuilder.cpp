@@ -125,6 +125,13 @@ VkPipelineDepthStencilStateCreateInfo &DepthStencilStateBuilder::buildDepthStenc
     return _info;
 }
 
+void DepthStencilStateBuilder::copy(const DepthStencilStateBuilder& source) {
+    _front->_stencilOpState = source._front->_stencilOpState;
+    _back->_stencilOpState = source._front->_stencilOpState;
+    _info = source._info;
+}
+
+
 StencilOpStateBuilder::StencilOpStateBuilder(DepthStencilStateBuilder *parent)
 : DepthStencilStateBuilder(parent)
 , _stencilOpState{}

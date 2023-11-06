@@ -60,6 +60,8 @@ public:
 
     VkPipelineDynamicStateCreateInfo& buildPipelineDynamicState();
 
+    void copy(const DynamicStateBuilder& source);
+
 private:
     std::vector<VkDynamicState> _dynamicStates;
     VkPipelineDynamicStateCreateInfo _info;

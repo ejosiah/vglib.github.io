@@ -126,3 +126,11 @@ ShaderStageBuilder& ShaderStageBuilder::clear() {
     _stages.clear();
     return *this;
 }
+
+void ShaderStageBuilder::copy(const ShaderStageBuilder &source) {
+    _vertexModule = source._vertexModule;
+    _fragmentModule = source._fragmentModule;
+    _geometryModule = source._geometryModule;
+    _tessEvalModule = source._tessEvalModule;
+    _tessControlModule = source._tessControlModule;
+}

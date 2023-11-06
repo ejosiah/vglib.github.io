@@ -143,3 +143,8 @@ VkPipelineDynamicStateCreateInfo& DynamicStateBuilder::buildPipelineDynamicState
     _info.pDynamicStates = _dynamicStates.data();
     return _info;
 }
+
+void DynamicStateBuilder::copy(const DynamicStateBuilder& source) {
+    _dynamicStates = decltype(_dynamicStates)(source._dynamicStates.begin(), source._dynamicStates.end());
+}
+

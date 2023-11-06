@@ -40,3 +40,10 @@ PipelineLayoutBuilder &PipelineLayoutBuilder::clear() {
     _descriptorSetLayouts.clear();
     return *this;
 }
+
+
+void PipelineLayoutBuilder::copy(const PipelineLayoutBuilder& source) {
+    _ranges = decltype(_ranges)(source._ranges.begin(), source._ranges.end());
+    _descriptorSetLayouts = decltype(_descriptorSetLayouts)(source._descriptorSetLayouts.begin(), source._descriptorSetLayouts.end());
+
+}
