@@ -47,7 +47,7 @@ public:
     }
 
     void copyRef(const RefCounted& source) {
-        if(this != &source) {
+        if(this != &source && _handle != 0) {
             _handle = source._handle;
             _cleanup = source._cleanup;
             _name = source._name;
