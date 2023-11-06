@@ -18,6 +18,8 @@
 #include "VulkanRayQuerySupport.hpp"
 #include "gpu/algorithm.h"
 
+VkDevice vkDevice = VK_NULL_HANDLE;
+
 namespace chrono = std::chrono;
 
 const std::string VulkanBaseApp::kAttachment_BACK =  "BACK_BUFFER_INDEX";
@@ -112,6 +114,7 @@ void VulkanBaseApp::initVulkan() {
     pickPhysicalDevice();
     initMixins();
     createLogicalDevice();
+    vkDevice = device.logicalDevice;
 }
 
 void VulkanBaseApp::postVulkanInit() {}

@@ -4,6 +4,9 @@
 #include "RefCounted.hpp"
 
 #include <string>
+#include <memory>
+
+extern VkDevice vkDevice;
 
 inline std::string toString(VkObjectType objectType) {
     switch(objectType) {
@@ -28,52 +31,17 @@ inline std::string toString(VkObjectType objectType) {
 
 
 
-template<typename Handle, typename Deleter, VkObjectType objectType>
-struct VulkanHandle : RefCounted {
+template<typename Handle, typename Deleter>
+struct VulkanHandle {
 
     VulkanHandle() = default;
 
     VulkanHandle(VkDevice device, Handle handle)
-    : RefCounted((ResourceHandle)handle, [device, handle](ResourceHandle){ Deleter()(device, handle); }, toString(objectType))
-    , device(device)
+    : device(device)
     , handle(handle)
+    , shared_ref(handle, Deleter())
     {}
 
-    VulkanHandle(const VulkanHandle& source)
-    : RefCounted(source)
-    , device(source.device)
-    , handle(source.handle)
-    {}
-
-    VulkanHandle(VulkanHandle&& source) noexcept {
-        operator=(static_cast<VulkanHandle&&>(source));
-    }
-
-    ~VulkanHandle() override = default;
-
-    VulkanHandle& operator=(const VulkanHandle& source) {
-        if(this == &source) return *this;
-        copyRef(source);
-
-        this->device = source.device;
-        this->handle = source.handle;
-
-        return *this;
-    };
-
-    VulkanHandle& operator=(VulkanHandle&& source) noexcept {
-        if(this == &source) return *this;
-
-        if(handle){
-            this->~VulkanHandle();
-        }
-
-        moveRef(static_cast<RefCounted&&>(source));
-        this->device = std::exchange(source.device, VK_NULL_HANDLE);
-        this->handle = std::exchange(source.handle, VK_NULL_HANDLE);
-
-        return *this;
-    }
 
     operator uint64_t() const {
         return (uint64_t)handle;
@@ -85,6 +53,9 @@ struct VulkanHandle : RefCounted {
 
     VkDevice device = VK_NULL_HANDLE;
     Handle handle = VK_NULL_HANDLE;
+
+private:
+    std::shared_ptr<void> shared_ref;
 };
 
 //struct SemaphoreDeleter{
@@ -96,11 +67,12 @@ struct VulkanHandle : RefCounted {
 
 #define VULKAN_RAII(Resource, ObjectType) \
 struct Resource##Deleter{ \
-    inline void operator()(VkDevice device, Vk##Resource resource){ \
-        vkDestroy##Resource(device, resource, nullptr);          \
+    inline void operator()(void* resource){ \
+        spdlog::debug("No more references to {}[{}], will be destroying it now", toString(ObjectType), (uint64_t)resource);  \
+        vkDestroy##Resource(vkDevice, reinterpret_cast<Vk##Resource>(resource), nullptr);          \
     }      \
 };                       \
-using Vulkan##Resource = VulkanHandle<Vk##Resource, Resource##Deleter, ObjectType>;
+using Vulkan##Resource = VulkanHandle<Vk##Resource, Resource##Deleter>;
 
 VULKAN_RAII(Pipeline, VK_OBJECT_TYPE_PIPELINE)
 VULKAN_RAII(DescriptorSetLayout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT)
