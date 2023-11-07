@@ -17,6 +17,12 @@
 #include "Plugin.hpp"
 #include "VulkanRayQuerySupport.hpp"
 #include "gpu/algorithm.h"
+#include "plugins/BindLessDescriptorPlugin.hpp"
+
+struct ExtensionChain {
+    VkStructureType    sType;
+    void*              pNext;
+};
 
 VkDevice vkDevice = VK_NULL_HANDLE;
 
@@ -40,6 +46,8 @@ VulkanBaseApp::VulkanBaseApp(std::string_view name, const Settings& settings, st
     fileManager.addSearchPath("../../data/models");
     fileManager.addSearchPath("../../data/textures");
     fileManager.addSearchPath("../../data");
+
+    this->plugins.push_back(std::make_unique<BindLessDescriptorPlugin>());
 }
 
 VulkanBaseApp::~VulkanBaseApp(){
@@ -48,12 +56,12 @@ VulkanBaseApp::~VulkanBaseApp(){
 }
 
 void VulkanBaseApp::init() {
+    addPluginInstanceExtensions();
     checkInstanceExtensionSupport();
     initWindow();
     initInputMgr(*this);
     exit = &mapToKey(Key::ESCAPE, "Exit", Action::detectInitialPressOnly());
     pause = &mapToKey(Key::P, "Pause", Action::detectInitialPressOnly());
-    addPluginExtensions();
     initVulkan();
     postVulkanInit();
 
@@ -113,6 +121,7 @@ void VulkanBaseApp::initVulkan() {
     createDebugMessenger();
     pickPhysicalDevice();
     initMixins();
+    addPluginDeviceExtensions();
     createLogicalDevice();
     vkDevice = device.logicalDevice;
 }
@@ -123,16 +132,36 @@ void VulkanBaseApp::framebufferReady() {}
 
 void VulkanBaseApp::swapChainReady() {}
 
-void VulkanBaseApp::addPluginExtensions() {
-    for(auto& plugin : plugins){
+
+void VulkanBaseApp::addPluginInstanceExtensions() {
+    std::vector<std::string> removeList{};
+    for(auto& plugin : plugins) {
         for(auto extension : plugin->instanceExtensions()){
             instanceExtensions.push_back(extension);
         }
         for(auto layer : plugin->validationLayers()){
             validationLayers.push_back(layer);
         }
+    }
+}
+
+void VulkanBaseApp::addPluginDeviceExtensions() {
+    std::vector<std::string> removeList{};
+    for(auto& plugin : plugins) {
+        if(!plugin->supported(device.physicalDevice)){
+            spdlog::warn("plugin: {} not supported", plugin->name());
+            removeList.push_back(plugin->name());
+            continue;
+        }
         for(auto extension : plugin->deviceExtensions()){
             deviceExtensions.push_back(extension);
+        }
+        auto chain = reinterpret_cast<ExtensionChain*>(plugin->nextChain());
+        if(chain) {
+            if(deviceCreateNextChain) {
+                chain->pNext = deviceCreateNextChain;
+            }
+            deviceCreateNextChain = chain;
         }
     }
 }

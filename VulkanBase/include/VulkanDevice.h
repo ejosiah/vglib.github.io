@@ -545,10 +545,11 @@ struct VulkanDevice{
     }
 
     template<typename Bindings>
-    [[nodiscard]] inline VulkanDescriptorSetLayout createDescriptorSetLayout(const Bindings& bindings, VkDescriptorSetLayoutCreateFlags flags = 0u) const {
+    [[nodiscard]] inline VulkanDescriptorSetLayout createDescriptorSetLayout(const Bindings& bindings, VkDescriptorSetLayoutCreateFlags flags = 0u, void* next = nullptr) const {
         assert(logicalDevice);
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        createInfo.pNext = next;
         createInfo.flags = flags;
         createInfo.bindingCount = COUNT(bindings);
         createInfo.pBindings = bindings.data();

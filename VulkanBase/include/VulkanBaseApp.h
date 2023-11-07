@@ -112,7 +112,9 @@ protected:
 
     void initVulkan();
 
-    void addPluginExtensions();
+    void addPluginInstanceExtensions();
+
+    void addPluginDeviceExtensions();
 
     void initPlugins();
 
@@ -333,6 +335,7 @@ protected:
     std::vector<const char*> validationLayers;
     std::vector<const char*> deviceExtensions{
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
     };
     VulkanExtensions ext{};
 

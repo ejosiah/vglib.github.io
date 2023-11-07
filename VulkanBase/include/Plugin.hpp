@@ -105,6 +105,14 @@ public:
 
     virtual void onSwapChainRecreation(){}
 
+    virtual bool supported(VkPhysicalDevice physicalDevice) {
+        return true;
+    }
+
+    VulkanDevice& device() const {
+        return *data.device;
+    }
+
 protected:
     PluginData data{};
     Settings settings{};
