@@ -61,6 +61,8 @@ public:
 
     void generateLUT();
 
+    void load();
+
     std::function<void()> ui();
 
     const AtmosphereDescriptor& atmosphereDescriptor() const;

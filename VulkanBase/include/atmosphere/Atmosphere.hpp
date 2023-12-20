@@ -13,14 +13,16 @@ constexpr uint32_t NUM_CHANNELS = 4;
 using Dim2 = glm::ivec2;
 using Dim3 = glm::ivec3;
 
-using float2 = glm::ivec2;
-using float3 = glm::ivec3;
+using float2 = glm::vec2;
+using float3 = glm::vec3;
 
-constexpr uint32_t DATA_SIZE =
-        (TRANSMITTANCE_TEXTURE_WIDTH * TRANSMITTANCE_TEXTURE_HEIGHT
-         + IRRADIANCE_TEXTURE_WIDTH * IRRADIANCE_TEXTURE_HEIGHT
-         + SCATTERING_TEXTURE_WIDTH * SCATTERING_TEXTURE_HEIGHT * SCATTERING_TEXTURE_DEPTH)
-        * sizeof(float) * NUM_CHANNELS;
+constexpr uint32_t COMP_SIZE = sizeof(float) * NUM_CHANNELS;
+
+
+constexpr uint32_t TRANSMISSION_DATA_SIZE = TRANSMITTANCE_TEXTURE_WIDTH * TRANSMITTANCE_TEXTURE_HEIGHT * COMP_SIZE;
+constexpr uint32_t IRRADIANCE_DATA_SIZE = IRRADIANCE_TEXTURE_WIDTH * IRRADIANCE_TEXTURE_HEIGHT * COMP_SIZE;
+constexpr uint32_t SCATTERING_DATA_SIZE = SCATTERING_TEXTURE_WIDTH * SCATTERING_TEXTURE_HEIGHT * SCATTERING_TEXTURE_DEPTH * COMP_SIZE;
+constexpr uint32_t DATA_SIZE = TRANSMISSION_DATA_SIZE + IRRADIANCE_DATA_SIZE + SCATTERING_DATA_SIZE;
 
 namespace Atmosphere {
 
@@ -57,5 +59,35 @@ namespace Atmosphere {
         std::vector<char> data{};
     };
 
+    inline std::istream& operator>>(std::istream& in, Dim2& d) {
+        return in >> d.x >> d.y;
+    }
+
+    inline std::istream& operator>>(std::istream& in, Dim3& d) {
+        return in >> d.x >> d.y >> d.z;
+    }
+
+    inline std::istream& operator>>(std::istream& in, float3& f) {
+        return in >> f.x >> f.y >> f.z;
+    }
+
+    inline std::ostream& operator<<(std::ostream& out, const Dim2& d) {
+        return out << d.x << d.y;
+    }
+
+    inline std::ostream& operator<<(std::ostream& out, const Dim3& d) {
+        return out << d.x << d.y << d.z;
+    }
+
+    inline std::ostream& operator<<(std::ostream& out, const float3& f) {
+        return out << f.x << f.y << f.z;
+    }
+
+    std::istream& operator>>(std::istream& in, Format& format);
+
+    std::ostream& operator<<(std::ostream& out, const Format& format);
+
     Format load(const std::filesystem::path &path);
+
+    void save(const std::filesystem::path& path, const Format& format);
 }
