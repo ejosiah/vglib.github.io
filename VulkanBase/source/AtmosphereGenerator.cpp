@@ -47,6 +47,10 @@ void AtmosphereGenerator::generateLUT() {
     });
 }
 
+void AtmosphereGenerator::load() {
+    m_atmosphereDescriptor.load("./default.atmosphere");
+}
+
 void AtmosphereGenerator::initAtmosphereDescriptor() {
     m_atmosphereDescriptor = AtmosphereDescriptor{ m_device, m_descriptorPool};
     m_atmosphereDescriptor.init();
@@ -305,7 +309,7 @@ void AtmosphereGenerator::refresh() {
 
     ubo()->absorptionExtinction = params.ozone.absorptionExtinction * params.lengthUnitInMeters;
     ubo()->groundAlbedo = params.groundAlbedo;
-    ubo()->mu_s_min =params. mu_s_min;
+    ubo()->mu_s_min =params.mu_s_min;
     ubo()->lengthUnitInMeters = params.lengthUnitInMeters;
 
 
@@ -586,28 +590,6 @@ std::function<void()> AtmosphereGenerator::ui() {
 
 
 void AtmosphereGenerator::save(const std::filesystem::path& path) {
-    Atmosphere::Header header{
-        .solarIrradiance = ubo()->solarIrradiance,
-        .rayleighScattering = ubo()->rayleighScattering,
-        .mieScattering = ubo()->mieScattering,
-        .mieExtinction = ubo()->mieExtinction,
-        .absorptionExtinction = ubo()->absorptionExtinction,
-        .groundAlbedo = ubo()->groundAlbedo,
-        .sunAngularRadius = ubo()->sunAngularRadius,
-        .bottomRadius = ubo()->bottomRadius,
-        .topRadius = ubo()->topRadius,
-        .mu_s_min = ubo()->mu_s_min,
-        .mieAnisotropicFactor = ubo()->mieAnisotropicFactor,
-        .lengthUnitInMeters = ubo()->lengthUnitInMeters
-    };
-
-
-    std::ofstream fout{path.string(), std::ios::binary};
-    if(!fout.good()){
-        spdlog::error("unable to save atmosphere to file {}", path.string());
-        return;
-    }
-
     VulkanBuffer staging = m_device->createStagingBuffer(DATA_SIZE);
     // copy into staging buffer;
     
@@ -643,13 +625,15 @@ void AtmosphereGenerator::save(const std::filesystem::path& path) {
         region.imageExtent = { IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT, 1 };
         vkCmdCopyImageToBuffer(cmdBuffer, irradianceLut().image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &region);
 
-        region.bufferOffset = IRRADIANCE_TEXTURE_WIDTH * IRRADIANCE_TEXTURE_HEIGHT * NUM_CHANNELS * sizeof(float);
+        region.bufferOffset = IRRADIANCE_DATA_SIZE;
         region.imageExtent = {TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, 1};
         vkCmdCopyImageToBuffer(cmdBuffer, transmittanceLUT().image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &region);
 
-        region.bufferOffset += TRANSMITTANCE_TEXTURE_WIDTH * TRANSMITTANCE_TEXTURE_HEIGHT * NUM_CHANNELS * sizeof(float);
+        region.bufferOffset += TRANSMISSION_DATA_SIZE;
         region.imageExtent = { SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH};
         vkCmdCopyImageToBuffer(cmdBuffer, scatteringLUT().image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &region);
+        region.bufferOffset += SCATTERING_DATA_SIZE;
+        assert(region.bufferOffset == DATA_SIZE);
 
         for(auto& barrier : barriers) {
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -665,26 +649,28 @@ void AtmosphereGenerator::save(const std::filesystem::path& path) {
                              , 0, 1, &memoryBarrier, 0, nullptr, barriers.size(), barriers.data());
     });
 
-    fout.write(reinterpret_cast<char*>(&header.scatteringDimensions), sizeof(Dim3));
-    fout.write(reinterpret_cast<char*>(&header.transmittanceDimensions), sizeof(Dim2));
-    fout.write(reinterpret_cast<char*>(&header.irradianceDimensions), sizeof(Dim2));
+    Atmosphere::Format format{ .header{
+        .solarIrradiance = ubo()->solarIrradiance,
+        .rayleighScattering = ubo()->rayleighScattering,
+        .mieScattering = ubo()->mieScattering,
+        .mieExtinction = ubo()->mieExtinction,
+        .absorptionExtinction = ubo()->absorptionExtinction,
+        .groundAlbedo = ubo()->groundAlbedo,
+        .sunAngularRadius = ubo()->sunAngularRadius,
+        .bottomRadius = ubo()->bottomRadius,
+        .topRadius = ubo()->topRadius,
+        .mu_s_min = ubo()->mu_s_min,
+        .mieAnisotropicFactor = ubo()->mieAnisotropicFactor,
+        .lengthUnitInMeters = ubo()->lengthUnitInMeters
+    }};
 
-    fout.write(reinterpret_cast<char*>(&header.solarIrradiance), sizeof(float3));
-    fout.write(reinterpret_cast<char*>(&header.rayleighScattering), sizeof(float3));
-    fout.write(reinterpret_cast<char*>(&header.mieScattering), sizeof(float3));
-    fout.write(reinterpret_cast<char*>(&header.mieExtinction), sizeof(float3));
-    fout.write(reinterpret_cast<char*>(&header.groundAlbedo), sizeof(float3));
+    format.data.resize(DATA_SIZE);
 
-    fout.write(reinterpret_cast<char*>(&header.sunAngularRadius), sizeof(float));
-    fout.write(reinterpret_cast<char*>(&header.bottomRadius), sizeof(float));
-    fout.write(reinterpret_cast<char*>(&header.topRadius), sizeof(float));
-    fout.write(reinterpret_cast<char*>(&header.mu_s_min), sizeof(float));
-    fout.write(reinterpret_cast<char*>(&header.mieAnisotropicFactor), sizeof(float));
-    fout.write(reinterpret_cast<char*>(&header.lengthUnitInMeters), sizeof(float));
-
-    fout.write(reinterpret_cast<char*>(staging.map()), DATA_SIZE);
+    auto src =  reinterpret_cast<char*>(staging.map());
+    std::memcpy(format.data.data(), src, DATA_SIZE);
     staging.unmap();
 
+    Atmosphere::save(path, format);
     spdlog::info("atmosphere written to file: {}", path.string());
 }
 

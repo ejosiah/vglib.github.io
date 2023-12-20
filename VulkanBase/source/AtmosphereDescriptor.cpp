@@ -153,5 +153,79 @@ void AtmosphereDescriptor::updateDescriptorSet() {
 }
 
 void AtmosphereDescriptor::load(const std::filesystem::path &path) {
+    auto atmosphere = Atmosphere::load(path);
+    assert(atmosphere.header.scatteringDimensions.x == SCATTERING_TEXTURE_WIDTH);
+    assert(atmosphere.header.scatteringDimensions.y == SCATTERING_TEXTURE_HEIGHT);
+    assert(atmosphere.header.scatteringDimensions.z == SCATTERING_TEXTURE_DEPTH);
+    ubo->solarIrradiance = atmosphere.header.solarIrradiance;
+    ubo->sunAngularRadius = atmosphere.header.sunAngularRadius;
+    ubo->bottomRadius = atmosphere.header.bottomRadius;
+    ubo->topRadius = atmosphere.header.topRadius;
+    ubo->rayleighScattering = atmosphere.header.rayleighScattering;
+    ubo->mieScattering = atmosphere.header.mieScattering;
+    ubo->mieExtinction = atmosphere.header.mieExtinction;
+    ubo->mieAnisotropicFactor = atmosphere.header.mieAnisotropicFactor;
+    ubo->absorptionExtinction = atmosphere.header.absorptionExtinction;
+    ubo->groundAlbedo = atmosphere.header.groundAlbedo;
+    ubo->mu_s_min = atmosphere.header.mu_s_min;
+    ubo->lengthUnitInMeters = atmosphere.header.lengthUnitInMeters;
 
+    auto staging = m_device->createStagingBuffer(DATA_SIZE);
+    staging.copy(atmosphere.data);
+
+
+    m_device->graphicsCommandPool().oneTimeCommand([&](auto cmdBuffer){
+        std::vector<VkImageMemoryBarrier> barriers(3, { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER });
+
+        for(auto& barrier : barriers) {
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseMipLevel = 0;
+            barrier.subresourceRange.levelCount = 1;
+            barrier.subresourceRange.baseArrayLayer = 0;
+            barrier.subresourceRange.layerCount = 1;
+        }
+
+        barriers[0].image = transmittanceLUT.image.image;
+        barriers[1].image = irradianceLut.image.image;
+        barriers[2].image = scatteringLUT.image.image;
+
+        vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+                , VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, barriers.size(), barriers.data());
+
+        VkBufferImageCopy region{0, 0, 0};
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageOffset = {0, 0, 0};
+        region.bufferOffset = 0;
+        region.imageExtent = {IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT, 1};
+        vkCmdCopyBufferToImage(cmdBuffer, staging.buffer, irradianceLut.image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        region.bufferOffset += IRRADIANCE_DATA_SIZE;
+        region.imageExtent = { TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, 1 };
+        vkCmdCopyBufferToImage(cmdBuffer, staging.buffer, transmittanceLUT.image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        region.bufferOffset += TRANSMISSION_DATA_SIZE;
+        region.imageExtent = { SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH};
+        vkCmdCopyBufferToImage(cmdBuffer, staging.buffer, scatteringLUT.image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        region.bufferOffset += SCATTERING_DATA_SIZE;
+        assert(region.bufferOffset == DATA_SIZE);
+
+        for(auto& barrier : barriers) {
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        }
+
+
+        vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT
+                , VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+                , 0, 0, nullptr, 0, nullptr, barriers.size(), barriers.data());
+    });
 }
