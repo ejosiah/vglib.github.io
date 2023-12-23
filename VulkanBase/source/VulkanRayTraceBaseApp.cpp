@@ -66,6 +66,7 @@ void VulkanRayTraceBaseApp::createAccelerationStructure(const std::vector<rt::Me
             sceneDesc.push_back(instance);
         }
     }
+    // FIXME use ping pong or barrier as sceneObjectBuffer probably in use
     sceneObjectBuffer = device.createDeviceLocalBuffer(sceneDesc.data(), size * sceneDesc.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include "VulkanRAII.h"
 
 struct Camera{
     glm::mat4 model = glm::mat4(1);
@@ -62,9 +63,9 @@ public:
 
     virtual void setModel(const glm::mat4& model) = 0;
 
-    virtual void push(VkCommandBuffer commandBuffer, VkPipelineLayout layout, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) const = 0;
+    virtual void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) const = 0;
 
-    virtual void push(VkCommandBuffer commandBuffer, VkPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) = 0;
+    virtual void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) = 0;
 
     [[nodiscard]]
     virtual const glm::quat& getOrientation() const = 0;

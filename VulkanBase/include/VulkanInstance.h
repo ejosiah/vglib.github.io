@@ -9,7 +9,14 @@ struct ExtensionsAndValidationLayers{
 
 struct VulkanInstance{
 
+    VkInstance instance = VK_NULL_HANDLE;
+
     VulkanInstance() = default;
+
+    VulkanInstance(VkInstance instance)
+    : instance(instance)
+    , owned(false)
+    {}
 
     inline VulkanInstance(const VkApplicationInfo& appInfo, const ExtensionsAndValidationLayers& extAndValidationLayers, void* next = nullptr){
         VkInstanceCreateInfo createInfo{};
@@ -40,8 +47,8 @@ struct VulkanInstance{
     VulkanInstance& operator=(const VulkanInstance&) = delete;
 
     VulkanInstance& operator=(VulkanInstance&& source) noexcept {
-        this->instance = source.instance;
-        source.instance = VK_NULL_HANDLE;
+        this->instance = std::exchange(source.instance, VK_NULL_HANDLE);
+        this->owned = std::exchange(source.owned, true);
         return *this;
     }
 
@@ -85,7 +92,7 @@ struct VulkanInstance{
         });
     }
 
-    VkInstance instance = VK_NULL_HANDLE;
-
+private:
+    bool owned{true};
 };
 

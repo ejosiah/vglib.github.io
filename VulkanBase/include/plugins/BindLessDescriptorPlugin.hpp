@@ -6,10 +6,12 @@
 #include "Texture.h"
 #include "VulkanBuffer.h"
 #include "SequenceGenerator.hpp"
-
+#include "VulkanInitializers.h"
 #include <spdlog/spdlog.h>
 
 #include <atomic>
+#include <utility>
+#include <span>
 
 static constexpr const char* PLUGIN_NAME_BINDLESS_DESCRIPTORS = "Bindless descriptors";
 
@@ -23,6 +25,94 @@ struct BindlessBuffer {
     VulkanBuffer buffer;
     VkDescriptorType type{};
     int index{-1};
+};
+
+struct BindlessDescriptor {
+    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+    std::map<VkDescriptorType, std::atomic_int> bindingIds;
+    std::map<VkDescriptorType, int> bindings;
+    const VulkanDevice* device;
+
+    BindlessDescriptor(const VulkanDevice& device, VkDescriptorSet descriptorSet ,std::map<VkDescriptorType, int> bindings)
+    : device(&device)
+    , descriptorSet(descriptorSet) 
+    , bindings(std::move(bindings))
+    {
+        bindingIds[VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER] = 0;
+        bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE] = 0;
+        bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_BUFFER] = 0;
+        bindingIds[VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER] = 0;
+        bindingIds[VK_DESCRIPTOR_TYPE_SAMPLER] = 0;
+        bindingIds[VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE] = 0;
+        bindingIds[VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER] = 0;
+        bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER] = 0;
+    }
+
+    int nextIndex(VkDescriptorType type) {
+        return bindingIds[type]++;
+    }
+
+    BindlessTexture next(const Texture& texture, VkDescriptorType type) {
+        return BindlessTexture{ &texture, type, nextIndex(type) };
+    }
+
+    BindlessBuffer next(const VulkanBuffer& buffer, VkDescriptorType type) {
+        return BindlessBuffer{ buffer, type, nextIndex(type) };
+    }
+
+    void update(const BindlessTexture& bTexture) {
+        assert(device != VK_NULL_HANDLE && descriptorSet != VK_NULL_HANDLE);
+        
+        auto texture = bTexture.texture;
+        auto write = initializers::writeDescriptorSet();
+        write.dstSet = descriptorSet;
+        write.dstBinding = bindings[bTexture.type];
+        write.descriptorCount = 1;
+        write.dstArrayElement = bTexture.index;
+        VkDescriptorImageInfo imageInfo{texture->sampler.handle, texture->imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        write.pImageInfo = &imageInfo;
+        
+        device->updateDescriptorSets(std::span{ &write, 1});
+        
+    }
+    
+    void update(const BindlessBuffer& bBuffer) {
+        assert(device != VK_NULL_HANDLE && descriptorSet != VK_NULL_HANDLE);
+
+        auto write = initializers::writeDescriptorSet();
+        write.dstSet = descriptorSet;
+        write.dstBinding = bindings[bBuffer.type];
+        write.descriptorCount = 1;
+        write.dstArrayElement = bBuffer.index;
+        VkDescriptorBufferInfo bufferInfo{ bBuffer.buffer, 0, VK_WHOLE_SIZE };
+        write.pBufferInfo = &bufferInfo;
+
+        device->updateDescriptorSets(std::span{ &write, 1});
+    }
+
+    void update(std::span<BindlessTexture> textures) {
+        assert(device != VK_NULL_HANDLE && descriptorSet != VK_NULL_HANDLE);
+
+        std::sort(textures.begin(), textures.end(), [](const auto& t0, const auto& t1){ return t0.type < t1.type; });
+
+        auto writes = initializers::writeDescriptorSets();
+        std::vector<VkDescriptorImageInfo> imageInfos;
+
+        for(auto& bTexture : textures) {
+            auto texture = bTexture.texture;
+            auto write = initializers::writeDescriptorSet();
+            write.dstSet = descriptorSet;
+            write.dstBinding = bindings[bTexture.type];
+            write.descriptorCount = 1;
+            write.dstArrayElement = bTexture.index;
+            VkDescriptorImageInfo imageInfo{texture->sampler.handle, texture->imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            imageInfos.push_back(imageInfo);
+            write.pImageInfo = &imageInfos[imageInfos.size() - 1];
+        }
+
+       device->updateDescriptorSets(writes);
+    }
+
 };
 
 class BindLessDescriptorPlugin : public Plugin {
@@ -48,8 +138,7 @@ public:
     }
 
     void *nextChain() const override {
-        auto ptr = &m_indexingFeatures;
-        return ptr;
+        return &m_indexingFeatures;
     }
 
     void preInit() override {
@@ -102,16 +191,8 @@ public:
         return iFeatures.descriptorBindingPartiallyBound && iFeatures.runtimeDescriptorArray;
     }
 
-    VkDescriptorSet descriptorSet() const {
-        return m_descriptorSet;
-    }
-
-    BindlessTexture next(const Texture& texture, VkDescriptorType type) {
-        return BindlessTexture{ &texture, type, nextIndex(type) };
-    }
-
-    BindlessBuffer next(const VulkanBuffer& buffer, VkDescriptorType type) {
-        return BindlessBuffer{ buffer, type, nextIndex(type) };
+    BindlessDescriptor descriptorSet() const {
+        return BindlessDescriptor{ device(), createDescriptorSet(), bindings};
     }
 
 protected:
@@ -126,15 +207,6 @@ protected:
         bindings[VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER] = nextBinding();
         bindings[VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER] = nextBinding();
 
-
-        bindingIds[VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER] = 0;
-        bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE] = 0;
-        bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_BUFFER] = 0;
-        bindingIds[VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER] = 0;
-        bindingIds[VK_DESCRIPTOR_TYPE_SAMPLER] = 0;
-        bindingIds[VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE] = 0;
-        bindingIds[VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER] = 0;
-        bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER] = 0;
     }
 
     void createDefaultSampler() {
@@ -207,16 +279,10 @@ protected:
                     .descriptorCount(MaxDescriptorResources)
                     .shaderStages(VK_SHADER_STAGE_ALL)
                 .createLayout();
-
-        m_descriptorSet = createDescriptorSet();
     }
 
-    VkDescriptorSet createDescriptorSet() {
+    VkDescriptorSet createDescriptorSet() const {
         return m_descriptorPool.allocate( { m_descriptorSetLayout }).front();
-    }
-
-    int nextIndex(VkDescriptorType type) {
-        return bindingIds[type]++;
     }
 
 private:
@@ -226,9 +292,7 @@ private:
 
     mutable VkPhysicalDeviceDescriptorIndexingFeatures m_indexingFeatures{};
     std::map<VkDescriptorType, int> bindings;
-    std::map<VkDescriptorType, std::atomic_int> bindingIds;
     VulkanDescriptorPool m_descriptorPool{};
     VulkanDescriptorSetLayout m_descriptorSetLayout{};
-    VkDescriptorSet m_descriptorSet{};
     VulkanSampler m_defaultSampler;
 };

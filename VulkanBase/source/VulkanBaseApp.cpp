@@ -431,7 +431,7 @@ RenderPassInfo VulkanBaseApp::buildRenderPass() {
 
         VkAttachmentReference resolveRef{};
         resolveRef.attachment = attachments.size() - 1;
-        resolveRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        resolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         subpassDesc.resolveAttachments.push_back(resolveRef);
         attachmentIndices[kAttachment_BACK] = attachments.size() - 1;
     }
@@ -585,7 +585,7 @@ void VulkanBaseApp::recreateSwapChain() {
     }
     createRenderPass();
     createFramebuffer();
-
+    prototypes = std::make_unique<Prototypes>( device, swapChain, renderPass);
     notifyPluginsOfSwapChainRecreation();
     onSwapChainRecreation();
 }

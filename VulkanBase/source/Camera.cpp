@@ -121,11 +121,11 @@ void CameraController::setModel(const glm::mat4 &model) {
 }
 
 
-void CameraController::push(VkCommandBuffer commandBuffer, VkPipelineLayout layout, const glm::mat4 &model, VkShaderStageFlags stageFlags) {
+void CameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4 &model, VkShaderStageFlags stageFlags) {
     cameras[currentMode]->push(commandBuffer, layout, model, stageFlags);
 }
 
-void CameraController::push(VkCommandBuffer commandBuffer, VkPipelineLayout layout, VkShaderStageFlags stageFlags) const {
+void CameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
     cameras[currentMode]->push(commandBuffer, layout, stageFlags);
 }
 

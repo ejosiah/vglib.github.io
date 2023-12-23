@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <array>
+#include <span>
 
 struct ShaderInfo{
     VulkanShaderModule module;

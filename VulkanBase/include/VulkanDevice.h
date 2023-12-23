@@ -190,7 +190,7 @@ struct VulkanDevice{
             allocatorInfo.flags |=  VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
         }
 
-        allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+        allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
         allocatorInfo.instance = instance;
         allocatorInfo.physicalDevice = physicalDevice;
         allocatorInfo.device = logicalDevice;

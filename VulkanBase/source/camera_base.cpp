@@ -362,13 +362,13 @@ void BaseCameraController::setModel(const glm::mat4& model) {
     camera.model = model;
 }
 
-void BaseCameraController::push(VkCommandBuffer commandBuffer, VkPipelineLayout layout, VkShaderStageFlags stageFlags) const {
-    vkCmdPushConstants(commandBuffer, layout, stageFlags, 0, sizeof(Camera), &camera);
+void BaseCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
+    vkCmdPushConstants(commandBuffer, layout.handle, stageFlags, 0, sizeof(Camera), &camera);
 }
 
-void BaseCameraController::push(VkCommandBuffer commandBuffer, VkPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags) {
+void BaseCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags) {
     camera.model = model;
-    vkCmdPushConstants(commandBuffer, layout, stageFlags, 0, sizeof(Camera), &camera);
+    vkCmdPushConstants(commandBuffer, layout.handle, stageFlags, 0, sizeof(Camera), &camera);
 }
 
 const Camera &BaseCameraController::cam() const {

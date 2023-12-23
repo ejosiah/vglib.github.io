@@ -13,7 +13,7 @@ GraphicsPipelineBuilder::GraphicsPipelineBuilder(VulkanDevice *device)
 , _colorBlendStateBuilder{ std::make_unique<ColorBlendStateBuilder>(device, this)}
 , _dynamicStateBuilder{ std::make_unique<DynamicStateBuilder>(device, this)}
 , _tessellationStateBuilder{ std::make_unique<TessellationStateBuilder>(device, this)}
-, _name{""}
+, _dynamicRenderStateBuilder{ std::make_unique<DynamicRenderPassBuilder>(device, this)}
 {
 
 }
@@ -118,10 +118,18 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::layout(VulkanPipelineLayout&  
 
 GraphicsPipelineBuilder &GraphicsPipelineBuilder::renderPass(VkRenderPass aRenderPass) {
     if(parent()){
-        parent()->renderPass(aRenderPass);
+        return parent()->renderPass(aRenderPass);
     }
     _renderPass = aRenderPass;
     return *this;
+}
+
+DynamicRenderPassBuilder &GraphicsPipelineBuilder::dynamicRenderPass() {
+    if(parent()){
+        return parent()->dynamicRenderPass();
+    }
+    _dynamicRenderStateBuilder->enable();
+    return *_dynamicRenderStateBuilder;
 }
 
 PipelineLayoutBuilder &GraphicsPipelineBuilder::layout() {
@@ -199,6 +207,10 @@ VkGraphicsPipelineCreateInfo GraphicsPipelineBuilder::createInfo() {
     }
     info.renderPass = _renderPass;
     info.subpass = _subpass;
+
+    if(_dynamicRenderStateBuilder->enabled()) {
+        info.pNext = _dynamicRenderStateBuilder->buildDynamicRenderInfo();
+    }
 
     return info;
 }

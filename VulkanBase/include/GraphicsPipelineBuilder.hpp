@@ -51,6 +51,8 @@ public:
 
     GraphicsPipelineBuilder& renderPass(VkRenderPass  aRenderPass);
 
+    DynamicRenderPassBuilder& dynamicRenderPass();
+
     GraphicsPipelineBuilder& name(const std::string& value);
 
     GraphicsPipelineBuilder& reuse();
@@ -73,6 +75,11 @@ public:
 
     void copy(const GraphicsPipelineBuilder& source);
 
+    [[nodiscard]]
+    VulkanPipelineLayout pipelineLayout() const {
+        return _pipelineLayoutOwned;
+    }
+
 protected:
     VkPipelineCreateFlags _flags = 0;
     VkRenderPass _renderPass = VK_NULL_HANDLE;
@@ -92,6 +99,8 @@ protected:
     std::unique_ptr<ColorBlendStateBuilder> _colorBlendStateBuilder = nullptr ;
     std::unique_ptr<DynamicStateBuilder> _dynamicStateBuilder = nullptr;
     std::unique_ptr<TessellationStateBuilder> _tessellationStateBuilder = nullptr;
+    std::unique_ptr<DynamicRenderPassBuilder> _dynamicRenderStateBuilder = nullptr;
+
     VulkanPipeline _basePipeline{};
     VulkanPipelineCache _pipelineCache{};
     void* nextChain = nullptr;
@@ -109,3 +118,4 @@ protected:
 #include "ColorBlendStateBuilder.hpp"
 #include "DynamicStateBuilder.hpp"
 #include "TessellationStateBuilder.hpp"
+#include "DynamicRenderPassBuilder.hpp"

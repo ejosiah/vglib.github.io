@@ -4,6 +4,8 @@
 #include "GraphicsPipelineBuilder.hpp"
 #include "VulkanShaderModule.h"
 
+#include <map>
+
 class ShaderStageBuilder : public GraphicsPipelineBuilder{
 public:
    explicit ShaderStageBuilder(VulkanDevice* device, GraphicsPipelineBuilder* parent);
@@ -63,11 +65,6 @@ public:
    std::vector<VkPipelineShaderStageCreateInfo>& buildShaderStage();
 
 private:
-    VulkanShaderModule _vertexModule;
-    VulkanShaderModule _fragmentModule;
-    VulkanShaderModule _geometryModule;
-    VulkanShaderModule _tessEvalModule;
-    VulkanShaderModule _tessControlModule;
-    std::vector<ShaderInfo> _stages;
+    std::map<VkShaderStageFlagBits, ShaderInfo> _stages;
     std::vector<VkPipelineShaderStageCreateInfo> _vkStages;
 };
