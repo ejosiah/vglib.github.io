@@ -128,6 +128,7 @@ DynamicRenderPassBuilder &GraphicsPipelineBuilder::dynamicRenderPass() {
     if(parent()){
         return parent()->dynamicRenderPass();
     }
+    _renderPass = VK_NULL_HANDLE;
     _dynamicRenderStateBuilder->enable();
     return *_dynamicRenderStateBuilder;
 }

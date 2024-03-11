@@ -38,6 +38,14 @@ void ViewportStateBuilder::copy(const ViewportStateBuilder& source) {
     _scissorBuilder->copy(*source._scissorBuilder);
 }
 
+ViewportStateBuilder& ViewportStateBuilder::clear() {
+    delete _viewportBuilder;
+    delete _scissorBuilder;
+    _viewportBuilder = new ViewportBuilder{ this};
+    _scissorBuilder = new ScissorBuilder{ this};
+    return *this;
+}
+
 
 ViewportBuilder::ViewportBuilder(ViewportStateBuilder *builder) : ViewportStateBuilder(builder) {
     resetScratchpad();

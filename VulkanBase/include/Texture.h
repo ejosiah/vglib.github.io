@@ -16,6 +16,7 @@ struct Texture{
     VulkanSampler sampler;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageAspectFlags aspectMask{VK_IMAGE_ASPECT_COLOR_BIT};
+    VkImageCreateInfo spec{};
     uint32_t width{0};
     uint32_t height{0};
     uint32_t depth{1};

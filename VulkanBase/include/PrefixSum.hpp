@@ -17,7 +17,7 @@ public:
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
-    void inclusive(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
+    void inclusive(VkCommandBuffer commandBuffer, VulkanBuffer& buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage);
 
     template<typename Itr>
     void scan(const Itr _first, const Itr _last){

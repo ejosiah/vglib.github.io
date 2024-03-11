@@ -77,6 +77,12 @@ public:
             return setLayout;
         }
 
+        std::vector<VkDescriptorSetLayoutBinding> build() const {
+            assertBinding();
+            bindings.push_back(_binding);
+            return bindings;
+        }
+
         void assertBinding() const {
             assert(_binding.binding >= 0 && _binding.descriptorCount >= 1);
         }

@@ -19,25 +19,25 @@ Vertices primitives::cube(const glm::vec4& color){
             {{0.5, 0.5, -0.5, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {1, 1}},
             {{0.5, 0.5, 0.5, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {0, 1}},
 
-            // BACK FAC1
+            // BACK FACE
             {{-0.5, -0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {1, 0}},
             {{-0.5, 0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {1, 1}},
             {{0.5, 0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {0, 1}},
             {{0.5, -0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {0, 0}},
 
-            // Left face
+            // LEFT FACE
             {{-0.5, -0.5, 0.5, 1},  color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0}, {1, 0}},
             {{-0.5, 0.5, 0.5, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {1, 1}},
             {{-0.5, 0.5, -0.5, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {0, 1}},
             {{-0.5, -0.5, -0.5, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {0, 0}},
 
-            // bottom face
+            // BOTTOM FACE
             {{-0.5, -0.5, 0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {0, 1}},
             {{-0.5, -0.5, -0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {0, 0}},
             {{0.5, -0.5, -0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {1, 0}},
             {{0.5, -0.5, 0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {1, 1}},
 
-            // top face
+            // TOP FACE
             {{-0.5, 0.5, 0.5, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {0, 0}},
             {{0.5, 0.5, 0.5, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {1, 0}},
             {{0.5, 0.5, -0.5, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {1, 1}},
@@ -199,7 +199,23 @@ Vertices primitives::plane(int rows, int columns, float width, float height, con
         return std::make_tuple(glm::vec3(x, y, z), glm::vec3(nx, ny, nz));
     };
 
-    return surface(p, q, f, color, xform, topology);
+    auto vertices = surface(p, q, f, color, xform, topology);
+
+    glm::vec3 N{0.0f, 0.0f, 1.0f};
+    glm::vec3 T{1, 0, 0};
+    glm::vec3 B{0, 1, 0};
+
+    N = glm::inverseTranspose(glm::mat3(xform)) * N;
+    T = glm::inverseTranspose(glm::mat3(xform)) * T;
+    B = glm::inverseTranspose(glm::mat3(xform)) * B;
+
+    for(auto& vertex : vertices.vertices) {
+        vertex.normal = N;
+        vertex.tangent = T;
+        vertex.bitangent = B;
+    }
+
+    return vertices;
 }
 
 
@@ -217,7 +233,7 @@ Vertices primitives::surface(int p, int q, SurfaceFunction &&f, const glm::vec4 
             vertex.normal =  nXform * normal;
             // TODO construct tangents
             vertex.color = color;
-            vertex.uv = {float(p - i) / float(p), float(q - j) / float(q)};
+            vertex.uv = {float(i) / float(p), float(j) / float(q)};
             vertices.vertices.push_back(vertex);
         }
     }
@@ -336,13 +352,13 @@ Vertices primitives::calculateTangents(Vertices &vertices, bool smooth /* TODO i
         bn.y = d * (du1 * e2.y - du2 * e1.y);
         bn.z = d * (du1 * e2.z - du2 * e1.z);
 
-        v0.tangent = tn;
-        v1.tangent = tn;
-        v2.tangent = tn;
+        v0.tangent = normalize(tn);
+        v1.tangent = normalize(tn);
+        v2.tangent = normalize(tn);
 
-        v0.bitangent = bn;
-        v1.bitangent = bn;
-        v2.bitangent = bn;
+        v0.bitangent = normalize(bn);
+        v1.bitangent = normalize(bn);
+        v2.bitangent = normalize(bn);
     }
 
     return vertices;
@@ -379,7 +395,7 @@ std::vector<Vertices> primitives::cornellBox() {
     auto light = primitives::plane(1, 1, 13, 10.5, xform, glm::vec4(0), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
 
-    xform = glm::translate(glm::mat4(1), glm::vec3(10, (16.5 - w) * 0.5, 12));
+    xform = glm::translate(glm::mat4(1), glm::vec3(10, (16.6 - w) * 0.5, 12));
     xform = glm::rotate(xform, glm::radians(-18.f), {0, 1, 0});
     xform = glm::scale(xform, glm::vec3(16.5));
     auto shortBox = primitives::cube(white);
@@ -387,13 +403,13 @@ std::vector<Vertices> primitives::cornellBox() {
     auto nxForm = glm::inverseTranspose(glm::mat3(xform));
     for(auto& vertex : shortBox.vertices){
         vertex.position = xform * vertex.position;
-        vertex.normal = nxForm * vertex.normal;
-        vertex.tangent = nxForm * vertex.tangent;
-        vertex.bitangent = nxForm * vertex.bitangent;
+        vertex.normal = normalize(nxForm * vertex.normal);
+        vertex.tangent = normalize(nxForm * vertex.tangent);
+        vertex.bitangent = normalize(nxForm * vertex.bitangent);
     }
 
 //    xform = glm::translate(glm::mat4(1), glm::vec3(-26.5, (33 - w) * 0.5, -29.5));
-    xform = glm::translate(glm::mat4(1), glm::vec3(-10.5, (33 - w) * 0.5, -5));
+    xform = glm::translate(glm::mat4(1), glm::vec3(-10.5, (33.1 - w) * 0.5, -5));
     xform = glm::rotate(xform, glm::radians(15.f), {0, 1, 0});
     xform = glm::scale(xform, glm::vec3(16.5, 33, 16.5));
     auto tallBox = primitives::cube(white);
@@ -401,9 +417,9 @@ std::vector<Vertices> primitives::cornellBox() {
     nxForm = glm::inverseTranspose(glm::mat3(xform));
     for(auto& vertex : tallBox.vertices){
         vertex.position = xform * vertex.position;
-        vertex.normal = nxForm * vertex.normal;
-        vertex.tangent = nxForm * vertex.tangent;
-        vertex.bitangent = nxForm * vertex.bitangent;
+        vertex.normal = normalize(nxForm * vertex.normal);
+        vertex.tangent = normalize(nxForm * vertex.tangent);
+        vertex.bitangent = normalize(nxForm * vertex.bitangent);
     }
 
     return {

@@ -68,7 +68,7 @@ void PrefixSum::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) 
     }
 }
 
-void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
+void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage) {
     (*this)(commandBuffer, buffer);
     VkDeviceSize offset = sizeof(int);
 
@@ -76,13 +76,22 @@ void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
     vkCmdCopyBuffer(commandBuffer, buffer, stagingBuffer, 1, &region);
     addBufferTransferBarriers(commandBuffer, { &stagingBuffer });
 
-    region = VkBufferCopy{sumsBuffer.size - offset, buffer.size - offset, offset};
+    region = VkBufferCopy{0, buffer.size - offset, offset};
     vkCmdCopyBuffer(commandBuffer, sumsBuffer, stagingBuffer, 1, &region);
 
     addBufferTransferBarriers(commandBuffer, { &stagingBuffer });
 
     region = VkBufferCopy{0, 0, stagingBuffer.size};
     vkCmdCopyBuffer(commandBuffer, stagingBuffer, buffer, 1, &region);
+
+    auto barrier = initializers::bufferMemoryBarrier();
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = dstAccessMask;
+    barrier.buffer = buffer;
+    barrier.offset = 0;
+    barrier.size = buffer.size;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
 void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
@@ -90,7 +99,7 @@ void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
     size_t numItems = buffer.sizeAs<int>();
     VkDeviceSize sumsSize = (std::abs(int(numItems - 1))/ITEMS_PER_WORKGROUP + 1) * sizeof(int);  // FIXME
     sumsSize = alignedSize(sumsSize, bufferOffsetAlignment) + sizeof(int);
-    sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sumsSize);
+    sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sumsSize);
     constants.N = numItems;
 
     VkDescriptorBufferInfo info{ buffer, 0, VK_WHOLE_SIZE};
@@ -151,7 +160,7 @@ void PrefixSum::addBufferTransferBarriers(VkCommandBuffer commandBuffer, const s
         barriers[i].size = buffers[i]->size;
     }
 
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
                          nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
 }
 

@@ -257,6 +257,6 @@ constexpr float kb = 1024;
 constexpr float mb = kb * kb;
 constexpr float gb = mb * kb;
 
-inline float remap(float x, float a, float b, float c, float d){
+inline auto remap(auto x, auto a, auto b, auto c, auto d){
     return glm::mix(c, d, (x - a)/(b - a));
 }

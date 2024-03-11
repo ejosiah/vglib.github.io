@@ -65,6 +65,8 @@ struct Settings{
      */
     VkPhysicalDeviceFeatures enabledFeatures{};
 
+    bool enableBindlessDescriptors = true;
+
     std::vector<const char*> instanceExtensions;
     std::vector<const char*> validationLayers;
     std::vector<const char*> deviceExtensions;

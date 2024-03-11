@@ -1,5 +1,6 @@
 #pragma once
 
+#include <plugins/BindLessDescriptorPlugin.hpp>
 #include "Atmosphere.hpp"
 #include "Texture.h"
 
@@ -37,11 +38,17 @@ struct AtmosphereDescriptor {
     UBO* ubo;
     Atmosphere::DensityProfileLayer* layers;
 
-    explicit AtmosphereDescriptor(VulkanDevice* device = nullptr, VulkanDescriptorPool* m_descriptorPool = nullptr);
+    AtmosphereDescriptor() = default;
+
+    explicit AtmosphereDescriptor(VulkanDevice* device, VulkanDescriptorPool* m_descriptorPool, BindlessDescriptor* bindlessDescriptor);
 
     void init();
 
     void load(const std::filesystem::path& path);
+
+    const VulkanDescriptorSetLayout& bindnessSetLayout() const;
+
+    VkDescriptorSet bindessDescriptorSet();
 
 private:
 
@@ -57,6 +64,7 @@ private:
 
     VulkanDevice* m_device{};
     VulkanDescriptorPool* m_descriptorPool{};
+    BindlessDescriptor* m_bindlessDescriptor{};
     std::filesystem::path m_path;
     VulkanBuffer m_densityProfileBuffer;
     VulkanBuffer m_uboBuffer;

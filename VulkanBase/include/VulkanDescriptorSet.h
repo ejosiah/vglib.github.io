@@ -88,6 +88,10 @@ struct VulkanDescriptorPool : RefCounted {
         vkFreeDescriptorSets(device, pool ,COUNT(sets), sets.data());
     }
 
+    inline void reset() const {
+        vkResetDescriptorPool(device, pool, 0);
+    }
+
 
     operator VkDescriptorPool() const {
         return pool;

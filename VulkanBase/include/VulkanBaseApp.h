@@ -48,8 +48,9 @@ constexpr bool enableValidation = true;
 constexpr bool enableValidation = false;
 #endif
 
-
-constexpr int MAX_IN_FLIGHT_FRAMES = 2;
+#ifndef MAX_IN_FLIGHT_FRAMES
+#define MAX_IN_FLIGHT_FRAMES 2
+#endif // MAX_IN_FLIGHT_FRAMES
 
 struct FramebufferAttachment{
     VulkanImage image;

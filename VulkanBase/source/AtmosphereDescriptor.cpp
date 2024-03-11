@@ -1,8 +1,9 @@
 #include "atmosphere/AtmosphereDescriptor.hpp"
 
-AtmosphereDescriptor::AtmosphereDescriptor(VulkanDevice *device, VulkanDescriptorPool *m_descriptorPool)
+AtmosphereDescriptor::AtmosphereDescriptor(VulkanDevice *device, VulkanDescriptorPool *m_descriptorPool, BindlessDescriptor* bindlessDescriptor)
 : m_device{ device }
 , m_descriptorPool{ m_descriptorPool }
+, m_bindlessDescriptor{ bindlessDescriptor }
 {}
 
 void AtmosphereDescriptor::init() {
@@ -150,6 +151,12 @@ void AtmosphereDescriptor::updateDescriptorSet() {
     writes[3] = writes[2];
     writes[3].dstBinding = 3;
     m_device->updateDescriptorSets(writes);
+
+    if(m_bindlessDescriptor) {
+        m_bindlessDescriptor->update({&irradianceLut, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2U});
+        m_bindlessDescriptor->update({&transmittanceLUT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3U});
+        m_bindlessDescriptor->update({&scatteringLUT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4U});
+    }
 }
 
 void AtmosphereDescriptor::load(const std::filesystem::path &path) {
@@ -228,4 +235,12 @@ void AtmosphereDescriptor::load(const std::filesystem::path &path) {
                 , VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
                 , 0, 0, nullptr, 0, nullptr, barriers.size(), barriers.data());
     });
+}
+
+const VulkanDescriptorSetLayout &AtmosphereDescriptor::bindnessSetLayout() const {
+    return *m_bindlessDescriptor->descriptorSetLayout;
+}
+
+ VkDescriptorSet AtmosphereDescriptor::bindessDescriptorSet()  {
+    return m_bindlessDescriptor->descriptorSet;
 }

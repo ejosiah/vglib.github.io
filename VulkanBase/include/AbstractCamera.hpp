@@ -8,8 +8,8 @@ struct Camera{
     glm::mat4 view = glm::mat4(1);
     glm::mat4 proj = glm::mat4(1);
 
-    static constexpr VkPushConstantRange pushConstant() {
-        return {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Camera)};
+    static constexpr VkPushConstantRange pushConstant(VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) {
+        return {stageFlags, 0, sizeof(Camera)};
     }
 
 };

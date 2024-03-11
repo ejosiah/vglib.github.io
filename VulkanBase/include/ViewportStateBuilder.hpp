@@ -19,6 +19,8 @@ public:
 
     VkPipelineViewportStateCreateInfo& buildViewportState();
 
+    ViewportStateBuilder& clear();
+
     void copy(const ViewportStateBuilder& source);
 
 protected:

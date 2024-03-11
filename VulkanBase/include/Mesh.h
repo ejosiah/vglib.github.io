@@ -2,10 +2,14 @@
 
 #include "common.h"
 #include "Vertex.h"
+#include "primitives.h"
+
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
-#include "primitives.h"
+
+#include <filesystem>
+#include <vector>
 
 namespace mesh {
 

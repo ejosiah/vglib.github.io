@@ -57,7 +57,7 @@ public:
     };
 
 
-    AtmosphereGenerator(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, FileManager* fileManager);
+    AtmosphereGenerator(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, FileManager* fileManager, BindlessDescriptor* bindlessDescriptor = nullptr);
 
     void generateLUT();
 
@@ -154,6 +154,7 @@ private:
         Pipeline compute_multiple_scattering;
     } pipelines;
 
+    BindlessDescriptor* m_bindlessDescriptor;
     AtmosphereDescriptor m_atmosphereDescriptor;
 
     std::vector<VkImageMemoryBarrier> m_barriers{};

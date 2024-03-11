@@ -17,12 +17,10 @@
 #include "Plugin.hpp"
 #include "VulkanRayQuerySupport.hpp"
 #include "gpu/algorithm.h"
+#include "ExtensionChain.hpp"
 #include "plugins/BindLessDescriptorPlugin.hpp"
 
-struct ExtensionChain {
-    VkStructureType    sType;
-    void*              pNext;
-};
+
 
 VkDevice vkDevice = VK_NULL_HANDLE;
 
@@ -47,7 +45,9 @@ VulkanBaseApp::VulkanBaseApp(std::string_view name, const Settings& settings, st
     fileManager.addSearchPath("../../data/textures");
     fileManager.addSearchPath("../../data");
 
-    this->plugins.push_back(std::make_unique<BindLessDescriptorPlugin>());
+    if(settings.enableBindlessDescriptors) {
+        this->plugins.push_back(std::make_unique<BindLessDescriptorPlugin>());
+    }
 }
 
 VulkanBaseApp::~VulkanBaseApp(){
@@ -156,13 +156,7 @@ void VulkanBaseApp::addPluginDeviceExtensions() {
         for(auto extension : plugin->deviceExtensions()){
             deviceExtensions.push_back(extension);
         }
-        auto chain = reinterpret_cast<ExtensionChain*>(plugin->nextChain());
-        if(chain) {
-            if(deviceCreateNextChain) {
-                chain->pNext = deviceCreateNextChain;
-            }
-            deviceCreateNextChain = chain;
-        }
+        deviceCreateNextChain = plugin->appendTo(deviceCreateNextChain);
     }
 }
 

@@ -42,8 +42,8 @@ public:
     }
 
     [[nodiscard]]
-    virtual void* nextChain() const {
-        return nullptr;
+    virtual void *appendTo(void *nextChain) const {
+        return nextChain;
     }
 
     virtual void preInit() {

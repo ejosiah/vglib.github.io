@@ -91,7 +91,7 @@ namespace phong{
     template<typename Drawable>
     inline void load(const std::string& path, VulkanDevice &device, const VulkanDescriptorPool& pool,
                      Drawable& drawable,
-                     const VulkanDrawableInfo info = {}, bool normalize = false, float size = 1){
+                     const VulkanDrawableInfo info = {}, bool normalize = false, float size = 1, float unit = meter){
         std::array<VkDescriptorSetLayoutBinding, 6> bindings{};
 
         bindings[0].binding = 0;
@@ -108,11 +108,18 @@ namespace phong{
         drawable.descriptorSetLayout = device.createDescriptorSetLayout(bindings);
 
         std::vector<mesh::Mesh> meshes;
-        mesh::load(meshes, path);
+        mesh::load(meshes, path, mesh::DEFAULT_PROCESS_FLAGS & ~aiProcess_FixInfacingNormals);
+
 
 
         if(normalize) {
             mesh::normalize(meshes, size);
+        } else if(unit != meter) {
+            for (auto &mesh: meshes) {
+                for (auto &vertex : mesh.vertices) {
+                    vertex.position = glm::vec4(vertex.position.xyz() * unit, 1);
+                }
+            }
         }
 
         if(info.simplify > 0 && info.simplify < 1){

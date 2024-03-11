@@ -43,6 +43,8 @@ protected:
                     .cullBackFace()
                     .frontFaceCounterClockwise()
                     .polygonModeFill()
+                .multisampleState()
+                    .rasterizationSamples(_device->settings.msaaSamples)
                 .depthStencilState()
                     .enableDepthWrite()
                     .enableDepthTest()

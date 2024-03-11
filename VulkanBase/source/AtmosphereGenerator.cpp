@@ -5,10 +5,11 @@
 #include <array>
 #include <imgui.h>
 
-AtmosphereGenerator::AtmosphereGenerator(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, FileManager* fileManager)
-: m_device{device},
-  m_descriptorPool{ descriptorPool },
-  m_fileMgr{ fileManager }
+AtmosphereGenerator::AtmosphereGenerator(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, FileManager* fileManager, BindlessDescriptor* bindlessDescriptor)
+: m_device{device}
+, m_descriptorPool{ descriptorPool }
+,  m_fileMgr{ fileManager }
+, m_bindlessDescriptor{ bindlessDescriptor }
 {
    initAtmosphereDescriptor();
    createSampler();
@@ -52,7 +53,7 @@ void AtmosphereGenerator::load() {
 }
 
 void AtmosphereGenerator::initAtmosphereDescriptor() {
-    m_atmosphereDescriptor = AtmosphereDescriptor{ m_device, m_descriptorPool};
+    m_atmosphereDescriptor = AtmosphereDescriptor{ m_device, m_descriptorPool, m_bindlessDescriptor};
     m_atmosphereDescriptor.init();
 }
 

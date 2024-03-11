@@ -224,8 +224,20 @@ public:
         prevPos.x = prevPos.y = 0;
         mouse.relativePosition.x = 0;
         mouse.relativePosition.y = 0;
-        mouse.left.held = mouse.middle.held = mouse.right.held = false;
-        mouse.left.released = mouse.middle.released = mouse.right.released = true;
+
+
+        if(event.button == MouseEvent::Button::LEFT){
+            mouse.left.held = false;
+            mouse.left.released = true;
+        }
+        if(event.button == MouseEvent::Button::MIDDLE){
+            mouse.middle.held = false;
+            mouse.middle.released = true;
+        }
+        if(event.button == MouseEvent::Button::RIGHT){
+            mouse.right.held = false;
+            mouse.right.released = true;
+        }
 
         int key = static_cast<int>(event.button);
         auto itr = mouseActions.find(key);

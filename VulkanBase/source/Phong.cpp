@@ -9,7 +9,12 @@ void phong::Material::init(const mesh::Mesh& mesh,  VulkanDevice& device, const 
 
     auto initTexture = [&](Texture& texture, VkDescriptorImageInfo& info, const std::string& path, const glm::vec3& matColor, uint32_t binding){
         if(!path.empty()){
-            textures::fromFile(device, texture, path, true, VK_FORMAT_R8G8B8A8_SRGB);
+            try {
+                textures::fromFile(device, texture, path, true, VK_FORMAT_R8G8B8A8_SRGB);
+            }catch(...) {
+                spdlog::warn("unable to load texture: {}", path);
+                textures::color(device, texture, matColor, {256, 256});
+            }
         }else{
             textures::color(device, texture, matColor, {256, 256});
         }

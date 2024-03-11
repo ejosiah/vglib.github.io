@@ -151,8 +151,8 @@ mesh::Mesh loadMesh(const std::string& parent, const aiNode* node, const aiScene
         texMaterial.specularMap =  fmt::format("{}/{}", parent, aiString.C_Str());
     }
 
-    ret = aiMaterial->GetTexture(aiTextureType_NORMALS, 0, &aiString);
-    if(ret == aiReturn_SUCCESS){
+    if(aiMaterial->GetTexture(aiTextureType_NORMALS, 0, &aiString) == aiReturn_SUCCESS
+      || aiMaterial->GetTexture(aiTextureType_HEIGHT, 0, &aiString) == aiReturn_SUCCESS){
         texMaterial.normalMap =  fmt::format("{}/{}", parent, aiString.C_Str());
     }
 

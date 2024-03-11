@@ -1,13 +1,16 @@
 #pragma once
 
 #include "common.h"
-#include <string>
-#include <map>
 #include "VulkanDevice.h"
 #include "VulkanBuffer.h"
 #include "glm_format.h"
+
 #include "spdlog/spdlog.h"
+
+#include <string>
 #include <algorithm>
+#include <map>
+#include <tuple>
 
 struct ShaderRecord{
     std::vector<unsigned char> record{};
@@ -174,6 +177,7 @@ struct ShaderBindingTable{
 
 struct ShaderBindingTables {
     ShaderBindingTable rayGen;
+    std::map<std::string, ShaderBindingTable> rayGens;
     ShaderBindingTable miss;
     ShaderBindingTable closestHit;
     ShaderBindingTable callable;
@@ -181,6 +185,7 @@ struct ShaderBindingTables {
 
 struct ShaderTablesDescription{
     ShaderGroups rayGen{GroupType::RAY_GEN};
+    std::vector<std::tuple<std::string, ShaderGroups>> rayGens;
     ShaderGroups missGroups{ GroupType::MISS};
     ShaderGroups hitGroups{ GroupType::CLOSEST_HIT};
     ShaderGroups callableGroups{ GroupType::CALLABLE };
@@ -188,6 +193,22 @@ struct ShaderTablesDescription{
     VkRayTracingShaderGroupCreateInfoKHR rayGenGroup(uint32_t shaderIndex = 0){
         numGroups++;
         rayGen.add();
+
+        VkRayTracingShaderGroupCreateInfoKHR shaderGroupInfo{};
+        shaderGroupInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+        shaderGroupInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+        shaderGroupInfo.generalShader = shaderIndex;
+        shaderGroupInfo.closestHitShader = VK_SHADER_UNUSED_KHR;
+        shaderGroupInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
+        shaderGroupInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+        return shaderGroupInfo;
+    }
+
+    VkRayTracingShaderGroupCreateInfoKHR rayGenGroup(const std::string& name, uint32_t shaderIndex){
+        numGroups++;
+        rayGens.push_back(std::make_tuple(name, ShaderGroups{GroupType::RAY_GEN}));
+        std::get<1>(rayGens[rayGens.size() - 1]).add();
 
         VkRayTracingShaderGroupCreateInfoKHR shaderGroupInfo{};
         shaderGroupInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
@@ -278,13 +299,21 @@ struct ShaderTablesDescription{
 
 
         auto rayGenPtr = shaderHandleStorage.data();
-        auto missPtr = rayGenPtr + rayGen.count() * handleSizeAligned;
+        auto missPtr = rayGenPtr + (rayGen.count() + rayGens.size())  * handleSizeAligned;
         auto hitPtr = missPtr + missGroups.count() * handleSizeAligned;
         auto callablePtr = hitPtr + hitGroups.count() * handleSizeAligned;
 
 
         ShaderBindingTables sbt;
         createShaderBindingTable(device, sbt.rayGen, rayGenPtr, usageFlags, VMA_MEMORY_USAGE_GPU_ONLY, rayGen);
+
+        auto offset = handleSizeAligned;
+        for(auto& [name, rg] : rayGens) {
+            sbt.rayGens[name] = ShaderBindingTable{};
+            createShaderBindingTable(device, sbt.rayGens.at(name), rayGenPtr + offset, usageFlags, VMA_MEMORY_USAGE_GPU_ONLY, rg);
+            offset += handleSizeAligned;
+        }
+
         createShaderBindingTable(device, sbt.miss, missPtr, usageFlags, VMA_MEMORY_USAGE_GPU_ONLY, missGroups);
         createShaderBindingTable(device, sbt.closestHit, hitPtr, usageFlags, VMA_MEMORY_USAGE_GPU_ONLY, hitGroups);
         createShaderBindingTable(device, sbt.callable, callablePtr, usageFlags, VMA_MEMORY_USAGE_GPU_ONLY, callableGroups);
@@ -305,6 +334,11 @@ struct ShaderTablesDescription{
         handleSizeAligned = alignedSize(handleSize, shaderGroupHandleAlignment);
 
         rayGen.set(handleSizeAligned, shaderGroupBaseAlignment);
+
+        for(auto& [_, rg] : rayGens){
+            rg.set(handleSizeAligned, shaderGroupBaseAlignment);
+        }
+
         missGroups.set(handleSizeAligned, shaderGroupBaseAlignment);
         hitGroups.set(handleSizeAligned, shaderGroupBaseAlignment);
         callableGroups.set(handleSizeAligned, shaderGroupBaseAlignment);
