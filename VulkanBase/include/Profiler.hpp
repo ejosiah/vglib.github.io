@@ -2,14 +2,21 @@
 #include "VulkanDevice.h"
 #include <optional>
 #include "Statistics.hpp"
+#include "VulkanQuery.hpp"
+#include <spdlog/spdlog.h>
 
 class Profiler{
 public:
+    struct MovingAverage{
+        float value{};
+        uint32_t count{};
+    };
     struct Query{
         std::string name;
         uint64_t startId{0};
         uint64_t endId{0};
         std::vector<uint64_t> runtimes{};
+        MovingAverage movingAverage{};
     };
 
     struct QueryGroup{
@@ -20,7 +27,7 @@ public:
 
     Profiler() = default;
 
-    inline explicit  Profiler(VulkanDevice* device, uint32_t queryCount = 20)
+    inline explicit  Profiler(VulkanDevice* device, uint32_t queryCount = DEFAULT_QUERY_COUNT)
     : device(device)
     , queryCount(std::max(queryCount, DEFAULT_QUERY_COUNT))
     {
@@ -101,6 +108,36 @@ public:
         }
     }
 
+    inline void endFrame() {
+        if(!isReady()) return;
+
+        std::vector<uint64_t> counters(queries.size() * 2);
+
+        VkQueryResultFlags flags = VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT;
+        vkGetQueryPoolResults(*device, queryPool, 0, COUNT(counters), BYTE_SIZE(counters), counters.data(), sizeof(uint64_t), flags);
+
+        auto timestampPeriod = device->timestampPeriod();
+        for(auto& [name, query] : queries){
+            auto start = counters[query.startId];
+            auto end = counters[query.endId];
+            auto newRuntime = static_cast<float>((end - start) * timestampPeriod);
+            auto previousRuntime = query.movingAverage.value;
+            if(previousRuntime != 0 && newRuntime/previousRuntime > 3) continue;
+            auto numEntries = static_cast<float>(++query.movingAverage.count);
+            query.movingAverage.value = glm::mix(previousRuntime, newRuntime, 1/numEntries );
+        }
+        // TODO group queries;
+//        for(auto& [_, group] : queryGroups){
+//            uint64_t runtime = 0;
+//            for(auto& queryName : group.queries){
+//                auto& query = queries[queryName];
+//                runtime += query.runtimes.back();
+//            }
+//            runtime /= group.queries.size();
+//            group.runtimes.push_back(runtime);
+//        }
+    }
+
     inline std::optional<QueryGroup> getGroup(const std::string& name){
         if(queryGroups.find(name) != end(queryGroups)){
             return queryGroups[name];
@@ -144,8 +181,12 @@ public:
     }
 
     inline bool isReady() const {
-        return static_cast<bool>(queryPool) && device;
+        return static_cast<bool>(queryPool) && device && !paused;
     }
+
+    std::map<std::string, Query> queries;
+
+    mutable bool paused = false;
 
 private:
     static constexpr uint32_t DEFAULT_QUERY_COUNT = 20;
@@ -153,6 +194,5 @@ private:
     TimestampQueryPool queryPool;
     VulkanDevice* device = nullptr;
     uint32_t queryCount = DEFAULT_QUERY_COUNT;
-    std::map<std::string, Query> queries;
     std::map<std::string, QueryGroup> queryGroups;
 };
