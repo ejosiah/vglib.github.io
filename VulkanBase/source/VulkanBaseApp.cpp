@@ -936,13 +936,14 @@ void VulkanBaseApp::cleanup0() {
 }
 
 void VulkanBaseApp::addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer> &buffers
-                                            ,VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask) {
+                                            ,VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask
+                                            ,VkAccessFlags srcAccess, VkAccessFlags dstAccess) {
     std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
 
     for(int i = 0; i < buffers.size(); i++) {
         barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barriers[i].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barriers[i].srcAccessMask = srcAccess;
+        barriers[i].dstAccessMask = dstAccess;
         barriers[i].offset = 0;
         barriers[i].buffer = buffers[i];
         barriers[i].size = buffers[i].size;
