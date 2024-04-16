@@ -2,6 +2,8 @@
 
 #include "Sort.hpp"
 #include "VulkanFixture.hpp"
+#include <initializer_list>
+#include <span>
 
 class SortFixture : public VulkanFixture{
 protected:
@@ -12,6 +14,17 @@ protected:
         std::generate(begin(hostBuffer), end(hostBuffer), rng);
 
         return hostBuffer;
+    }
+
+    [[nodiscard]]
+    VulkanBuffer entries(std::initializer_list<int> list) {
+        std::vector<int> data{list};
+        return entries(data);
+    }
+
+    [[nodiscard]]
+    VulkanBuffer entries(std::span<int> span) {
+        return device.createCpuVisibleBuffer(span.data(), BYTE_SIZE(span), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     }
 
     bool isSorted(VulkanBuffer& buffer) const {

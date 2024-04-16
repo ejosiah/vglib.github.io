@@ -4,6 +4,7 @@
 #define COUNTS 0
 #define SUMS 1
 #define DATA 0
+#define INDICES 1
 #define NUM_DATA_ELEMENTS 1
 #define VALUE_ID 0
 #define INDEX_ID 1
@@ -34,6 +35,14 @@ layout(set = 0, binding=DATA) buffer DataIn{
 layout(set = 1, binding=DATA) buffer DataOut{
 	uint buf[];
 } data_out[NUM_DATA_ELEMENTS];
+
+layout(set = 0, binding=INDICES) buffer IndexIn{
+	uint buf[];
+} index_in[NUM_DATA_ELEMENTS];
+
+layout(set = 1, binding=INDICES) buffer IndexOut{
+	uint buf[];
+} index_out[NUM_DATA_ELEMENTS];
 
 layout(set = 2, binding=COUNTS) buffer Counts{
 	uint counts[];
@@ -85,7 +94,12 @@ void main(){
 				if(thid%R == i) {
 					uint localOffset = local_counts[bitIdx]++;
 					uint globalOffset = local_sum[bit];
-					data_out[VALUE_ID].buf[localOffset + globalOffset] = data_in[VALUE_ID].buf[idx];
+					uint oIdx = localOffset + globalOffset;
+					data_out[VALUE_ID].buf[oIdx] = data_in[VALUE_ID].buf[idx];
+
+					if(reorderIndices == 1){
+						index_out[VALUE_ID].buf[oIdx] = index_in[VALUE_ID].buf[idx];
+					}
 					
 				}
 				barrier();

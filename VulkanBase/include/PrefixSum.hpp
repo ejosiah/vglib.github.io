@@ -42,7 +42,7 @@ public:
         updateDataDescriptorSets(buffer);
         _commandPool = _commandPool ? _commandPool : const_cast<VulkanCommandPool*>(&device->graphicsCommandPool());
         _commandPool->oneTimeCommand([&buffer, this](auto cmdBuffer) {
-            inclusive(cmdBuffer, buffer);
+            inclusive(cmdBuffer, buffer, VK_ACCESS_HOST_READ_BIT, VK_PIPELINE_STAGE_HOST_BIT);
         });
         void* result = buffer.map();
         std::memcpy(source, result, size);

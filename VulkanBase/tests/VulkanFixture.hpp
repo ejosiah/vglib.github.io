@@ -113,6 +113,7 @@ protected:
         VkPhysicalDeviceFeatures enabledFeatures{};
         enabledFeatures.robustBufferAccess = VK_TRUE;
         device.createLogicalDevice(enabledFeatures, deviceExtensions, validationLayers, VK_NULL_HANDLE, VK_QUEUE_COMPUTE_BIT, &features2);
+        vkDevice = device.logicalDevice;
     }
 
     template<typename Func>
@@ -141,7 +142,7 @@ protected:
 
                 pipeline.pipeline = device.createComputePipeline(createInfo);
                 device.setName<VK_OBJECT_TYPE_PIPELINE>(metaData.name, pipeline.pipeline.handle);
-                pipelines.insert(std::make_pair(metaData.name, std::move(pipeline)));
+                pipelines.insert(std::make_pair(metaData.name, pipeline));
             }
         }
     }

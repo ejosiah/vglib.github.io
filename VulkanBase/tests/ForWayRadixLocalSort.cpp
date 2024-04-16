@@ -126,10 +126,10 @@ protected:
 TEST_F(FourWayRadixLocalSortFixture, localRadixSort){
     localSort();
 
-    std::vector<uint> expectedPrefixSum{0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 2, 0, 0, 0, 1, 0, 0, 0, 1, 1};
+    std::vector<uint> expectedPrefixSum{0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 2, 0, 0, 0, 1, 0, 1, 0, 1};
     prefixSumBuffer.map<uint>([&](auto actualPrefixSum){
         for(int i = 0; i < 20; i++){
-            fmt::print("{} ", actualPrefixSum[i]);
+            fmt::print("{}, ", actualPrefixSum[i]);
         }
         for(int i = 0; i < 20; i++){
             ASSERT_EQ(expectedPrefixSum[i], actualPrefixSum[i]);

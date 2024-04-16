@@ -5,7 +5,7 @@ protected:
    RadixSort _sort;
 
     void postVulkanInit() override {
-        _sort = RadixSort(&device);
+        _sort = RadixSort(&device, true);
         _sort.init();
     }
 
@@ -20,7 +20,7 @@ protected:
         execute([&](auto commandBuffer){
             indexBuffer = _sort.sortWithIndices(commandBuffer, buffer);
         });
-        return std::move(indexBuffer);
+        return indexBuffer;
     }
 };
 
@@ -32,6 +32,21 @@ TEST_F(RadixSortFixture, sortGivenData){
     sort(buffer);
 
     ASSERT_TRUE(isSorted(buffer)) << "buffer should be sorted";
+}
+
+TEST_F(RadixSortFixture, sortWithIndices) {
+    auto buffer = entries({5, 1, 8, 11, 15, 20, 10, 6, 9, 7, 3, 4, 2, 13, 16, 14, 17, 19, 18, 12});
+    std::vector<int> expectedIndices{ 1, 12, 10, 11, 0, 7, 9, 2, 8, 6, 3, 19, 13, 15, 4, 14, 16, 18, 17, 5 };
+
+    VulkanBuffer indexBuffer = sortWithIndex(buffer);
+    std::vector<int> actualIndices(20);
+    auto source = indexBuffer.map();
+    std::memcpy(actualIndices.data(), source, indexBuffer.size);
+    indexBuffer.unmap();
+
+    for(auto i = 0; i < expectedIndices.size(); ++i){
+        EXPECT_EQ(expectedIndices[i], actualIndices[i]) << "indices are not the same";
+    }
 }
 
 TEST_F(RadixSortFixture, sortHostData){

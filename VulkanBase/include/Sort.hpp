@@ -38,7 +38,10 @@ class RadixSort : public GpuSort{
     static constexpr uint PASSES = WORD_SIZE / BLOCK_SIZE;
     static constexpr uint DATA_IN = 0;
     static constexpr uint DATA_OUT = 1;
+    static constexpr uint INDEX_IN = 2;
+    static constexpr uint INDEX_OUT = 3;
     static constexpr uint DATA = 0;
+    static constexpr uint INDICES = 1;
     static constexpr uint ADD_IN = 0;
     static constexpr uint ADD_OUT = 1;
     static constexpr uint VALUE = 0;
@@ -70,6 +73,8 @@ public:
     std::vector<PipelineMetaData> pipelineMetaData() override;
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) override;
+
+    void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, bool reorderIndices);
 
     VulkanBuffer sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer);
 

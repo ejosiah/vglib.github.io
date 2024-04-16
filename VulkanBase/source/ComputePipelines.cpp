@@ -6,7 +6,7 @@ ComputePipelines::ComputePipelines(VulkanDevice *device): device(device) {
 
 void ComputePipelines::createPipelines() {
     for(auto& metaData : pipelineMetaData()){
-        auto shaderModule = std::move(get(metaData.shadePath, device));
+        auto shaderModule = get(metaData.shadePath, device);
         auto stage = initializers::shaderStage({ shaderModule, VK_SHADER_STAGE_COMPUTE_BIT});
         auto& sc = metaData.specializationConstants;
         VkSpecializationInfo specialization{COUNT(sc.entries), sc.entries.data(), sc.dataSize, sc.data };
@@ -24,7 +24,7 @@ void ComputePipelines::createPipelines() {
 
         pipeline.pipeline = device->createComputePipeline(createInfo);
         device->setName<VK_OBJECT_TYPE_PIPELINE>(metaData.name, pipeline.pipeline.handle);
-        pipelines.insert(std::make_pair(metaData.name, std::move(pipeline)));
+        pipelines.insert(std::make_pair(metaData.name, pipeline));
     }
 }
 
