@@ -4,6 +4,9 @@
 #include "VulkanQuery.hpp"
 #include "Profiler.hpp"
 
+#include <type_traits>
+#include <map>
+
 class GpuSort : public ComputePipelines{
 public:
     explicit GpuSort(VulkanDevice* device = nullptr) : ComputePipelines(device){};
@@ -44,7 +47,7 @@ class RadixSort : public GpuSort{
     static constexpr uint INDICES = 1;
     static constexpr uint ADD_IN = 0;
     static constexpr uint ADD_OUT = 1;
-    static constexpr uint VALUE = 0;
+    static constexpr uint KEY = 0;
     static constexpr uint COUNTS = 0;
     static constexpr uint SUMS = 1;
     static constexpr uint NUM_DATA_ELEMENTS = 1;
@@ -75,6 +78,31 @@ public:
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) override;
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, bool reorderIndices);
+
+    template<typename T>
+    void sortTyped(VkCommandBuffer commandBuffer, VulkanBuffer& buffer) {
+        bitFlipConstants.numEntries = buffer.sizeAs<T>();
+        bitFlipConstants.reverse = 0;
+
+        if constexpr (std::is_same_v<T, int>) {
+            bitFlipConstants.dataType = 0;
+            flipBits(commandBuffer, buffer);
+        }else if constexpr (std::is_same_v<T, float>) {
+            bitFlipConstants.dataType = 1;
+            flipBits(commandBuffer, buffer);
+        }
+
+        operator()(commandBuffer, buffer);
+
+        if constexpr (!std::is_same_v<T, uint>) {
+            bitFlipConstants.reverse = 1;
+            flipBits(commandBuffer, buffer);
+        }
+    }
+
+    void flipBits(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
+
+    void updateBitFlipDescriptorSet(VulkanBuffer& buffer);
 
     VulkanBuffer sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer);
 
@@ -108,6 +136,14 @@ protected:
     std::array<VulkanBuffer, 2> indexBuffers;
     VulkanBuffer dataScratchBuffer;
     uint workGroupCount = 0;
+    VulkanDescriptorSetLayout bitFlipSetLayout;
+    VkDescriptorSet bitFlipDescriptorSet;
+
+    struct {
+        uint dataType;
+        uint reverse;
+        uint numEntries;
+    } bitFlipConstants{};
 
     struct {
         uint block;

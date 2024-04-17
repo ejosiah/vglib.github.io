@@ -4,7 +4,7 @@
 #define WORKGROUP_SIZE 1024
 #define DATA 0
 #define COUNTS 0
-#define VALUE_ID 0
+#define KEY_ID 0
 #define INDEX_ID 1
 #define NUM_DATA_ELEMENTS 1
 #define BYTE_SIZE 8
@@ -52,7 +52,7 @@ void main(){
 
 		if(idx >= Num_Elements) break;
 			
-			uint word = data[VALUE_ID].buf[idx];
+			uint word = data[KEY_ID].buf[idx];
 			uint bit = DIGIT(word, block, Radix);
 			uint bitIdx = bit * Num_Groups_per_WorkGroup + group;
 

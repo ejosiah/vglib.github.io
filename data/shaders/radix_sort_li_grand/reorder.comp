@@ -6,7 +6,7 @@
 #define DATA 0
 #define INDICES 1
 #define NUM_DATA_ELEMENTS 1
-#define VALUE_ID 0
+#define KEY_ID 0
 #define INDEX_ID 1
 #define BYTE_SIZE 8
 #define DIGIT(WORD, BLOCK, RADIX) ((WORD >> BLOCK * BYTE_SIZE) & (RADIX-1))
@@ -85,7 +85,7 @@ void main(){
 
 		if(idx >= Num_Elements) break;
 			
-			uint word = data_in[VALUE_ID].buf[idx];
+			uint word = data_in[KEY_ID].buf[idx];
 			uint bit = DIGIT(word, block, Radix);
 			uint bitIdx = bit * Num_Groups_per_WorkGroup + group;
 
@@ -95,10 +95,10 @@ void main(){
 					uint localOffset = local_counts[bitIdx]++;
 					uint globalOffset = local_sum[bit];
 					uint oIdx = localOffset + globalOffset;
-					data_out[VALUE_ID].buf[oIdx] = data_in[VALUE_ID].buf[idx];
+					data_out[KEY_ID].buf[oIdx] = data_in[KEY_ID].buf[idx];
 
 					if(reorderIndices == 1){
-						index_out[VALUE_ID].buf[oIdx] = index_in[VALUE_ID].buf[idx];
+						index_out[KEY_ID].buf[oIdx] = index_in[KEY_ID].buf[idx];
 					}
 					
 				}

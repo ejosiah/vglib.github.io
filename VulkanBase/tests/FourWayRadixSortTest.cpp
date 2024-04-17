@@ -27,7 +27,7 @@ protected:
 };
 
 TEST_F(FourWayRadixSortFixture, sortGivenData){
-    auto items = randomInts(1 << 24);
+    auto items = randomEntries(1 << 24);
     VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), flags);
     ASSERT_FALSE(isSorted(buffer)) << "buffer initial state should not be sorted";
 
@@ -37,7 +37,7 @@ TEST_F(FourWayRadixSortFixture, sortGivenData){
 }
 
 TEST_F(FourWayRadixSortFixture, sortHostData){
-    auto items = randomInts(1 << 14);
+    auto items = randomEntries(1 << 14);
     ASSERT_FALSE(std::is_sorted(begin(items), end(items)));
 
     _sort.sort(begin(items), end(items));
@@ -46,7 +46,7 @@ TEST_F(FourWayRadixSortFixture, sortHostData){
 }
 
 //TEST_F(FourWayRadixSortFixture, sortIsStable){
-//    auto items = randomInts(1 << 20);
+//    auto items = randomEntries(1 << 20);
 //    VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 //    ASSERT_TRUE(!isSorted(buffer)) << "buffer initial state should not be sorted";
 //

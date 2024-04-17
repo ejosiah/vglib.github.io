@@ -1,5 +1,6 @@
 #include "Sort.hpp"
 #include "vulkan_util.h"
+#include "VulkanInitializers.h"
 
 RadixSort::RadixSort(VulkanDevice *device, bool debug)
 : GpuSort(device)
@@ -18,7 +19,7 @@ void RadixSort::init() {
 }
 
 void RadixSort::createDescriptorPool() {
-    constexpr uint maxSets = 3;
+    constexpr uint maxSets = 4;
     std::vector<VkDescriptorPoolSize> poolSizes{
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, maxSets * 10}
     };
@@ -53,13 +54,22 @@ void RadixSort::createDescriptorSetLayouts() {
     bindings[SUMS].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     countsSetLayout = device->createDescriptorSetLayout(bindings);
+
+    bindings.resize(1);
+    bindings[0].binding = 0;
+    bindings[0].descriptorCount = 1;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    bitFlipSetLayout = device->createDescriptorSetLayout(bindings);
 }
 
 void RadixSort::createDescriptorSets() {
-    auto sets = descriptorPool.allocate({dataSetLayout, dataSetLayout, countsSetLayout});
+    auto sets = descriptorPool.allocate({dataSetLayout, dataSetLayout, countsSetLayout, bitFlipSetLayout});
     dataDescriptorSets[DATA_IN] = sets[0];
     dataDescriptorSets[DATA_OUT] = sets[1];
     countsDescriptorSet = sets[2];
+    bitFlipDescriptorSet = sets[3];
 
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("data_in", dataDescriptorSets[DATA_IN]);
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("data_out", dataDescriptorSets[DATA_OUT]);
@@ -87,6 +97,12 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
                     "../../data/shaders/radix_sort_li_grand/reorder.comp.spv",
                     {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                     { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
+            },
+            {
+                "bit_flip",
+                "../../data/shaders/bit_flip.comp.spv",
+                    { &bitFlipSetLayout},
+                    { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants)}}
             }
     };
 }
@@ -119,6 +135,31 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, 
     }
 }
 
+
+void RadixSort::flipBits(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
+    const auto gx = glm::max(1ULL, buffer.sizeAs<int>()/256);
+
+    updateBitFlipDescriptorSet(buffer);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("bit_flip"));
+    vkCmdPushConstants(commandBuffer, layout("bit_flip"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants), &bitFlipConstants);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("bit_flip"), 0, 1, &bitFlipDescriptorSet, 0, VK_NULL_HANDLE);
+    vkCmdDispatch(commandBuffer, gx, 1, 1);
+    addComputeBufferMemoryBarriers(commandBuffer, { &buffer });
+}
+
+void RadixSort::updateBitFlipDescriptorSet(VulkanBuffer &buffer) {
+    auto writes = initializers::writeDescriptorSets();
+    
+    writes[0].dstSet = bitFlipDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorBufferInfo info{ buffer, 0, VK_WHOLE_SIZE };
+    writes[0].pBufferInfo = &info;
+    
+    device->updateDescriptorSets(writes);
+}
+
 void RadixSort::updateConstants(VulkanBuffer& buffer) {
     workGroupCount = numWorkGroups(buffer);
     constants.Num_Elements = buffer.size/sizeof(uint);
@@ -148,7 +189,7 @@ void RadixSort::updateDataDescriptorSets(VulkanBuffer &dataBuffer) {
     auto dataWrites = initializers::writeDescriptorSets<4>();
 
     std::array<VkDescriptorBufferInfo, 1> dataInfos{};
-    dataInfos[VALUE] = {dataBuffer, 0, dataBuffer.size};
+    dataInfos[KEY] = {dataBuffer, 0, dataBuffer.size};
 
     dataWrites[DATA_IN].dstSet = dataDescriptorSets[DATA_IN];
     dataWrites[DATA_IN].dstBinding = DATA;
@@ -158,7 +199,7 @@ void RadixSort::updateDataDescriptorSets(VulkanBuffer &dataBuffer) {
 
     dataScratchBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, dataBuffer.size);
     std::array<VkDescriptorBufferInfo, 1> dataOutInfos{};
-    dataOutInfos[VALUE] = {dataScratchBuffer, 0, dataScratchBuffer.size};
+    dataOutInfos[KEY] = {dataScratchBuffer, 0, dataScratchBuffer.size};
 
     dataWrites[DATA_OUT].dstSet = dataDescriptorSets[DATA_OUT];
     dataWrites[DATA_OUT].dstBinding = DATA;
@@ -265,6 +306,5 @@ void RadixSort::createProfiler() {
 void RadixSort::commitProfiler() {
     profiler.commit();
 }
-
 
 
