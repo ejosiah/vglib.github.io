@@ -7,7 +7,7 @@
 #include <type_traits>
 #include <map>
 
-class GpuSort : public ComputePipelines{
+class GpuSort : public ComputePipelines {
 public:
     explicit GpuSort(VulkanDevice* device = nullptr) : ComputePipelines(device){};
 
@@ -104,7 +104,11 @@ public:
 
     void updateBitFlipDescriptorSet(VulkanBuffer& buffer);
 
+    void updateSequenceDescriptorSet(VulkanBuffer& buffer);
+
     VulkanBuffer sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer);
+
+    void generateSequence(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
     void updateConstants(VulkanBuffer& buffer);
 
@@ -139,11 +143,19 @@ protected:
     VulkanDescriptorSetLayout bitFlipSetLayout;
     VkDescriptorSet bitFlipDescriptorSet;
 
+    VulkanDescriptorSetLayout sequenceSetLayout;
+    VkDescriptorSet sequenceDescriptorSet;
+
     struct {
         uint dataType;
         uint reverse;
         uint numEntries;
     } bitFlipConstants{};
+
+    struct {
+        uint start{0};
+        uint numEntries{};
+    } seqConstants;
 
     struct {
         uint block;
@@ -157,5 +169,6 @@ protected:
         uint Num_Groups;
         uint reorderIndices = false;
     } constants;
+    VkBuffer previousBuffer{};
 
 };

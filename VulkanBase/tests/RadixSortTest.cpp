@@ -68,6 +68,17 @@ TEST_F(RadixSortFixture, sortWithIndices) {
     ASSERT_TRUE(matches(indexBuffer, expectedIndices)) << "indices are not the same";
 }
 
+TEST_F(RadixSortFixture, clearIndicesBeforeSorting) {
+    auto buffer = entries({5, 1, 8, 11, 15, 20, 10, 6, 9, 7, 3, 4, 2, 13, 16, 14, 17, 19, 18, 12});
+    auto buffer1 = entries({5, 1, 8, 11, 15, 20, 10, 6, 9, 7, 3, 4, 2, 13, 16, 14, 17, 19, 18, 12});
+    std::vector<uint32_t> expectedIndices{ 1, 12, 10, 11, 0, 7, 9, 2, 8, 6, 3, 19, 13, 15, 4, 14, 16, 18, 17, 5 };
+
+    sortWithIndex(buffer);
+    VulkanBuffer indexBuffer = sortWithIndex(buffer1);
+
+    ASSERT_TRUE(matches(indexBuffer, expectedIndices)) << "indices are not the same";
+}
+
 TEST_F(RadixSortFixture, sortHostData){
     auto items = randomEntries(1 << 14);
     ASSERT_FALSE(std::is_sorted(begin(items), end(items)));
