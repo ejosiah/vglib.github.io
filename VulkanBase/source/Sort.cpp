@@ -1,6 +1,7 @@
 #include "Sort.hpp"
 #include "vulkan_util.h"
 #include "VulkanInitializers.h"
+#include "glsl_shaders.h"
 
 RadixSort::RadixSort(VulkanDevice *device, bool debug)
 : GpuSort(device)
@@ -93,31 +94,31 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
     return {
             {
                 "count_radices",
-                "../../data/shaders/radix_sort_li_grand/count_radices.comp.spv",
-                    {&dataSetLayout, &countsSetLayout},
-                    { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
+                __glsl_radix_sort_count_radices,
+                {&dataSetLayout, &countsSetLayout},
+                { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "prefix_sum",
-                 "../../data/shaders/radix_sort_li_grand/prefix_sum.comp.spv",
-                    { &countsSetLayout },
-                    { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
+                __glsl_radix_sort_prefix_sum,
+                { &countsSetLayout },
+                { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "reorder",
-                    "../../data/shaders/radix_sort_li_grand/reorder.comp.spv",
-                    {&dataSetLayout, &dataSetLayout, &countsSetLayout},
-                    { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
+                __glsl_radix_sort_reorder,
+                {&dataSetLayout, &dataSetLayout, &countsSetLayout},
+                { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "bit_flip",
-                "../../data/shaders/bit_flip.comp.spv",
-                    { &bitFlipSetLayout},
-                    { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants)}}
+                __glsl_bit_flip,
+                { &bitFlipSetLayout},
+                { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants)}}
             },
             {
                 "sequence",
-                "../../data/shaders/sequence.comp.spv",
+                __glsl_sequence,
                 { &sequenceSetLayout },
                 { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(seqConstants)}}
             }
