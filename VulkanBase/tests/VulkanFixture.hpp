@@ -85,7 +85,7 @@ protected:
         appInfo.sType  = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         appInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
         appInfo.pApplicationName = "Vulkan Test";
-        appInfo.apiVersion = VK_API_VERSION_1_2;
+        appInfo.apiVersion = VK_API_VERSION_1_3;
         appInfo.pEngineName = "";
 
         VkInstanceCreateInfo createInfo{};
