@@ -5,6 +5,7 @@
 #define SUMS 1
 #define DATA 0
 #define INDICES 1
+#define RECORDS 2
 #define NUM_DATA_ELEMENTS 1
 #define KEY_ID 0
 #define INDEX_ID 1
@@ -25,6 +26,8 @@ layout(push_constant) uniform Consts{
 	uint Num_Radices_Per_WorkGroup;
 	uint Num_Groups;
 	uint reorderIndices;
+	uint reorderRecords;
+	uint recordSize;
 };
 
 
@@ -43,6 +46,14 @@ layout(set = 0, binding=INDICES) buffer IndexIn{
 layout(set = 1, binding=INDICES) buffer IndexOut{
 	uint buf[];
 } index_out[NUM_DATA_ELEMENTS];
+
+layout(set = 0, binding=RECORDS) buffer RecordsIn{
+	uint buf[];
+} record_in[NUM_DATA_ELEMENTS];
+
+layout(set = 1, binding=RECORDS) buffer RecordsOut{
+	uint buf[];
+} record_out[NUM_DATA_ELEMENTS];
 
 layout(set = 2, binding=COUNTS) buffer Counts{
 	uint counts[];
@@ -100,7 +111,14 @@ void main(){
 					if(reorderIndices == 1){
 						index_out[KEY_ID].buf[oIdx] = index_in[KEY_ID].buf[idx];
 					}
-					
+
+					if(reorderRecords == 1) {
+						uint iRid = idx * recordSize;
+						uint oRid = oIdx * recordSize;
+						for(uint j = 0; j < recordSize; ++j ) {
+							record_out[KEY_ID].buf[oRid + j] = record_in[KEY_ID].buf[ iRid + j];
+						}
+					}
 				}
 				barrier();
 			}

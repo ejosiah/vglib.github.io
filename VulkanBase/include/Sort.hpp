@@ -6,6 +6,17 @@
 
 #include <type_traits>
 #include <map>
+#include <optional>
+
+enum class KeyType : uint {
+    Int = 0, Float, Uint
+};
+
+struct Records {
+    VulkanBuffer buffer;
+    uint size;
+    KeyType keyType{KeyType::Uint};
+};
 
 class GpuSort : public ComputePipelines {
 public:
@@ -43,8 +54,11 @@ class RadixSort : public GpuSort{
     static constexpr uint DATA_OUT = 1;
     static constexpr uint INDEX_IN = 2;
     static constexpr uint INDEX_OUT = 3;
+    static constexpr uint RECORDS_IN = 4;
+    static constexpr uint RECORDS_OUT = 5;
     static constexpr uint DATA = 0;
     static constexpr uint INDICES = 1;
+    static constexpr uint RECORDS = 2;
     static constexpr uint ADD_IN = 0;
     static constexpr uint ADD_OUT = 1;
     static constexpr uint KEY = 0;
@@ -74,6 +88,8 @@ public:
     void createProfiler();
 
     std::vector<PipelineMetaData> pipelineMetaData() override;
+
+    void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& keys, Records& records);
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) override;
 
@@ -106,7 +122,7 @@ public:
 
     void updateSequenceDescriptorSet(VulkanBuffer& buffer);
 
-    VulkanBuffer sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer);
+    VulkanBuffer& sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer);
 
     void generateSequence(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
@@ -121,6 +137,8 @@ public:
     void reorder(VkCommandBuffer commandBuffer, std::array<VkDescriptorSet, 2>& dataDescriptorSets);
 
     void updateDataDescriptorSets(VulkanBuffer& inBuffer);
+
+    void updateRecordsDescriptorSets(Records& records);
 
     void commitProfiler();
 
@@ -138,6 +156,7 @@ protected:
     VulkanBuffer sumBuffer;
     std::array<VulkanBuffer*, 2> dataBuffers;
     std::array<VulkanBuffer, 2> indexBuffers;
+    std::array<VulkanBuffer, 2> recordBuffers;
     VulkanBuffer dataScratchBuffer;
     uint workGroupCount = 0;
     VulkanDescriptorSetLayout bitFlipSetLayout;
@@ -167,8 +186,10 @@ protected:
         uint Num_Elements;
         uint Num_Radices_Per_WorkGroup;
         uint Num_Groups;
-        uint reorderIndices = false;
-    } constants;
+        uint reorderIndices{};
+        uint reorderRecords{};
+        uint recordSize{};
+    } constants{};
     VkBuffer previousBuffer{};
 
 };

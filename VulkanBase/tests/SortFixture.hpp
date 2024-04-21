@@ -32,6 +32,15 @@ protected:
     bool isSorted(VulkanBuffer& buffer) const {
         auto data = std::span{ reinterpret_cast<T*>(buffer.map()), buffer.sizeAs<T>() };
         auto sorted = std::is_sorted(data.begin(), data.end());
+        if(!sorted) {
+            for(int i = data.size() - 1; i > 0; --i){
+                if(data[i] < data[i - 1]){
+                    auto a = data[i];
+                    auto b = data[i - 1];
+                    auto c = 0;
+                }
+            }
+        }
         buffer.unmap();
         return sorted;
     }
@@ -52,6 +61,8 @@ protected:
     bool matches(VulkanBuffer buffer, std::span<T> expected) {
         auto actual = std::span{ reinterpret_cast<T*>(buffer.map()), buffer.sizeAs<T>() };
         auto [a, b] = std::mismatch(expected.begin(), expected.end(), actual.begin());
+        auto aId = std::distance(expected.begin(), a);
+        auto bId = std::distance(actual.begin(), b);
         auto  result = a == expected.end() && b == actual.end();
         buffer.unmap();
         return result;
