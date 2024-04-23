@@ -19,11 +19,11 @@ public:
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
-    void operator()(VkCommandBuffer commandBuffer, BufferSection section);
+    void operator()(VkCommandBuffer commandBuffer, const BufferSection& section);
 
     void inclusive(VkCommandBuffer commandBuffer, VulkanBuffer& buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage);
 
-    void inclusive(VkCommandBuffer commandBuffer, BufferSection section);
+    void inclusive(VkCommandBuffer commandBuffer, const BufferSection& section);
 
     template<typename Itr>
     void scan(const Itr _first, const Itr _last){
@@ -32,7 +32,7 @@ public:
         VulkanBuffer buffer = device->createCpuVisibleBuffer(source, size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         _commandPool = _commandPool ? _commandPool : const_cast<VulkanCommandPool*>(&device->graphicsCommandPool());
         _commandPool->oneTimeCommand([&buffer, this](auto cmdBuffer) {
-            operator()(cmdBuffer, { buffer, 0, buffer.size});
+            operator()(cmdBuffer, { &buffer, 0, buffer.size});
         });
         void* result = buffer.map();
         std::memcpy(source, result, size);
@@ -70,9 +70,9 @@ public:
 
     void addBufferTransferReadToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
 
-    void copyToInternalBuffer(VkCommandBuffer commandBuffer, BufferSection& section);
+    void copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection& section);
 
-    void copyFromInternalBuffer(VkCommandBuffer commandBuffer, BufferSection& section);
+    void copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection& section);
 
 protected:
     static constexpr int ITEMS_PER_WORKGROUP = 8192;

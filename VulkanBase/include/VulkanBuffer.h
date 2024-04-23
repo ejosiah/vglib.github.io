@@ -239,7 +239,7 @@ struct VulkanBuffer{
 };
 
 struct BufferSection {
-    VulkanBuffer buffer;
+    VulkanBuffer* buffer{};
     VkDeviceSize offset{0};
     VkDeviceSize end{VK_WHOLE_SIZE};
 

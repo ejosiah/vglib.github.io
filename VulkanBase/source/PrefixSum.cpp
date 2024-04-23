@@ -54,16 +54,16 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
 }
 
 void PrefixSum::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
-    (*this)(commandBuffer, { buffer, 0, buffer.size });
+    (*this)(commandBuffer, { &buffer, 0, buffer.size });
 }
 
-void PrefixSum::operator()(VkCommandBuffer commandBuffer, BufferSection section) {
+void PrefixSum::operator()(VkCommandBuffer commandBuffer, const BufferSection& section) {
     scanInternal(commandBuffer, section);
     copyFromInternalBuffer(commandBuffer, section);
 }
 
 void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage) {
-    inclusive(commandBuffer, { buffer, 0, buffer.size});
+    inclusive(commandBuffer, { &buffer, 0, buffer.size});
 
     auto barrier = initializers::bufferMemoryBarrier();
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -75,7 +75,7 @@ void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, V
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
-void PrefixSum::inclusive(VkCommandBuffer commandBuffer, BufferSection section) {
+void PrefixSum::inclusive(VkCommandBuffer commandBuffer, const BufferSection& section) {
     scanInternal(commandBuffer, section);
 
     VkDeviceSize offset = sizeof(int);
@@ -247,18 +247,18 @@ void PrefixSum::createDescriptorPool() {
     descriptorPool = device->createDescriptorPool(maxSets, poolSizes);
 }
 
-void PrefixSum::copyToInternalBuffer(VkCommandBuffer commandBuffer, BufferSection &section) {
+void PrefixSum::copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection &section) {
     VkBufferCopy region{ section.offset, 0, section.size()};
-    vkCmdCopyBuffer(commandBuffer, section.buffer, internalDataBuffer.buffer, 1, &region);
+    vkCmdCopyBuffer(commandBuffer, *section.buffer, internalDataBuffer.buffer, 1, &region);
     addBufferTransferWriteToComputeReadBarriers(commandBuffer, { &internalDataBuffer });
 }
 
-void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, BufferSection &section) {
+void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection &section) {
     VkBufferCopy region{ 0, section.offset, section.size()};
 
     addComputeWriteToTransferReadBarrier(commandBuffer, { &internalDataBuffer });
-    vkCmdCopyBuffer(commandBuffer, internalDataBuffer.buffer, section.buffer, 1, &region);
-    addBufferTransferWriteToReadBarriers(commandBuffer, { &section.buffer });
+    vkCmdCopyBuffer(commandBuffer, internalDataBuffer.buffer, *section.buffer, 1, &region);
+    addBufferTransferWriteToReadBarriers(commandBuffer, { section.buffer });
 }
 
 void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferSection section) {
@@ -276,11 +276,11 @@ void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferSection sectio
     vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
 
     if(numWorkGroups > 1){
-        addBufferMemoryBarriers(commandBuffer, {&section.buffer, &sumsBuffer});
+        addBufferMemoryBarriers(commandBuffer, {section.buffer, &sumsBuffer});
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &sumScanDescriptorSet, 0, nullptr);
         vkCmdDispatch(commandBuffer, 1, 1, 1);
 
-        addBufferMemoryBarriers(commandBuffer, { &section.buffer, &sumOfSumsBuffer });
+        addBufferMemoryBarriers(commandBuffer, { section.buffer, &sumOfSumsBuffer });
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add"), 0, 1, &descriptorSet, 0, nullptr);
         vkCmdPushConstants(commandBuffer, layout("add"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
