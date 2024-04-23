@@ -237,3 +237,18 @@ struct VulkanBuffer{
     std::optional<int> op_handle = -1;
 #endif
 };
+
+struct BufferSection {
+    VulkanBuffer buffer;
+    VkDeviceSize offset{0};
+    VkDeviceSize end{VK_WHOLE_SIZE};
+
+    inline VkDeviceSize size() const {
+        return end - offset;
+    }
+
+    template<typename T>
+    VkDeviceSize sizeAs() const {
+        return size()/sizeof(T);
+    }
+};
