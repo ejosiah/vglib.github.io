@@ -13,7 +13,7 @@ static std::vector<const char*> instanceExtensions{VK_EXT_DEBUG_UTILS_EXTENSION_
 static std::vector<const char*> validationLayers{};
 static std::vector<const char*> deviceExtensions{ };
 
-class VulkanFixture : public ::testing::Test{
+class VulkanFixture : public ::testing::Test {
 protected:
     VulkanInstance instance;
     VulkanDevice device;
@@ -124,7 +124,7 @@ protected:
     void createPipelines(){
         if(_autoCreatePipeline) {
             for (auto &metaData : pipelineMetaData()) {
-                auto shaderModule = ComputePipelines::get(metaData.shadePath, &device);
+                auto shaderModule = get(metaData.shadePath, &device);
                 auto stage = initializers::shaderStage({ shaderModule, VK_SHADER_STAGE_COMPUTE_BIT});
                 auto& sc = metaData.specializationConstants;
                 VkSpecializationInfo specialization{COUNT(sc.entries), sc.entries.data(), sc.dataSize, sc.data };
@@ -145,6 +145,13 @@ protected:
                 pipelines.insert(std::make_pair(metaData.name, pipeline));
             }
         }
+    }
+
+    VulkanShaderModule get(std::variant<std::string, std::vector<uint32_t>>& shaderPath, VulkanDevice* device) {
+        return std::visit(overloaded{
+                [&](std::string path){ return device->createShaderModule( path ); },
+                [&](std::vector<uint32_t> data){ return device->createShaderModule( data ); }
+        }, shaderPath);
     }
 
     VkPipeline pipeline(const std::string& name){

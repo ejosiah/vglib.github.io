@@ -5,17 +5,13 @@
 #include <string>
 #include <string_view>
 
-class PrefixSum : public ComputePipelines{
+class PrefixSum : public ComputePipelines {
 public:
     PrefixSum() = default;
 
     PrefixSum(VulkanDevice* device, VulkanCommandPool* commandPool = nullptr);
 
     void init();
-
-    void resizeInternalBuffer();
-
-    std::vector<PipelineMetaData> pipelineMetaData() override;
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
@@ -54,6 +50,11 @@ public:
         buffer.unmap();
     }
 
+protected:
+    void resizeInternalBuffer();
+
+    std::vector<PipelineMetaData> pipelineMetaData() override;
+
     void createDescriptorPool();
 
     void updateDataDescriptorSets(VulkanBuffer& buffer);
@@ -74,12 +75,13 @@ public:
 
     void copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection& section);
 
-protected:
-    static constexpr int ITEMS_PER_WORKGROUP = 8192;
-
     void scanInternal(VkCommandBuffer commandBuffer, BufferSection section);
 
     void createDescriptorSet();
+
+protected:
+    static constexpr int ITEMS_PER_WORKGROUP = 8192;
+
 
 private:
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;

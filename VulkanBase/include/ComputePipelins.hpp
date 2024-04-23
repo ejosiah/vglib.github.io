@@ -30,13 +30,14 @@ class ComputePipelines {
 public:
     explicit ComputePipelines(VulkanDevice* device = nullptr);
 
-    void createPipelines();
-
-    virtual std::vector<PipelineMetaData> pipelineMetaData();
-
     VkPipeline pipeline(const std::string& name) const;
 
     VkPipelineLayout layout(const std::string& name) const;
+
+protected:
+    void createPipelines();
+
+    virtual std::vector<PipelineMetaData> pipelineMetaData();
 
     static VulkanShaderModule get(std::variant<std::string, std::vector<uint32_t>>& shaderPath, VulkanDevice* device);
 

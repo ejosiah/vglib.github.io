@@ -174,8 +174,6 @@ void FourWayRadixSort::updateDataDescriptorSets(VulkanBuffer &buffer) {
     writes[3].pBufferInfo = &blockSumInfo;
 
     device->updateDescriptorSets(writes);
-
-    prefixSum.updateDataDescriptorSets(blockSumBuffer);
 }
 
 uint FourWayRadixSort::calculateNumWorkGroups(VulkanBuffer& buffer) {
