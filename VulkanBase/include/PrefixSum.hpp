@@ -17,12 +17,10 @@ public:
 
     std::vector<PipelineMetaData> pipelineMetaData() override;
 
-    [[deprecated("use PrefixSum::operator()(VkCommandBuffer commandBuffer, BufferSection section) instead")]]
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
     void operator()(VkCommandBuffer commandBuffer, BufferSection section);
 
-    [[deprecated("use PrefixSum::inclusive(VkCommandBuffer commandBuffer, BufferSection section) instead")]]
     void inclusive(VkCommandBuffer commandBuffer, VulkanBuffer& buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage);
 
     void inclusive(VkCommandBuffer commandBuffer, BufferSection section);
