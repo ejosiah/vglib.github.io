@@ -12,6 +12,7 @@ void PrefixSum::init() {
     createDescriptorPool();
     createDescriptorSet();
     createPipelines();
+    sumOfSumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(uint));
 }
 
 void PrefixSum::createDescriptorSet() {
@@ -49,8 +50,8 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
 }
 
 void PrefixSum::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
-    int size = buffer.sizeAs<int>();
-    int numWorkGroups = std::abs(size - 1)/ITEMS_PER_WORKGROUP + 1;
+    size_t size = buffer.sizeAs<uint32_t>();
+    uint32_t numWorkGroups = glm::ceil(static_cast<float>(size)/static_cast<float>(ITEMS_PER_WORKGROUP));
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("prefix_scan"));
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &descriptorSet, 0, nullptr);
     vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
@@ -60,11 +61,14 @@ void PrefixSum::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &sumScanDescriptorSet, 0, nullptr);
         vkCmdDispatch(commandBuffer, 1, 1, 1);
 
-        addBufferMemoryBarriers(commandBuffer, { &buffer, &sumsBuffer });
+        addBufferMemoryBarriers(commandBuffer, { &buffer, &sumOfSumsBuffer });
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add"), 0, 1, &descriptorSet, 0, nullptr);
         vkCmdPushConstants(commandBuffer, layout("add"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
+    }else {
+        VkBufferCopy region{sumsBuffer.size - sizeof(uint32_t), 0, sumOfSumsBuffer.size};
+        vkCmdCopyBuffer(commandBuffer, sumsBuffer, sumOfSumsBuffer, 1, &region);
     }
 }
 
@@ -73,13 +77,14 @@ void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, V
     VkDeviceSize offset = sizeof(int);
 
     VkBufferCopy region{offset, 0, buffer.size - offset};
+    addComputeWriteToTransferReadBarrier(commandBuffer, { &buffer });
     vkCmdCopyBuffer(commandBuffer, buffer, stagingBuffer, 1, &region);
-    addBufferTransferBarriers(commandBuffer, { &stagingBuffer });
+    addBufferTransferWriteToWriteBarriers(commandBuffer, { &stagingBuffer });
 
     region = VkBufferCopy{0, buffer.size - offset, offset};
-    vkCmdCopyBuffer(commandBuffer, sumsBuffer, stagingBuffer, 1, &region);
+    vkCmdCopyBuffer(commandBuffer, sumOfSumsBuffer, stagingBuffer, 1, &region);
 
-    addBufferTransferBarriers(commandBuffer, { &stagingBuffer });
+    addBufferTransferWriteToReadBarriers(commandBuffer, { &stagingBuffer });
 
     region = VkBufferCopy{0, 0, stagingBuffer.size};
     vkCmdCopyBuffer(commandBuffer, stagingBuffer, buffer, 1, &region);
@@ -97,8 +102,7 @@ void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, V
 void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
     stagingBuffer = device->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, buffer.size);
     size_t numItems = buffer.sizeAs<int>();
-    VkDeviceSize sumsSize = (std::abs(int(numItems - 1))/ITEMS_PER_WORKGROUP + 1) * sizeof(int);  // FIXME
-    sumsSize = alignedSize(sumsSize, bufferOffsetAlignment) + sizeof(int);
+    uint32_t sumsSize = glm::ceil(static_cast<float>(numItems)/static_cast<float>(ITEMS_PER_WORKGROUP)) * sizeof(uint32_t);
     sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sumsSize);
     constants.N = numItems;
 
@@ -109,7 +113,7 @@ void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     writes[0].pBufferInfo = &info;
 
-    VkDescriptorBufferInfo sumsInfo{ sumsBuffer, 0, sumsBuffer.size - sizeof(int)}; // TODO FIXME
+    VkDescriptorBufferInfo sumsInfo{ sumsBuffer, 0, VK_WHOLE_SIZE};
     writes[1].dstBinding = 1;
     writes[1].descriptorCount = 1;
     writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -122,7 +126,7 @@ void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
     writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     writes[2].pBufferInfo = &sumsInfo;
 
-    VkDescriptorBufferInfo sumsSumInfo{ sumsBuffer, sumsBuffer.size - sizeof(int), VK_WHOLE_SIZE}; // TODO FIXME
+    VkDescriptorBufferInfo sumsSumInfo{ sumOfSumsBuffer, 0, VK_WHOLE_SIZE};
     writes[3].dstSet = sumScanDescriptorSet;
     writes[3].dstBinding = 1;
     writes[3].descriptorCount = 1;
@@ -148,13 +152,61 @@ void PrefixSum::addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std
                          nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
 }
 
-void PrefixSum::addBufferTransferBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
+void PrefixSum::addComputeWriteToTransferReadBarrier(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
+    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
+
+    for(int i = 0; i < buffers.size(); i++) {
+        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barriers[i].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barriers[i].offset = 0;
+        barriers[i].buffer = *buffers[i];
+        barriers[i].size = buffers[i]->size;
+    }
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
+}
+
+void PrefixSum::addBufferTransferWriteToReadBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
     std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
 
     for(int i = 0; i < buffers.size(); i++) {
         barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barriers[i].offset = 0;
+        barriers[i].buffer = *buffers[i];
+        barriers[i].size = buffers[i]->size;
+    }
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
+}
+
+void PrefixSum::addBufferTransferWriteToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
+    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
+
+    for(int i = 0; i < buffers.size(); i++) {
+        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barriers[i].offset = 0;
+        barriers[i].buffer = *buffers[i];
+        barriers[i].size = buffers[i]->size;
+    }
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
+}
+
+void PrefixSum::addBufferTransferReadToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
+    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
+
+    for(int i = 0; i < buffers.size(); i++) {
+        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barriers[i].offset = 0;
         barriers[i].buffer = *buffers[i];
         barriers[i].size = buffers[i]->size;

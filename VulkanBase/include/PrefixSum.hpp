@@ -55,7 +55,13 @@ public:
 
     void addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
 
-    void addBufferTransferBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
+    void addComputeWriteToTransferReadBarrier(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
+
+    void addBufferTransferWriteToReadBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
+
+    void addBufferTransferWriteToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
+
+    void addBufferTransferReadToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
 
 protected:
     static constexpr int ITEMS_PER_WORKGROUP = 8 << 10;
@@ -66,7 +72,6 @@ private:
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet sumScanDescriptorSet = VK_NULL_HANDLE;
     VulkanDescriptorSetLayout setLayout;
-    VulkanBuffer sumsBuffer;
     uint32_t bufferOffsetAlignment;
     VulkanDescriptorPool descriptorPool;
     VulkanCommandPool* _commandPool{};
@@ -77,4 +82,7 @@ private:
         int N = 0;
     } constants;
 
+public:
+    VulkanBuffer sumsBuffer;
+    VulkanBuffer sumOfSumsBuffer;
 };
