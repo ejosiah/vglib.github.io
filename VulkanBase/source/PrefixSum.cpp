@@ -202,7 +202,7 @@ void PrefixSum::addBufferTransferWriteToComputeReadBarriers(VkCommandBuffer comm
         barriers[i].size = buffers[i]->size;
     }
 
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
                          nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
 }
 
@@ -258,7 +258,7 @@ void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, const Buff
 
     addComputeWriteToTransferReadBarrier(commandBuffer, { &internalDataBuffer });
     vkCmdCopyBuffer(commandBuffer, internalDataBuffer.buffer, *section.buffer, 1, &region);
-    addBufferTransferWriteToReadBarriers(commandBuffer, { section.buffer });
+    addBufferTransferWriteToComputeReadBarriers(commandBuffer, { section.buffer });
 }
 
 void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferSection section) {
