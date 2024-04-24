@@ -246,6 +246,9 @@ void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, const Buff
 }
 
 void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion section) {
+    if(section.sizeAs<uint32_t>() > MAX_NUM_ITEMS){
+        throw DataSizeExceedsMaxSupported{};
+    }
     if(capacity < section.size()){
         capacity = section.size() * 2;
         resizeInternalBuffer();

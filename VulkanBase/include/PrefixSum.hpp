@@ -7,6 +7,14 @@
 
 class PrefixSum : public ComputePipelines {
 public:
+    static constexpr int ITEMS_PER_WORKGROUP = 8192;
+    static constexpr int MAX_NUM_ITEMS = ITEMS_PER_WORKGROUP * ITEMS_PER_WORKGROUP;
+
+    struct DataSizeExceedsMaxSupported : public std::runtime_error {
+        DataSizeExceedsMaxSupported() : std::runtime_error("dataset exceeds max supported items of " + std::to_string(MAX_NUM_ITEMS)){}
+
+    };
+
     PrefixSum() = default;
 
     PrefixSum(VulkanDevice* device, VulkanCommandPool* commandPool = nullptr);
@@ -78,10 +86,7 @@ protected:
 
     void createDescriptorSet();
 
-protected:
-    static constexpr int ITEMS_PER_WORKGROUP = 8192;
     static constexpr VkDeviceSize DataUnitSize = sizeof(uint32_t);
-
 
 private:
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;

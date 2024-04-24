@@ -104,3 +104,10 @@ TEST_F(PrefixScanTest, incusiveScan) {
         ASSERT_EQ(expected[i], data[i]);
     }
 }
+
+TEST_F(PrefixScanTest, throwExceptionWhenDataExceedsMaxLimit) {
+    std::vector<int> data(PrefixSum::MAX_NUM_ITEMS * 2 );
+
+    ASSERT_THROW(_prefix_sum.scan(begin(data), end(data)), PrefixSum::DataSizeExceedsMaxSupported);
+
+}
