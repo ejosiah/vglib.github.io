@@ -4,6 +4,8 @@
 #include <vulkan/vulkan.h>
 #include "vk_mem_alloc.h"
 
+#include <span>
+
 
 struct VulkanBuffer{
 
@@ -238,7 +240,7 @@ struct VulkanBuffer{
 #endif
 };
 
-struct BufferSection {
+struct BufferRegion {
     VulkanBuffer* buffer{};
     VkDeviceSize offset{0};
     VkDeviceSize end{VK_WHOLE_SIZE};
@@ -248,7 +250,20 @@ struct BufferSection {
     }
 
     template<typename T>
-    VkDeviceSize sizeAs() const {
+    [[nodiscard]] size_t sizeAs() const {
         return size()/sizeof(T);
+    }
+
+    [[nodiscard]] auto map() const {
+        return reinterpret_cast<char*>(buffer->map()) + offset;
+    }
+
+    void unmap() const {
+        buffer->unmap();
+    }
+
+    template<typename T>
+    std::span<T> span() {
+        return { reinterpret_cast<T*>(map()), sizeAs<T>() };
     }
 };

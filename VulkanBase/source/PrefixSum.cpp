@@ -16,7 +16,7 @@ void PrefixSum::init() {
     sumOfSumsBuffer =
             device->createBuffer(
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                    VMA_MEMORY_USAGE_CPU_TO_GPU, sizeof(uint));
+                    VMA_MEMORY_USAGE_GPU_ONLY, sizeof(uint));
 }
 
 void PrefixSum::createDescriptorSet() {
@@ -57,9 +57,9 @@ void PrefixSum::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) 
     (*this)(commandBuffer, { &buffer, 0, buffer.size });
 }
 
-void PrefixSum::operator()(VkCommandBuffer commandBuffer, const BufferSection& section) {
-    scanInternal(commandBuffer, section);
-    copyFromInternalBuffer(commandBuffer, section);
+void PrefixSum::operator()(VkCommandBuffer commandBuffer, const BufferRegion& region) {
+    scanInternal(commandBuffer, region);
+    copyFromInternalBuffer(commandBuffer, region);
 }
 
 void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage) {
@@ -75,25 +75,9 @@ void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, V
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
-void PrefixSum::inclusive(VkCommandBuffer commandBuffer, const BufferSection& section) {
-    scanInternal(commandBuffer, section);
-
-    VkDeviceSize offset = sizeof(int);
-    auto size = section.size();
-    VkBufferCopy region{offset, 0, size - offset};
-    addComputeWriteToTransferReadBarrier(commandBuffer, { &internalDataBuffer });
-    vkCmdCopyBuffer(commandBuffer, internalDataBuffer, stagingBuffer, 1, &region);
-    addBufferTransferWriteToWriteBarriers(commandBuffer, { &stagingBuffer });
-
-    region = VkBufferCopy{0, size - offset, offset};
-    vkCmdCopyBuffer(commandBuffer, sumOfSumsBuffer, stagingBuffer, 1, &region);
-
-    addBufferTransferWriteToReadBarriers(commandBuffer, { &stagingBuffer });
-
-    region = VkBufferCopy{0, 0, stagingBuffer.size};
-    vkCmdCopyBuffer(commandBuffer, stagingBuffer, internalDataBuffer, 1, &region);
-
-    copyFromInternalBuffer(commandBuffer, section);
+void PrefixSum::inclusive(VkCommandBuffer commandBuffer, const BufferRegion& region) {
+    scanInternal(commandBuffer, region);
+    copyFromInternalBuffer(commandBuffer, region, DataUnitSize);
 }
 
 void PrefixSum::resizeInternalBuffer() {
@@ -109,7 +93,7 @@ void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
     stagingBuffer = device->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, buffer.size);
     size_t numItems = buffer.sizeAs<int>();
     uint32_t sumsSize = glm::ceil(static_cast<float>(numItems)/static_cast<float>(ITEMS_PER_WORKGROUP)) * sizeof(uint32_t);
-    sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sumsSize);
+    sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_GPU_ONLY, sumsSize);
     constants.N = numItems;
 
     VkDescriptorBufferInfo info{ buffer, 0, VK_WHOLE_SIZE};
@@ -247,29 +231,30 @@ void PrefixSum::createDescriptorPool() {
     descriptorPool = device->createDescriptorPool(maxSets, poolSizes);
 }
 
-void PrefixSum::copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection &section) {
-    VkBufferCopy region{ section.offset, 0, section.size()};
-    vkCmdCopyBuffer(commandBuffer, *section.buffer, internalDataBuffer.buffer, 1, &region);
+void PrefixSum::copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion &region) {
+    VkBufferCopy cRegion{region.offset, 0, region.size()};
+    vkCmdCopyBuffer(commandBuffer, *region.buffer, internalDataBuffer.buffer, 1, &cRegion);
     addBufferTransferWriteToComputeReadBarriers(commandBuffer, { &internalDataBuffer });
 }
 
-void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection &section) {
-    VkBufferCopy region{ 0, section.offset, section.size()};
+void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion &region, VkDeviceSize srcOffset) {
+    VkBufferCopy cRegion{srcOffset, region.offset, region.size()};
 
     addComputeWriteToTransferReadBarrier(commandBuffer, { &internalDataBuffer });
-    vkCmdCopyBuffer(commandBuffer, internalDataBuffer.buffer, *section.buffer, 1, &region);
-    addBufferTransferWriteToComputeReadBarriers(commandBuffer, { section.buffer });
+    vkCmdCopyBuffer(commandBuffer, internalDataBuffer.buffer, *region.buffer, 1, &cRegion);
+    addBufferTransferWriteToComputeReadBarriers(commandBuffer, {region.buffer });
 }
 
-void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferSection section) {
+void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion section) {
     if(capacity < section.size()){
         capacity = section.size() * 2;
         resizeInternalBuffer();
     }
+    static constexpr uint32_t SumSlot = 1;
     size_t size = section.sizeAs<uint32_t>();
-    uint32_t numWorkGroups = glm::ceil(static_cast<float>(size)/static_cast<float>(ITEMS_PER_WORKGROUP));
+    uint32_t numWorkGroups = glm::ceil(static_cast<float>(size + SumSlot)/static_cast<float>(ITEMS_PER_WORKGROUP));
 
-
+    vkCmdFillBuffer(commandBuffer, internalDataBuffer, section.size(), sizeof(uint32_t), 0);
     copyToInternalBuffer(commandBuffer, section);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("prefix_scan"));
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &descriptorSet, 0, nullptr);
@@ -285,8 +270,5 @@ void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferSection sectio
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add"), 0, 1, &descriptorSet, 0, nullptr);
         vkCmdPushConstants(commandBuffer, layout("add"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
-    }else {
-        VkBufferCopy region{sumsBuffer.size - sizeof(uint32_t), 0, sumOfSumsBuffer.size};
-        vkCmdCopyBuffer(commandBuffer, sumsBuffer, sumOfSumsBuffer, 1, &region);
     }
 }

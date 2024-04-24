@@ -15,11 +15,11 @@ public:
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
-    void operator()(VkCommandBuffer commandBuffer, const BufferSection& section);
+    void operator()(VkCommandBuffer commandBuffer, const BufferRegion& region);
 
     void inclusive(VkCommandBuffer commandBuffer, VulkanBuffer& buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage);
 
-    void inclusive(VkCommandBuffer commandBuffer, const BufferSection& section);
+    void inclusive(VkCommandBuffer commandBuffer, const BufferRegion& region);
 
     template<typename Itr>
     void scan(const Itr _first, const Itr _last){
@@ -40,7 +40,6 @@ public:
         VkDeviceSize size = sizeof(decltype(*_first)) * std::distance(_first, _last);
         void* source = reinterpret_cast<void*>(&*_first);
         VulkanBuffer buffer = device->createCpuVisibleBuffer(source, size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-        updateDataDescriptorSets(buffer);
         _commandPool = _commandPool ? _commandPool : const_cast<VulkanCommandPool*>(&device->graphicsCommandPool());
         _commandPool->oneTimeCommand([&buffer, this](auto cmdBuffer) {
             inclusive(cmdBuffer, buffer, VK_ACCESS_HOST_READ_BIT, VK_PIPELINE_STAGE_HOST_BIT);
@@ -71,16 +70,17 @@ protected:
 
     void addBufferTransferReadToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
 
-    void copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection& section);
+    void copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion& region);
 
-    void copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferSection& section);
+    void copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion& region, VkDeviceSize srcOffset = 0);
 
-    void scanInternal(VkCommandBuffer commandBuffer, BufferSection section);
+    void scanInternal(VkCommandBuffer commandBuffer, BufferRegion section);
 
     void createDescriptorSet();
 
 protected:
     static constexpr int ITEMS_PER_WORKGROUP = 8192;
+    static constexpr VkDeviceSize DataUnitSize = sizeof(uint32_t);
 
 
 private:
@@ -92,14 +92,13 @@ private:
     VulkanCommandPool* _commandPool{};
     VulkanBuffer stagingBuffer;
     VulkanBuffer internalDataBuffer;
-    VkDeviceSize capacity{ITEMS_PER_WORKGROUP * 128 * sizeof(uint32_t)};
+    VkDeviceSize capacity{ITEMS_PER_WORKGROUP * 128 * DataUnitSize};
 
     struct {
         int itemsPerWorkGroup = ITEMS_PER_WORKGROUP;
         int N = 0;
     } constants;
 
-public:
     VulkanBuffer sumsBuffer;
     VulkanBuffer sumOfSumsBuffer;
 };
