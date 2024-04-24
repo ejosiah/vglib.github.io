@@ -13,10 +13,6 @@ void PrefixSum::init() {
     createDescriptorSet();
     createPipelines();
     resizeInternalBuffer();
-    sumOfSumsBuffer =
-            device->createBuffer(
-                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                    VMA_MEMORY_USAGE_GPU_ONLY, sizeof(uint));
 }
 
 void PrefixSum::createDescriptorSet() {
@@ -86,6 +82,10 @@ void PrefixSum::resizeInternalBuffer() {
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                     VMA_MEMORY_USAGE_GPU_ONLY, capacity, "prefix_sum_data");
 
+    sumOfSumsBuffer =
+            device->createBuffer(
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                    VMA_MEMORY_USAGE_GPU_ONLY, sizeof(uint));
     updateDataDescriptorSets(internalDataBuffer);
 }
 
