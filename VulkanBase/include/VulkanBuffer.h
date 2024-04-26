@@ -6,6 +6,7 @@
 
 #include <span>
 
+struct BufferRegion;
 
 struct VulkanBuffer{
 
@@ -220,9 +221,17 @@ struct VulkanBuffer{
     }
 
     template<typename T>
-    VkDeviceSize sizeAs() const {
+    size_t sizeAs() const {
         return size/sizeof(T);
     }
+
+    template<typename T>
+    std::span<T> span(size_t aSize = std::numeric_limits<size_t>::max()) const {
+        aSize = glm::min(aSize, sizeAs<T>());
+        return { reinterpret_cast<T*>(map()), aSize } ;
+    }
+
+    BufferRegion region(VkDeviceSize start, VkDeviceSize end);
 
     VmaAllocator allocator = VK_NULL_HANDLE;
     VkBuffer buffer = VK_NULL_HANDLE;
