@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <map>
 #include <optional>
+#include <string_view>
 
 enum class KeyType : uint {
     Int = 0, Float, Uint
@@ -93,7 +94,7 @@ public:
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) override;
 
-    void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, bool reorderIndices);
+    void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, std::string_view reorderPipeline);
 
     template<typename T>
     void sortTyped(VkCommandBuffer commandBuffer, VulkanBuffer& buffer) {
@@ -134,7 +135,9 @@ public:
 
     void prefixSum(VkCommandBuffer commandBuffer);
 
-    void reorder(VkCommandBuffer commandBuffer, std::array<VkDescriptorSet, 2>& dataDescriptorSets);
+    void reorder(VkCommandBuffer commandBuffer, std::array<VkDescriptorSet, 2>& dataDescriptorSets, std::string_view reorderPipeline);
+
+    void reorderIndices(VkCommandBuffer commandBuffer, std::array<VkDescriptorSet, 2>& dataDescriptorSets);
 
     void updateDataDescriptorSets(VulkanBuffer& inBuffer);
 
@@ -191,5 +194,9 @@ protected:
         uint recordSize{};
     } constants{};
     VkBuffer previousBuffer{};
+
+    static constexpr const char* REORDER_TYPE_KEYS = "radix_sort_reorder";
+    static constexpr const char* REORDER_TYPE_INDEXES = "radix_sort_reorder_indices";
+    static constexpr const char* REORDER_TYPE_RECORDS = "radix_sort_reorder_records";
 
 };

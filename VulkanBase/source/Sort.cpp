@@ -90,7 +90,7 @@ void RadixSort::createDescriptorSets() {
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("data_out", dataDescriptorSets[DATA_OUT]);
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("counts", countsDescriptorSet);
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("add_value", countsDescriptorSet);
-    device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("bit_flip", bitFlipDescriptorSet);
+    device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("radix_sort_bit_flip", bitFlipDescriptorSet);
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("sequence_generator", sequenceDescriptorSet);
 }
 
@@ -98,31 +98,43 @@ void RadixSort::createDescriptorSets() {
 std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
     return {
             {
-                "count_radices",
+                "radix_sort_count_radices",
                 __glsl_radix_sort_count_radices,
                 {&dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
-                "prefix_sum",
+                "radix_sort_prefix_sum",
                 __glsl_radix_sort_prefix_sum,
                 { &countsSetLayout },
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
-                "reorder",
-                __glsl_radix_sort_reorder,
+                "radix_sort_reorder",
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder.comp.spv)",
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
-                "bit_flip",
+                "radix_sort_reorder_indices",
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_indicies.comp.spv)",
+                {&dataSetLayout, &dataSetLayout, &countsSetLayout},
+                { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
+            },
+            {
+                "radix_sort_reorder_records",
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_records.comp.spv)",
+                {&dataSetLayout, &dataSetLayout, &countsSetLayout},
+                { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
+            },
+            {
+                "radix_sort_bit_flip",
                 __glsl_bit_flip,
                 { &bitFlipSetLayout},
                 { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants)}}
             },
             {
-                "sequence",
+                "radix_sort_sequence",
                 __glsl_sequence,
                 { &sequenceSetLayout },
                 { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(seqConstants)}}
@@ -131,7 +143,8 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
 }
 
 VulkanBuffer& RadixSort::sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
-    operator()(commandBuffer, buffer, true);
+    constants.reorderIndices = true;
+    operator()(commandBuffer, buffer, REORDER_TYPE_INDEXES);
     return indexBuffers[DATA_IN];
 }
 
@@ -150,7 +163,7 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &keys, Re
     constants.reorderRecords = true;
     constants.recordSize = records.size/sizeof(uint);
     updateRecordsDescriptorSets(records);
-    operator()(commandBuffer, keys, false);
+    operator()(commandBuffer, keys, REORDER_TYPE_RECORDS);
 
     if(records.keyType != KeyType::Uint) {
         bitFlipConstants.reverse = 1;
@@ -159,11 +172,10 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &keys, Re
 }
 
 void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
-    operator()(commandBuffer, buffer, false);
+    operator()(commandBuffer, buffer, REORDER_TYPE_KEYS);
 }
 
-void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, bool reorderIndices) {
-    constants.reorderIndices = reorderIndices;
+void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, std::string_view reorderPipeline) {
     updateConstants(buffer);
     updateDataDescriptorSets(buffer);
 
@@ -172,7 +184,7 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, 
     dataBuffers[DATA_IN] = &buffer;
     dataBuffers[DATA_OUT] = &dataScratchBuffer;
 
-    if(reorderIndices) {
+    if(reorderPipeline == REORDER_TYPE_INDEXES) {
         generateSequence(commandBuffer, buffer);
     }
 
@@ -180,7 +192,7 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, 
         constants.block = block;
         count(commandBuffer, localDataSets[DATA_IN]);
         prefixSum(commandBuffer);
-        reorder(commandBuffer, localDataSets);
+        reorder(commandBuffer, localDataSets, reorderPipeline);
         std::swap(localDataSets[DATA_IN], localDataSets[DATA_OUT]);
     }
     previousBuffer = buffer.buffer;
@@ -193,9 +205,9 @@ void RadixSort::generateSequence(VkCommandBuffer commandBuffer, VulkanBuffer& bu
     seqConstants.numEntries = buffer.sizeAs<int>();
     const auto gx = glm::max(1u, seqConstants.numEntries);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("sequence"));
-    vkCmdPushConstants(commandBuffer, layout("sequence"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(seqConstants), &seqConstants);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("sequence"), 0, 1, &sequenceDescriptorSet, 0, VK_NULL_HANDLE);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("radix_sort_sequence"));
+    vkCmdPushConstants(commandBuffer, layout("radix_sort_sequence"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(seqConstants), &seqConstants);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_sequence"), 0, 1, &sequenceDescriptorSet, 0, VK_NULL_HANDLE);
     vkCmdDispatch(commandBuffer, gx, 1, 1);
     addComputeBufferMemoryBarriers(commandBuffer, { &indexBuffers[0] });
 }
@@ -204,9 +216,9 @@ void RadixSort::flipBits(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
     const auto gx = glm::max(1ULL, buffer.sizeAs<int>()/256);
 
     updateBitFlipDescriptorSet(buffer);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("bit_flip"));
-    vkCmdPushConstants(commandBuffer, layout("bit_flip"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants), &bitFlipConstants);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("bit_flip"), 0, 1, &bitFlipDescriptorSet, 0, VK_NULL_HANDLE);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("radix_sort_bit_flip"));
+    vkCmdPushConstants(commandBuffer, layout("radix_sort_bit_flip"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants), &bitFlipConstants);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_bit_flip"), 0, 1, &bitFlipDescriptorSet, 0, VK_NULL_HANDLE);
     vkCmdDispatch(commandBuffer, gx, 1, 1);
     addComputeBufferMemoryBarriers(commandBuffer, { &buffer });
 }
@@ -381,9 +393,9 @@ void RadixSort::count(VkCommandBuffer commandBuffer, VkDescriptorSet dataDescrip
     sets[1] = countsDescriptorSet;
     auto query = fmt::format("{}_{}", "count", constants.block);
     profiler.profile(query, commandBuffer, [&]{
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("count_radices"));
-        vkCmdPushConstants(commandBuffer, layout("count_radices"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("count_radices"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("radix_sort_count_radices"));
+        vkCmdPushConstants(commandBuffer, layout("radix_sort_count_radices"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_count_radices"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
         addComputeBufferMemoryBarriers(commandBuffer, { dataBuffers[DATA_IN], &countsBuffer });
     });
@@ -391,26 +403,26 @@ void RadixSort::count(VkCommandBuffer commandBuffer, VkDescriptorSet dataDescrip
 }
 
 void RadixSort::prefixSum(VkCommandBuffer commandBuffer) {
-    auto query = fmt::format("{}_{}", "prefix_sum", constants.block);
+    auto query = fmt::format("{}_{}", "radix_sort_prefix_sum", constants.block);
     profiler.profile(query, commandBuffer,  [&] {
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("prefix_sum"));
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_sum"), 0, 1,  &countsDescriptorSet, 0, VK_NULL_HANDLE);
-        vkCmdPushConstants(commandBuffer, layout("prefix_sum"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("radix_sort_prefix_sum"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_prefix_sum"), 0, 1,  &countsDescriptorSet, 0, VK_NULL_HANDLE);
+        vkCmdPushConstants(commandBuffer, layout("radix_sort_prefix_sum"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
         addComputeBufferMemoryBarriers(commandBuffer,{&countsBuffer, &sumBuffer, dataBuffers[DATA_IN], dataBuffers[DATA_OUT]});
     });
 }
 
-void RadixSort::reorder(VkCommandBuffer commandBuffer, std::array<VkDescriptorSet, 2> &dataDescriptorSets) {
+void RadixSort::reorder(VkCommandBuffer commandBuffer, std::array<VkDescriptorSet, 2> &dataDescriptorSets, std::string_view reorderPipeline) {
     static std::array<VkDescriptorSet, 3> sets{};
     sets[0] = dataDescriptorSets[DATA_IN];
     sets[1] = dataDescriptorSets[DATA_OUT];
     sets[2] = countsDescriptorSet;
     auto query = fmt::format("{}_{}", "reorder", constants.block);
     profiler.profile(query, commandBuffer, [&] {
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("reorder"));
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("reorder"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdPushConstants(commandBuffer, layout("reorder"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline(reorderPipeline.data()));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout(reorderPipeline.data()), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdPushConstants(commandBuffer, layout(reorderPipeline.data()), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
         if (constants.block < PASSES - 1) {
             addComputeBufferMemoryBarriers(commandBuffer,
@@ -426,7 +438,7 @@ void RadixSort::createProfiler() {
     if(debug) {
         profiler = Profiler{device, PASSES * 6};
         profiler.addGroup("count", PASSES);
-        profiler.addGroup("prefix_sum", PASSES);
+        profiler.addGroup("radix_sort_prefix_sum", PASSES);
         profiler.addGroup("reorder", PASSES);
     }
 }

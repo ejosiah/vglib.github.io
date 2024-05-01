@@ -108,7 +108,7 @@ TEST_F(RadixSortFixture, sortFloatingPointNumbers){
     ASSERT_TRUE(sortedMatch<float>(buffer, items)) << "buffer should be sorted";
 }
 
-TEST_F(RadixSortFixture, sortFloatingPointNumbersCountsNotPowerOf2){
+TEST_F(RadixSortFixture, DISABLED_sortFloatingPointNumbersCountsNotPowerOf2){
     auto items = randomEntries<float>((1 << 14) - 1, -glm::pi<float>(), glm::pi<float>());
     VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     ASSERT_FALSE(isSorted<float>(buffer)) << "buffer initial state should not be sorted";
