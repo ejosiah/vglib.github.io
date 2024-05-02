@@ -2,6 +2,7 @@
 #include "vulkan_util.h"
 #include "VulkanInitializers.h"
 #include "glsl_shaders.h"
+#include "Barrier.hpp"
 
 RadixSort::RadixSort(VulkanDevice *device, bool debug)
 : GpuSort(device)
@@ -14,6 +15,7 @@ void RadixSort::init() {
     createDescriptorPool();
     createDescriptorSetLayouts();
     createDescriptorSets();
+    resizeInternalBuffer();
     createPipelines();
     createProfiler();
 
@@ -142,10 +144,10 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
     };
 }
 
-VulkanBuffer& RadixSort::sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
+void RadixSort::sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, VulkanBuffer& indexes) {
     constants.reorderIndices = true;
     operator()(commandBuffer, buffer, REORDER_TYPE_INDEXES);
-    return indexBuffers[DATA_IN];
+    copyFromInternalIndexBuffer(commandBuffer, { &indexes, 0, indexes.size });
 }
 
 void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &keys, Records &records) {
@@ -162,13 +164,15 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &keys, Re
     constants.reorderIndices = false;
     constants.reorderRecords = true;
     constants.recordSize = records.size/sizeof(uint);
-    updateRecordsDescriptorSets(records);
+    BufferRegion recordRegion{ &records.buffer, 0, records.buffer.size };
+    copyToInternalRecordBuffer(commandBuffer, recordRegion);
     operator()(commandBuffer, keys, REORDER_TYPE_RECORDS);
 
     if(records.keyType != KeyType::Uint) {
         bitFlipConstants.reverse = 1;
         flipBits(commandBuffer, keys);
     }
+    copyFromInternalRecordBuffer(commandBuffer, recordRegion);
 }
 
 void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
@@ -176,13 +180,15 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) 
 }
 
 void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, std::string_view reorderPipeline) {
+    if(capacity < buffer.size){
+        capacity = buffer.size * 2;
+        resizeInternalBuffer();
+    }
     updateConstants(buffer);
-    updateDataDescriptorSets(buffer);
+    copyToInternalKeyBuffer(commandBuffer, { &buffer, 0, buffer.size });
 
     static std::array<VkDescriptorSet, 2> localDataSets;
     std::copy(begin(dataDescriptorSets), end(dataDescriptorSets), begin(localDataSets));
-    dataBuffers[DATA_IN] = &buffer;
-    dataBuffers[DATA_OUT] = &dataScratchBuffer;
 
     if(reorderPipeline == REORDER_TYPE_INDEXES) {
         generateSequence(commandBuffer, buffer);
@@ -195,7 +201,8 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, 
         reorder(commandBuffer, localDataSets, reorderPipeline);
         std::swap(localDataSets[DATA_IN], localDataSets[DATA_OUT]);
     }
-    previousBuffer = buffer.buffer;
+    copyFromInternalKeyBuffer(commandBuffer, { &buffer, 0, buffer.size });
+    previousBuffer = buffer;
 }
 
 
@@ -209,7 +216,7 @@ void RadixSort::generateSequence(VkCommandBuffer commandBuffer, VulkanBuffer& bu
     vkCmdPushConstants(commandBuffer, layout("radix_sort_sequence"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(seqConstants), &seqConstants);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_sequence"), 0, 1, &sequenceDescriptorSet, 0, VK_NULL_HANDLE);
     vkCmdDispatch(commandBuffer, gx, 1, 1);
-    addComputeBufferMemoryBarriers(commandBuffer, { &indexBuffers[0] });
+    Barrier::computeWriteToRead(commandBuffer, { internal.indexes[DATA_IN] });
 }
 
 void RadixSort::flipBits(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
@@ -220,7 +227,7 @@ void RadixSort::flipBits(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
     vkCmdPushConstants(commandBuffer, layout("radix_sort_bit_flip"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants), &bitFlipConstants);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_bit_flip"), 0, 1, &bitFlipDescriptorSet, 0, VK_NULL_HANDLE);
     vkCmdDispatch(commandBuffer, gx, 1, 1);
-    addComputeBufferMemoryBarriers(commandBuffer, { &buffer });
+    Barrier::computeWriteToRead(commandBuffer, { buffer });
 }
 
 void RadixSort::updateBitFlipDescriptorSet(VulkanBuffer &buffer) {
@@ -245,7 +252,7 @@ void RadixSort::updateSequenceDescriptorSet(VulkanBuffer& buffer) {
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     writes[0].descriptorCount = 1;
-    VkDescriptorBufferInfo info{ indexBuffers[0], 0, VK_WHOLE_SIZE };
+    VkDescriptorBufferInfo info{ internal.indexes[DATA_IN], 0, VK_WHOLE_SIZE };
     writes[0].pBufferInfo = &info;
 
     device->updateDescriptorSets(writes);
@@ -261,26 +268,13 @@ void RadixSort::updateConstants(VulkanBuffer& buffer) {
     constants.Num_Groups = workGroupCount * constants.Num_Groups_per_WorkGroup;
 
 }
-void RadixSort::updateDataDescriptorSets(VulkanBuffer &dataBuffer) {
-    assert(workGroupCount > 0);
-    auto minOffset = device->getLimits().minStorageBufferOffsetAlignment;
+void RadixSort::updateDataDescriptorSets() {
+    auto workGroupCount = numWorkGroups(internal.keys[0]);
 
-    if(previousBuffer == dataBuffer.buffer) return;
-
-    std::vector<int> indices(constants.reorderIndices ? dataBuffer.sizeAs<int>() : 1);
-    if(debug) {
-        indexBuffers[0] = device->createCpuVisibleBuffer(indices.data(), BYTE_SIZE(indices), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-        indexBuffers[1] = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU, BYTE_SIZE(indices));
-    }else {
-        indexBuffers[0] = device->createDeviceLocalBuffer(indices.data(), BYTE_SIZE(indices), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-        indexBuffers[1] = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, BYTE_SIZE(indices));
-    }
-
-    auto dataWrites = constants.reorderRecords ?  initializers::writeDescriptorSets<4>()
-            : initializers::writeDescriptorSets<6>();
+    auto dataWrites = initializers::writeDescriptorSets<6>();
 
     std::array<VkDescriptorBufferInfo, 1> dataInfos{};
-    dataInfos[KEY] = {dataBuffer, 0, dataBuffer.size};
+    dataInfos[KEY] = { internal.keys[0], 0, internal.keys[0].size };
 
     dataWrites[DATA_IN].dstSet = dataDescriptorSets[DATA_IN];
     dataWrites[DATA_IN].dstBinding = DATA;
@@ -288,9 +282,8 @@ void RadixSort::updateDataDescriptorSets(VulkanBuffer &dataBuffer) {
     dataWrites[DATA_IN].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     dataWrites[DATA_IN].pBufferInfo = dataInfos.data();
 
-    dataScratchBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, dataBuffer.size);
     std::array<VkDescriptorBufferInfo, 1> dataOutInfos{};
-    dataOutInfos[KEY] = {dataScratchBuffer, 0, dataScratchBuffer.size};
+    dataOutInfos[KEY] = {internal.keys[1], 0, internal.keys[1].size};
 
     dataWrites[DATA_OUT].dstSet = dataDescriptorSets[DATA_OUT];
     dataWrites[DATA_OUT].dstBinding = DATA;
@@ -302,34 +295,29 @@ void RadixSort::updateDataDescriptorSets(VulkanBuffer &dataBuffer) {
     dataWrites[INDEX_IN].dstBinding = INDICES;
     dataWrites[INDEX_IN].descriptorCount = NUM_DATA_ELEMENTS;
     dataWrites[INDEX_IN].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    VkDescriptorBufferInfo indexInInfo{ indexBuffers[DATA_IN], 0, indexBuffers[DATA_IN].size};
+    VkDescriptorBufferInfo indexInInfo{ internal.indexes[DATA_IN], 0, internal.indexes[DATA_IN].size};
     dataWrites[INDEX_IN].pBufferInfo = &indexInInfo;
 
     dataWrites[INDEX_OUT].dstSet = dataDescriptorSets[DATA_OUT];
     dataWrites[INDEX_OUT].dstBinding = INDICES;
     dataWrites[INDEX_OUT].descriptorCount = NUM_DATA_ELEMENTS;
     dataWrites[INDEX_OUT].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    VkDescriptorBufferInfo indexOutInfo{ indexBuffers[DATA_OUT], 0, indexBuffers[DATA_IN].size};
+    VkDescriptorBufferInfo indexOutInfo{ internal.indexes[DATA_OUT], 0, internal.indexes[DATA_IN].size};
     dataWrites[INDEX_OUT].pBufferInfo = &indexOutInfo;
 
-    if(!constants.reorderRecords) {
-        recordBuffers[0] = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, 1);
-        recordBuffers[1] = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, 1);
+    dataWrites[RECORDS_IN].dstSet = dataDescriptorSets[DATA_IN];
+    dataWrites[RECORDS_IN].dstBinding = RECORDS;
+    dataWrites[RECORDS_IN].descriptorCount = NUM_DATA_ELEMENTS;
+    dataWrites[RECORDS_IN].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    VkDescriptorBufferInfo recordsInInfo{ internal.records[DATA_IN], 0, internal.records[DATA_IN].size};
+    dataWrites[RECORDS_IN].pBufferInfo = &recordsInInfo;
 
-        dataWrites[RECORDS_IN].dstSet = dataDescriptorSets[DATA_IN];
-        dataWrites[RECORDS_IN].dstBinding = RECORDS;
-        dataWrites[RECORDS_IN].descriptorCount = NUM_DATA_ELEMENTS;
-        dataWrites[RECORDS_IN].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        VkDescriptorBufferInfo recordsInInfo{ recordBuffers[DATA_IN], 0, recordBuffers[DATA_IN].size};
-        dataWrites[RECORDS_IN].pBufferInfo = &recordsInInfo;
-
-        dataWrites[RECORDS_OUT].dstSet = dataDescriptorSets[DATA_OUT];
-        dataWrites[RECORDS_OUT].dstBinding = RECORDS;
-        dataWrites[RECORDS_OUT].descriptorCount = NUM_DATA_ELEMENTS;
-        dataWrites[RECORDS_OUT].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        VkDescriptorBufferInfo recordsOutInfo{ recordBuffers[DATA_OUT], 0, recordBuffers[DATA_IN].size};
-        dataWrites[RECORDS_OUT].pBufferInfo = &recordsOutInfo;
-    }
+    dataWrites[RECORDS_OUT].dstSet = dataDescriptorSets[DATA_OUT];
+    dataWrites[RECORDS_OUT].dstBinding = RECORDS;
+    dataWrites[RECORDS_OUT].descriptorCount = NUM_DATA_ELEMENTS;
+    dataWrites[RECORDS_OUT].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    VkDescriptorBufferInfo recordsOutInfo{ internal.records[DATA_OUT], 0, internal.records[DATA_IN].size};
+    dataWrites[RECORDS_OUT].pBufferInfo = &recordsOutInfo;
 
     device->updateDescriptorSets(dataWrites);
 
@@ -356,32 +344,6 @@ void RadixSort::updateDataDescriptorSets(VulkanBuffer &dataBuffer) {
     device->updateDescriptorSets(countWrites);
 }
 
-void RadixSort::updateRecordsDescriptorSets(Records &records) {
-    static VkBuffer previousRecordsBuffer{};
-
-    if(previousRecordsBuffer == records.buffer) return;
-    recordBuffers[DATA_IN] = records.buffer;
-
-    auto writes = initializers::writeDescriptorSets<2>();
-    writes[0].dstSet = dataDescriptorSets[DATA_IN];
-    writes[0].dstBinding = RECORDS;
-    writes[0].descriptorCount = NUM_DATA_ELEMENTS;
-    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    VkDescriptorBufferInfo recordsInInfo{ recordBuffers[DATA_IN], 0, recordBuffers[DATA_IN].size};
-    writes[0].pBufferInfo = &recordsInInfo;
-
-    recordBuffers[DATA_OUT] = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, records.buffer.size);
-    writes[1].dstSet = dataDescriptorSets[DATA_OUT];
-    writes[1].dstBinding = RECORDS;
-    writes[1].descriptorCount = NUM_DATA_ELEMENTS;
-    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    VkDescriptorBufferInfo recordsOutInfo{ recordBuffers[DATA_OUT], 0, recordBuffers[DATA_IN].size};
-    writes[1].pBufferInfo = &recordsOutInfo;
-
-    device->updateDescriptorSets(writes);
-    previousRecordsBuffer = records.buffer.buffer;
-}
-
 uint RadixSort::numWorkGroups(VulkanBuffer &buffer) {
     const uint Num_Elements = buffer.size/sizeof(uint);
     return std::min(std::max(1u, Num_Elements/ ELEMENTS_PER_WG), MAX_WORKGROUPS);
@@ -397,7 +359,7 @@ void RadixSort::count(VkCommandBuffer commandBuffer, VkDescriptorSet dataDescrip
         vkCmdPushConstants(commandBuffer, layout("radix_sort_count_radices"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_count_radices"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
-        addComputeBufferMemoryBarriers(commandBuffer, { dataBuffers[DATA_IN], &countsBuffer });
+        Barrier::computeWriteToRead(commandBuffer, { internal.keys[DATA_IN], countsBuffer });
     });
 
 }
@@ -409,7 +371,7 @@ void RadixSort::prefixSum(VkCommandBuffer commandBuffer) {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("radix_sort_prefix_sum"), 0, 1,  &countsDescriptorSet, 0, VK_NULL_HANDLE);
         vkCmdPushConstants(commandBuffer, layout("radix_sort_prefix_sum"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
-        addComputeBufferMemoryBarriers(commandBuffer,{&countsBuffer, &sumBuffer, dataBuffers[DATA_IN], dataBuffers[DATA_OUT]});
+        Barrier::computeWriteToRead(commandBuffer,{countsBuffer, sumBuffer, internal.keys[DATA_IN], internal.keys[DATA_OUT]});
     });
 }
 
@@ -425,10 +387,10 @@ void RadixSort::reorder(VkCommandBuffer commandBuffer, std::array<VkDescriptorSe
         vkCmdPushConstants(commandBuffer, layout(reorderPipeline.data()), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
         if (constants.block < PASSES - 1) {
-            addComputeBufferMemoryBarriers(commandBuffer,
-               { dataBuffers[DATA_IN], dataBuffers[DATA_OUT],
-                 &indexBuffers[DATA_IN], &indexBuffers[DATA_OUT],
-                 &recordBuffers[DATA_IN], &recordBuffers[DATA_OUT]
+            Barrier::computeWriteToRead(commandBuffer,
+               { internal.keys[DATA_IN], internal.keys[DATA_OUT],
+                 internal.indexes[DATA_IN], internal.indexes[DATA_OUT],
+                 internal.records[DATA_IN], internal.records[DATA_OUT]
                });
         }
     });
@@ -443,8 +405,83 @@ void RadixSort::createProfiler() {
     }
 }
 
+void RadixSort::resizeInternalBuffer() {
+    internal.keys[0] =
+        device->createBuffer(
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY, capacity, "radix_sort_keys_0");
+    internal.keys[1] =
+        device->createBuffer(
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY, capacity, "radix_sort_keys_1");
+
+    internal.indexes[0] =
+        device->createBuffer(
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY, capacity, "radix_sort_indexes_0");
+
+    internal.indexes[1] =
+        device->createBuffer(
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY, capacity, "radix_sort_indexes_1");
+
+    internal.records[0] =
+            device->createBuffer(
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                    VMA_MEMORY_USAGE_GPU_ONLY, capacity * NUM_ENTRIES_PER_RECORD, "radix_sort_records_0");
+
+    internal.records[1] =
+            device->createBuffer(
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                    VMA_MEMORY_USAGE_GPU_ONLY, capacity * NUM_ENTRIES_PER_RECORD, "radix_sort_records_1");
+
+    updateDataDescriptorSets();
+}
+
 void RadixSort::commitProfiler() {
     profiler.commit();
+}
+
+void RadixSort::copyToInternalKeyBuffer(VkCommandBuffer commandBuffer, const BufferRegion &src) {
+    BufferRegion dst{ &internal.keys[0], 0, src.size() };
+    copyBuffer(commandBuffer, src, dst);
+    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+}
+
+void RadixSort::copyFromInternalKeyBuffer(VkCommandBuffer commandBuffer, const BufferRegion &dst) {
+    BufferRegion src{ &internal.keys[0], 0, dst.size() };
+
+    Barrier::computeWriteToTransferRead(commandBuffer, { src });
+    copyBuffer(commandBuffer, src, dst);
+    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+}
+
+void RadixSort::copyFromInternalIndexBuffer(VkCommandBuffer commandBuffer, const BufferRegion &dst) {
+    BufferRegion src{ &internal.indexes[0], 0, dst.size() };
+
+    Barrier::computeWriteToTransferRead(commandBuffer, { src });
+    copyBuffer(commandBuffer, src, dst);
+    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+}
+
+void RadixSort::copyBuffer(VkCommandBuffer commandBuffer, const BufferRegion &src, const BufferRegion &dst) {
+    assert(dst.size() >= src.size());
+    VkBufferCopy region{ src.offset, dst.offset, src.size() };
+    vkCmdCopyBuffer(commandBuffer, *src.buffer, *dst.buffer, 1, &region);
+}
+
+void RadixSort::copyToInternalRecordBuffer(VkCommandBuffer commandBuffer, const BufferRegion &src) {
+    BufferRegion dst{ &internal.records[0], 0, src.size() };
+    copyBuffer(commandBuffer, src, dst);
+    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+}
+
+void RadixSort::copyFromInternalRecordBuffer(VkCommandBuffer commandBuffer, const BufferRegion &dst) {
+    BufferRegion src{ &internal.records[0], 0, dst.size() };
+
+    Barrier::computeWriteToTransferRead(commandBuffer, { src });
+    copyBuffer(commandBuffer, src, dst);
+    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
 }
 
 

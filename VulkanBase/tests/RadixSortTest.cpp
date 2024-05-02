@@ -39,12 +39,10 @@ protected:
         });
     }
 
-    VulkanBuffer sortWithIndex(VulkanBuffer& buffer){
-        VulkanBuffer indexBuffer;
+    void sortWithIndex(VulkanBuffer& buffer, VulkanBuffer indexBuffer){
         execute([&](auto commandBuffer){
-            indexBuffer = _sort.sortWithIndices(commandBuffer, buffer);
+             _sort.sortWithIndices(commandBuffer, buffer, indexBuffer);
         });
-        return indexBuffer;
     }
 
     std::tuple<VulkanBuffer, Records, std::vector<StudentRecord>> randomRecords(int numRecords, int keyOffset = 0) {
@@ -89,7 +87,7 @@ protected:
 };
 
 TEST_F(RadixSortFixture, sortGivenData){
-    auto items = randomEntries(1 << 14);
+    auto items = randomEntries(1 << 20);
     VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     ASSERT_FALSE(isSorted(buffer)) << "buffer initial state should not be sorted";
 
@@ -131,8 +129,9 @@ TEST_F(RadixSortFixture, sortIntsWithNegativeValues) {
 TEST_F(RadixSortFixture, sortWithIndices) {
     auto buffer = entries({5, 1, 8, 11, 15, 20, 10, 6, 9, 7, 3, 4, 2, 13, 16, 14, 17, 19, 18, 12});
     std::vector<uint32_t> expectedIndices{ 1, 12, 10, 11, 0, 7, 9, 2, 8, 6, 3, 19, 13, 15, 4, 14, 16, 18, 17, 5 };
+    VulkanBuffer indexBuffer = device.createStagingBuffer(BYTE_SIZE(expectedIndices));
 
-    VulkanBuffer indexBuffer = sortWithIndex(buffer);
+    sortWithIndex(buffer, indexBuffer);
 
     ASSERT_TRUE(matches(indexBuffer, expectedIndices)) << "indices are not the same";
 }
@@ -142,8 +141,10 @@ TEST_F(RadixSortFixture, clearIndicesBeforeSorting) {
     auto buffer1 = entries({5, 1, 8, 11, 15, 20, 10, 6, 9, 7, 3, 4, 2, 13, 16, 14, 17, 19, 18, 12});
     std::vector<uint32_t> expectedIndices{ 1, 12, 10, 11, 0, 7, 9, 2, 8, 6, 3, 19, 13, 15, 4, 14, 16, 18, 17, 5 };
 
-    sortWithIndex(buffer);
-    VulkanBuffer indexBuffer = sortWithIndex(buffer1);
+    VulkanBuffer indexBuffer = device.createStagingBuffer(BYTE_SIZE(expectedIndices));
+
+    sortWithIndex(buffer, indexBuffer);
+    sortWithIndex(buffer1, indexBuffer);
 
     ASSERT_TRUE(matches(indexBuffer, expectedIndices)) << "indices are not the same";
 }
@@ -194,7 +195,9 @@ TEST_F(RadixSortFixture, sortIsStable){
     VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     ASSERT_TRUE(!isSorted(buffer)) << "buffer initial state should not be sorted";
 
-    VulkanBuffer indexBuffer = sortWithIndex(buffer);
+    VulkanBuffer indexBuffer = device.createStagingBuffer(buffer.size);
+
+    sortWithIndex(buffer, indexBuffer);
 
     ASSERT_TRUE(isSorted(buffer)) << "buffer should be sorted";
     ASSERT_TRUE(isStable(buffer, indexBuffer)) << "sort should be stable";

@@ -74,8 +74,6 @@ class RadixSort : public GpuSort{
     enum Query  { COUNT, PREFIX_SUM, REORDER, NUM_QUERIES };
 
 public:
-
-public:
     explicit RadixSort(VulkanDevice* device = nullptr, bool debug = false);
 
     void init() override;
@@ -123,7 +121,7 @@ public:
 
     void updateSequenceDescriptorSet(VulkanBuffer& buffer);
 
-    VulkanBuffer& sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer);
+    void sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &keys, VulkanBuffer& indexes);
 
     void generateSequence(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
@@ -139,9 +137,21 @@ public:
 
     void reorderIndices(VkCommandBuffer commandBuffer, std::array<VkDescriptorSet, 2>& dataDescriptorSets);
 
-    void updateDataDescriptorSets(VulkanBuffer& inBuffer);
+    void copyToInternalKeyBuffer(VkCommandBuffer commandBuffer, const BufferRegion& src);
 
-    void updateRecordsDescriptorSets(Records& records);
+    void copyFromInternalKeyBuffer(VkCommandBuffer commandBuffer, const BufferRegion& dst);
+
+    void copyFromInternalIndexBuffer(VkCommandBuffer commandBuffer, const BufferRegion& dst);
+
+    void copyToInternalRecordBuffer(VkCommandBuffer commandBuffer, const BufferRegion& src);
+
+    void copyFromInternalRecordBuffer(VkCommandBuffer commandBuffer, const BufferRegion& dst);
+
+    void copyBuffer(VkCommandBuffer commandBuffer, const BufferRegion& src, const BufferRegion& dst);
+
+    void updateDataDescriptorSets();
+
+    void resizeInternalBuffer();
 
     void commitProfiler();
 
@@ -150,6 +160,13 @@ public:
     bool debug = false;
 
 protected:
+    static constexpr VkDeviceSize DataUnitSize = sizeof(uint32_t);
+    static constexpr const VkDeviceSize INITIAL_CAPACITY = (1 << 20) * DataUnitSize;
+    static constexpr const VkDeviceSize NUM_ENTRIES_PER_RECORD = 20;
+    static constexpr const char* REORDER_TYPE_KEYS = "radix_sort_reorder";
+    static constexpr const char* REORDER_TYPE_INDEXES = "radix_sort_reorder_indices";
+    static constexpr const char* REORDER_TYPE_RECORDS = "radix_sort_reorder_records";
+
     VulkanDescriptorPool descriptorPool;
     VulkanDescriptorSetLayout dataSetLayout;
     VulkanDescriptorSetLayout countsSetLayout;
@@ -157,9 +174,6 @@ protected:
     VkDescriptorSet countsDescriptorSet;
     VulkanBuffer countsBuffer;
     VulkanBuffer sumBuffer;
-    std::array<VulkanBuffer*, 2> dataBuffers;
-    std::array<VulkanBuffer, 2> indexBuffers;
-    std::array<VulkanBuffer, 2> recordBuffers;
     VulkanBuffer dataScratchBuffer;
     uint workGroupCount = 0;
     VulkanDescriptorSetLayout bitFlipSetLayout;
@@ -173,6 +187,12 @@ protected:
         uint reverse;
         uint numEntries;
     } bitFlipConstants{};
+
+    struct {
+        std::array<VulkanBuffer, 2> keys;
+        std::array<VulkanBuffer, 2> indexes;
+        std::array<VulkanBuffer, 2> records;
+    } internal;
 
     struct {
         uint start{0};
@@ -195,8 +215,6 @@ protected:
     } constants{};
     VkBuffer previousBuffer{};
 
-    static constexpr const char* REORDER_TYPE_KEYS = "radix_sort_reorder";
-    static constexpr const char* REORDER_TYPE_INDEXES = "radix_sort_reorder_indices";
-    static constexpr const char* REORDER_TYPE_RECORDS = "radix_sort_reorder_records";
+    VkDeviceSize capacity{INITIAL_CAPACITY};
 
 };
