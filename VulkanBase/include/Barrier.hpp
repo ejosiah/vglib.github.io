@@ -3,38 +3,41 @@
 #include "VulkanBuffer.h"
 #include <initializer_list>
 
-namespace Barrier {
-
-    void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
-
-    void computeWriteToFragmentRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+class Barrier {
+private:
+    Barrier() = default;
+public:
     
-    void computeWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    static void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
-    void computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    static void computeWriteToFragmentRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    
+    static void computeWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
-    void transferWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    static void computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
-    void transferWriteToComputeRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    static void transferWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
-    void transferWriteToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    static void transferWriteToComputeRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
-    void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    static void transferWriteToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
-    void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
-    void computeWriteToFragmentRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
-    void computeWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void computeWriteToFragmentRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
-    void computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void computeWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
-    void transferWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
-    void transferWriteToComputeRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void transferWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
-    void transferWriteToWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void transferWriteToComputeRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
-    void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+    static void transferWriteToWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
-}
+    static void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
+
+};
