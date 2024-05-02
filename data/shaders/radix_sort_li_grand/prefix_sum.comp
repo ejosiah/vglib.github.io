@@ -29,7 +29,7 @@ layout(push_constant) uniform Consts{
 	uint Num_Elements;
 	uint Num_Radices_Per_WorkGroup;
 	uint Num_Groups;
-	uint reorderIndices;
+	uint recordSize;
 };
 
 layout(set = 0, binding=COUNTS) buffer Counts{

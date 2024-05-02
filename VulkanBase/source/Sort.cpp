@@ -113,19 +113,19 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
             },
             {
                 "radix_sort_reorder",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder.comp.spv)",
+                __glsl_radix_sort_reorder,
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_indices",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_indicies.comp.spv)",
+                __glsl_radix_sort_reorder_indexes,
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_records",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_records.comp.spv)",
+                __glsl_radix_sort_reorder_records,
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
@@ -145,7 +145,6 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
 }
 
 void RadixSort::sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, VulkanBuffer& indexes) {
-    constants.reorderIndices = true;
     operator()(commandBuffer, buffer, REORDER_TYPE_INDEXES);
     copyFromInternalIndexBuffer(commandBuffer, { &indexes, 0, indexes.size });
 }
@@ -161,8 +160,6 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &keys, Re
         flipBits(commandBuffer, keys);
     }
 
-    constants.reorderIndices = false;
-    constants.reorderRecords = true;
     constants.recordSize = records.size/sizeof(uint);
     BufferRegion recordRegion{ &records.buffer, 0, records.buffer.size };
     copyToInternalRecordBuffer(commandBuffer, recordRegion);

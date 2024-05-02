@@ -207,8 +207,6 @@ protected:
         uint Num_Elements;
         uint Num_Radices_Per_WorkGroup;
         uint Num_Groups;
-        uint reorderIndices{};
-        uint reorderRecords{};
         uint recordSize{};
     } constants{};
     VkBuffer previousBuffer{};
