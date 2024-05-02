@@ -119,11 +119,9 @@ public:
 
     void updateBitFlipDescriptorSet(VulkanBuffer& buffer);
 
-    void updateSequenceDescriptorSet(VulkanBuffer& buffer);
-
     void sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &keys, VulkanBuffer& indexes);
 
-    void generateSequence(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
+    void generateSequence(VkCommandBuffer commandBuffer, uint32_t numEntries);
 
     void updateConstants(VulkanBuffer& buffer);
 

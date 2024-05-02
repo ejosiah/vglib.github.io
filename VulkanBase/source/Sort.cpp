@@ -191,7 +191,7 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, 
     std::copy(begin(dataDescriptorSets), end(dataDescriptorSets), begin(localDataSets));
 
     if(reorderPipeline == REORDER_TYPE_INDEXES) {
-        generateSequence(commandBuffer, buffer);
+        generateSequence(commandBuffer, buffer.sizeAs<uint32_t>());
     }
 
     for(auto block = 0; block < PASSES; block++){
@@ -206,10 +206,9 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, 
 }
 
 
-void RadixSort::generateSequence(VkCommandBuffer commandBuffer, VulkanBuffer& buffer) {
-    updateSequenceDescriptorSet(buffer);
+void RadixSort::generateSequence(VkCommandBuffer commandBuffer, uint32_t numEntries) {
     seqConstants.start = 0;
-    seqConstants.numEntries = buffer.sizeAs<int>();
+    seqConstants.numEntries = numEntries;
     const auto gx = glm::max(1u, seqConstants.numEntries);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("radix_sort_sequence"));
@@ -241,20 +240,6 @@ void RadixSort::updateBitFlipDescriptorSet(VulkanBuffer &buffer) {
     VkDescriptorBufferInfo info{ buffer, 0, VK_WHOLE_SIZE };
     writes[0].pBufferInfo = &info;
     
-    device->updateDescriptorSets(writes);
-}
-
-void RadixSort::updateSequenceDescriptorSet(VulkanBuffer& buffer) {
-    if(previousBuffer == buffer.buffer) return;
-    auto writes = initializers::writeDescriptorSets();
-
-    writes[0].dstSet = sequenceDescriptorSet;
-    writes[0].dstBinding = 0;
-    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writes[0].descriptorCount = 1;
-    VkDescriptorBufferInfo info{ internal.indexes[DATA_IN], 0, VK_WHOLE_SIZE };
-    writes[0].pBufferInfo = &info;
-
     device->updateDescriptorSets(writes);
 }
 
@@ -340,8 +325,16 @@ void RadixSort::updateDataDescriptorSets() {
     countWrites[SUMS].descriptorCount = 1;
     countWrites[SUMS].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     countWrites[SUMS].pBufferInfo = &sumInfo;
-
     device->updateDescriptorSets(countWrites);
+
+    auto seqWrites = initializers::writeDescriptorSets();
+    seqWrites[0].dstSet = sequenceDescriptorSet;
+    seqWrites[0].dstBinding = 0;
+    seqWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    seqWrites[0].descriptorCount = 1;
+    VkDescriptorBufferInfo info{ internal.indexes[DATA_IN], 0, VK_WHOLE_SIZE };
+    seqWrites[0].pBufferInfo = &info;
+    device->updateDescriptorSets(seqWrites);
 }
 
 uint RadixSort::numWorkGroups(VulkanBuffer &buffer) {
