@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Barrier.hpp"
+
 #include "ComputePipelins.hpp"
 #include "DescriptorSetBuilder.hpp"
 #include <string>
@@ -65,18 +67,6 @@ protected:
     void createDescriptorPool();
 
     void updateDataDescriptorSets(VulkanBuffer& buffer);
-
-    void addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
-
-    void addComputeWriteToTransferReadBarrier(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
-
-    void addBufferTransferWriteToReadBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
-
-    void addBufferTransferWriteToComputeReadBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
-
-    void addBufferTransferWriteToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
-
-    void addBufferTransferReadToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer*>& buffers);
 
     void copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion& region);
 

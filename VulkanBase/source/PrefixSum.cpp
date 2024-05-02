@@ -1,5 +1,6 @@
 #include "PrefixSum.hpp"
 #include "prefix_sum_glsl_shaders.h"
+#include "Barrier.hpp"
 
 PrefixSum::PrefixSum(VulkanDevice *device, VulkanCommandPool* commandPool)
 : ComputePipelines(device)
@@ -126,102 +127,6 @@ void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
     device->updateDescriptorSets(writes);
 }
 
-void PrefixSum::addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
-    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
-
-    for(int i = 0; i < buffers.size(); i++) {
-        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barriers[i].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barriers[i].offset = 0;
-        barriers[i].buffer = *buffers[i];
-        barriers[i].size = buffers[i]->size;
-    }
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
-}
-
-void PrefixSum::addComputeWriteToTransferReadBarrier(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
-    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
-
-    for(int i = 0; i < buffers.size(); i++) {
-        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barriers[i].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barriers[i].offset = 0;
-        barriers[i].buffer = *buffers[i];
-        barriers[i].size = buffers[i]->size;
-    }
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
-                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
-}
-
-void PrefixSum::addBufferTransferWriteToReadBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
-    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
-
-    for(int i = 0; i < buffers.size(); i++) {
-        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barriers[i].offset = 0;
-        barriers[i].buffer = *buffers[i];
-        barriers[i].size = buffers[i]->size;
-    }
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
-                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
-}
-
-void PrefixSum::addBufferTransferWriteToComputeReadBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
-    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
-
-    for(int i = 0; i < buffers.size(); i++) {
-        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barriers[i].offset = 0;
-        barriers[i].buffer = *buffers[i];
-        barriers[i].size = buffers[i]->size;
-    }
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
-}
-
-void PrefixSum::addBufferTransferWriteToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
-    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
-
-    for(int i = 0; i < buffers.size(); i++) {
-        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barriers[i].offset = 0;
-        barriers[i].buffer = *buffers[i];
-        barriers[i].size = buffers[i]->size;
-    }
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
-                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
-}
-
-void PrefixSum::addBufferTransferReadToWriteBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers) {
-    std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
-
-    for(int i = 0; i < buffers.size(); i++) {
-        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barriers[i].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barriers[i].offset = 0;
-        barriers[i].buffer = *buffers[i];
-        barriers[i].size = buffers[i]->size;
-    }
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
-                         nullptr, COUNT(barriers), barriers.data(), 0, nullptr);
-}
-
 void PrefixSum::createDescriptorPool() {
     constexpr uint maxSets = 2;
     std::vector<VkDescriptorPoolSize> poolSizes{
@@ -234,15 +139,15 @@ void PrefixSum::createDescriptorPool() {
 void PrefixSum::copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion &region) {
     VkBufferCopy cRegion{region.offset, 0, region.size()};
     vkCmdCopyBuffer(commandBuffer, *region.buffer, internalDataBuffer.buffer, 1, &cRegion);
-    addBufferTransferWriteToComputeReadBarriers(commandBuffer, { &internalDataBuffer });
+    Barrier::transferWriteToComputeRead(commandBuffer, {internalDataBuffer});
 }
 
 void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion &region, VkDeviceSize srcOffset) {
     VkBufferCopy cRegion{srcOffset, region.offset, region.size()};
 
-    addComputeWriteToTransferReadBarrier(commandBuffer, { &internalDataBuffer });
+    Barrier::computeWriteToTransferRead(commandBuffer, {internalDataBuffer});
     vkCmdCopyBuffer(commandBuffer, internalDataBuffer.buffer, *region.buffer, 1, &cRegion);
-    addBufferTransferWriteToComputeReadBarriers(commandBuffer, {region.buffer });
+    Barrier::transferWriteToComputeRead(commandBuffer, {*region.buffer});
 }
 
 void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion section) {
@@ -264,11 +169,11 @@ void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion section
     vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
 
     if(numWorkGroups > 1){
-        addBufferMemoryBarriers(commandBuffer, {section.buffer, &sumsBuffer});
+        Barrier::computeWriteToRead(commandBuffer, {*section.buffer, sumsBuffer});
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &sumScanDescriptorSet, 0, nullptr);
         vkCmdDispatch(commandBuffer, 1, 1, 1);
 
-        addBufferMemoryBarriers(commandBuffer, { section.buffer, &sumOfSumsBuffer });
+        Barrier::computeWriteToRead(commandBuffer, {*section.buffer, sumOfSumsBuffer});
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add"), 0, 1, &descriptorSet, 0, nullptr);
         vkCmdPushConstants(commandBuffer, layout("add"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
