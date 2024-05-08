@@ -8,10 +8,14 @@
 #include "VulkanBaseApp.h"
 #include "ComputePipelins.hpp"
 #include "VulkanExtensions.h"
+#include "TestUtils.hpp"
+
 
 static std::vector<const char*> instanceExtensions{VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 static std::vector<const char*> validationLayers{};
 static std::vector<const char*> deviceExtensions{ };
+
+using namespace TestUtils;
 
 class VulkanFixture : public ::testing::Test {
 protected:
@@ -193,5 +197,22 @@ protected:
         auto res = _fileManager.getFullPath(name);
         assert(res.has_value());
         return res->string();
+    }
+
+    template<typename T = uint32_t>
+    VulkanBuffer entries(std::vector<T> data) {
+        return entries(std::span{ data.data(), data.size()});
+    }
+
+    template<typename T = uint32_t>
+    VulkanBuffer entries(std::span<T> span) const {
+        return device.createCpuVisibleBuffer(span.data(), BYTE_SIZE(span), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    }
+
+    template<typename T = uint32_t>
+    VulkanBuffer createBuffer(uint32_t size) const {
+        return device.createBuffer(
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+                | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU, sizeof(T) * size);
     }
 };
