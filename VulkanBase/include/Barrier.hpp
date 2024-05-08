@@ -20,6 +20,8 @@ public:
 
     static void transferWriteToComputeRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
+    static void transferWriteToComputeRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
+
     static void transferWriteToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
     static void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
