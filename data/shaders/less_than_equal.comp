@@ -13,11 +13,11 @@ layout(push_constant) uniform Constants {
 };
 
 layout(set = 0, binding = 0) buffer DataIn {
-    uint dataIn[];
+    uint data[];
 };
 
 layout(set = 0, binding = 1) buffer DataOut {
-    uint dataOut[];
+    uint bitSet[];
 };
 
 uint gid = gl_GlobalInvocationID.y * (gl_NumWorkGroups * gl_WorkGroupSize).x + gl_GlobalInvocationID.x;
@@ -28,17 +28,17 @@ void main() {
     // TODO writes this for this
     uint localID = gl_LocalInvocationIndex;
     uint globalID = gid;
-    localData[localID] = globalID >= numEntries ? mask : WORD( dataIn[globalID] );
+    localData[localID] = globalID >= numEntries ? mask : WORD( data[globalID] );
 
-    if (gl_LocalInvocationIndex == 0) {
-        const uint end = localData.length();
-        localData[end] = (gid + end) >= numEntries ? mask : dataIn[gid + end];
+    if (localID == 0) {
+        const uint end = localData.length() - 1;
+        localData[end] = (gid + end) >= numEntries ? mask : data[gid + end];
     }
 
     barrier();
 
     if(gid < numEntries){
-        dataOut[gid] = localData[gl_LocalInvocationIndex] < localData[gl_LocalInvocationIndex + 1] ? 0 : 1;
+        bitSet[gid] = localData[localID] <= localData[localID + 1] ? 0 : 1;
     }
 }
 
