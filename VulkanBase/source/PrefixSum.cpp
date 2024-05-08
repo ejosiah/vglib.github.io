@@ -1,4 +1,6 @@
 #include "PrefixSum.hpp"
+
+#include <utility>
 #include "prefix_sum_glsl_shaders.h"
 #include "Barrier.hpp"
 
@@ -75,6 +77,15 @@ void PrefixSum::inclusive(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, V
 void PrefixSum::inclusive(VkCommandBuffer commandBuffer, const BufferRegion& region) {
     scanInternal(commandBuffer, region);
     copyFromInternalBuffer(commandBuffer, region, DataUnitSize);
+}
+
+void PrefixSum::accumulate(VkCommandBuffer commandBuffer, VulkanBuffer& data, VulkanBuffer& result) {
+    accumulate(commandBuffer, { &data, 0, data.size}, result);
+}
+
+void PrefixSum::accumulate(VkCommandBuffer commandBuffer, const BufferRegion& data, VulkanBuffer &result) {
+    scanInternal(commandBuffer, data);
+    copySum(commandBuffer, result);
 }
 
 void PrefixSum::resizeInternalBuffer() {
@@ -179,4 +190,12 @@ void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion section
         vkCmdPushConstants(commandBuffer, layout("add"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
     }
+}
+
+void PrefixSum::copySum(VkCommandBuffer commandBuffer, VulkanBuffer& dst) {
+    VkBufferCopy cRegion{0, 0, DataUnitSize };
+
+    Barrier::computeWriteToTransferRead(commandBuffer, { sumOfSumsBuffer });
+    vkCmdCopyBuffer(commandBuffer, sumOfSumsBuffer, dst, 1, &cRegion);
+    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
 }

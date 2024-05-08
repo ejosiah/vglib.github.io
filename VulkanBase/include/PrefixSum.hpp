@@ -27,6 +27,10 @@ public:
 
     void operator()(VkCommandBuffer commandBuffer, const BufferRegion& region);
 
+    void accumulate(VkCommandBuffer commandBuffer, VulkanBuffer& data,  VulkanBuffer& result);
+
+    void accumulate(VkCommandBuffer commandBuffer, const BufferRegion& data, VulkanBuffer& result);
+
     void inclusive(VkCommandBuffer commandBuffer, VulkanBuffer& buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage);
 
     void inclusive(VkCommandBuffer commandBuffer, const BufferRegion& region);
@@ -71,6 +75,8 @@ protected:
     void copyToInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion& region);
 
     void copyFromInternalBuffer(VkCommandBuffer commandBuffer, const BufferRegion& region, VkDeviceSize srcOffset = 0);
+
+    void copySum(VkCommandBuffer commandBuffer, VulkanBuffer& dst);
 
     void scanInternal(VkCommandBuffer commandBuffer, BufferRegion section);
 
