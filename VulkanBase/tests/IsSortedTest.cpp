@@ -46,7 +46,7 @@ protected:
 };
 
 TEST_F(IsSortedTest, all32BitsAreSorted) {
-    auto items = randomEntries(1 << 19, 255u);
+    auto items = randomEntries(1 << 20);
     std::sort(items.begin(), items.end());
 
     EXPECT_TRUE(isSorted(items, 1, 0)) << "items should be reported as sorted";
@@ -54,14 +54,14 @@ TEST_F(IsSortedTest, all32BitsAreSorted) {
 }
 
 TEST_F(IsSortedTest, all32BitsAreNotSorted) {
-    auto items = randomEntries(1 << 19, 1u);
+    auto items = randomEntries(1 << 20, 1u);
 
     EXPECT_FALSE(isSorted(items, 1, 0)) << "items should be reported as not sorted";
 }
 
 TEST_F(IsSortedTest, checkIndividualBlocksAreSortedOf4Blocks) {
     for(int block = 0; block < 4; ++block){
-        auto items = randomEntries(1 << 19, 1u);
+        auto items = randomEntries(1 << 20, 1u);
         std::span<Data> raw = { reinterpret_cast<Data*>(items.data()), items.size() };
         std::sort(items.begin(), items.end(), [block, raw](const auto& a, const auto& b){
             auto aBlock = ((a >> (block * 8)) & 0xFF);
@@ -75,7 +75,7 @@ TEST_F(IsSortedTest, checkIndividualBlocksAreSortedOf4Blocks) {
 }
 
 TEST_F(IsSortedTest, checkIndividualBlocksAreNotSortedOf4Blocks) {
-    auto items = randomEntries(1 << 19, 1u);
+    auto items = randomEntries(1 << 20, 1u);
     for(int block = 0; block < 4; ++block){
         EXPECT_FALSE(isSorted(items, 4, block)) << std::format("block {} should not be reported as sorted", block).c_str();
     }
@@ -83,7 +83,7 @@ TEST_F(IsSortedTest, checkIndividualBlocksAreNotSortedOf4Blocks) {
 
 TEST_F(IsSortedTest, checkIndividualBlocksAreSortedOf16Blocks) {
     for(int block = 0; block < 16; ++block ) {
-        auto items = randomEntries(1 << 19, 1u);
+        auto items = randomEntries(1 << 20, 1u);
         std::span<Data> raw = { reinterpret_cast<Data*>(items.data()), items.size() };
         std::sort(items.begin(), items.end(), [block, raw](const auto& a, const auto& b){
             auto aBlock = ((a >> (block * 2)) & 0x03);
@@ -97,8 +97,15 @@ TEST_F(IsSortedTest, checkIndividualBlocksAreSortedOf16Blocks) {
 }
 
 TEST_F(IsSortedTest, checkIndividualBlocksAreNotSortedOf16Blocks) {
-    auto items = randomEntries(1 << 19, 1u);
+    auto items = randomEntries(1 << 20, 1u);
     for(int block = 0; block < 16; ++block){
         EXPECT_FALSE(isSorted(items, 16, block)) << std::format("block {} should not be reported as sorted", block).c_str();
     }
+}
+
+TEST_F(IsSortedTest, checkLargeDataSetIsSorted) {
+    auto items = randomEntries((1 << 20) * 15);
+    std::sort(items.begin(), items.end());
+
+    EXPECT_TRUE(isSorted(items, 1, 0)) << "items should be reported as sorted";
 }

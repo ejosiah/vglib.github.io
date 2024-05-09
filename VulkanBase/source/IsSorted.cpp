@@ -2,11 +2,11 @@
 #include "VulkanInitializers.h"
 #include "Barrier.hpp"
 
-IsSorted::IsSorted(VulkanDevice *device)
+IsSorted::IsSorted(VulkanDevice *device, VkDeviceSize capacity)
 : ComputePipelines(device)
-, _prefixSum{ device }{
-
-}
+, _prefixSum{ device }
+, _capacity{ capacity }
+{}
 
 void IsSorted::init() {
     createDescriptorPool();
@@ -29,6 +29,11 @@ std::vector<PipelineMetaData> IsSorted::pipelineMetaData() {
 
 void IsSorted::operator()(VkCommandBuffer commandBuffer, const BufferRegion &data
                          , const BufferRegion &result, uint32_t numBlocks, uint32_t block) {
+
+    if(_capacity < data.size()){
+        _capacity = (data.size() * 3)/2;
+        resizeInternalBuffer();
+    }
 
     _constants.wordSize = 32/numBlocks;
     _constants.mask = (1ull << _constants.wordSize) - 1;
@@ -84,10 +89,11 @@ void IsSorted::createDescriptorSetLayout() {
                 .descriptorCount(1)
                 .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
+    _lessThanDescriptorSet = _descriptorPool.allocate( { _lessThanDescriptorSetLayout }).front();
+
 }
 
 void IsSorted::updateDescriptorSetLayout() {
-    _lessThanDescriptorSet = _descriptorPool.allocate( { _lessThanDescriptorSetLayout }).front();
     auto writes = initializers::writeDescriptorSets<2>();
     
     writes[0].dstSet = _lessThanDescriptorSet;

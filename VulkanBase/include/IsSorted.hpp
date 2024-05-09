@@ -8,11 +8,15 @@ class IsSorted : public ComputePipelines {
 public:
     IsSorted() = default;
 
-    explicit IsSorted(VulkanDevice* device);
+    explicit IsSorted(VulkanDevice* device, VkDeviceSize capacity = INITIAL_CAPACITY);
 
     void init();
 
     std::vector<PipelineMetaData> pipelineMetaData() override;
+
+    void operator()(VkCommandBuffer commandBuffer, const BufferRegion& data, const BufferRegion& result) {
+        operator()(commandBuffer, data, result, 1u, 0u);
+    }
 
     void operator()(VkCommandBuffer commandBuffer, const BufferRegion& data, const BufferRegion& result, uint32_t numBlocks, uint32_t block);
 
