@@ -108,6 +108,12 @@ public:
         }
     }
 
+    inline void clearRunTimes()  {
+        for(auto& [_, group] : queries) {
+            group.runtimes.clear();
+        }
+    }
+
     inline void endFrame() {
         if(!isReady()) return;
 
