@@ -17,6 +17,20 @@ void Barrier::computeWriteToRead(VkCommandBuffer commandBuffer, std::initializer
                          VK_NULL_HANDLE, COUNT(barriers), barriers.data(), 0, VK_NULL_HANDLE);
 }
 
+void Barrier::computeWriteToRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffer) {
+    VkBufferMemoryBarrier barrier{};
+
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.offset = 0;
+    barrier.buffer = buffer;
+    barrier.size = buffer.size;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
+                         VK_NULL_HANDLE, 1, &barrier, 0, VK_NULL_HANDLE);
+}
+
 void
 Barrier::computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers) {
     std::vector<VkBufferMemoryBarrier> barriers(buffers.size());

@@ -14,6 +14,8 @@ public:
     
     static void computeWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
+    static void computeWriteToRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
+
     static void computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
     static void transferWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
