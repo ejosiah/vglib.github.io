@@ -145,7 +145,7 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
 }
 
 void RadixSort::sortWithIndices(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, VulkanBuffer& indexes) {
-    operator()(commandBuffer, buffer, REORDER_TYPE_INDEXES);
+    operator()(commandBuffer, { &buffer, 0, buffer.size}, REORDER_TYPE_INDEXES);
     copyFromInternalIndexBuffer(commandBuffer, { &indexes, 0, indexes.size });
 }
 
@@ -163,7 +163,7 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &keys, Re
     constants.recordSize = records.size/sizeof(uint);
     BufferRegion recordRegion{ &records.buffer, 0, records.buffer.size };
     copyToInternalRecordBuffer(commandBuffer, recordRegion);
-    operator()(commandBuffer, keys, REORDER_TYPE_RECORDS);
+    operator()(commandBuffer, { &keys, 0, keys.size }, REORDER_TYPE_RECORDS);
 
     if(records.keyType != KeyType::Uint) {
         bitFlipConstants.reverse = 1;
@@ -173,22 +173,26 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &keys, Re
 }
 
 void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
-    operator()(commandBuffer, buffer, REORDER_TYPE_KEYS);
+    operator()(commandBuffer, { &buffer, 0, buffer.size }, REORDER_TYPE_KEYS);
 }
 
-void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, std::string_view reorderPipeline) {
-    if(capacity < buffer.size){
-        capacity = buffer.size * 2;
+void RadixSort::operator()(VkCommandBuffer commandBuffer, const BufferRegion &region) {
+    operator()(commandBuffer, region, REORDER_TYPE_KEYS);
+}
+
+void RadixSort::operator()(VkCommandBuffer commandBuffer, const BufferRegion &region, std::string_view reorderPipeline) {
+    if(capacity < region.size()){
+        capacity = region.size() * 2;
         resizeInternalBuffer();
     }
-    updateConstants(buffer);
-    copyToInternalKeyBuffer(commandBuffer, { &buffer, 0, buffer.size });
+    updateConstants(region);
+    copyToInternalKeyBuffer(commandBuffer, region);
 
     static std::array<VkDescriptorSet, 2> localDataSets;
     std::copy(begin(dataDescriptorSets), end(dataDescriptorSets), begin(localDataSets));
 
     if(reorderPipeline == REORDER_TYPE_INDEXES) {
-        generateSequence(commandBuffer, buffer.sizeAs<uint32_t>());
+        generateSequence(commandBuffer, region.sizeAs<uint32_t>());
     }
 
     for(auto block = 0; block < PASSES; block++){
@@ -198,8 +202,8 @@ void RadixSort::operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, 
         reorder(commandBuffer, localDataSets, reorderPipeline);
         std::swap(localDataSets[DATA_IN], localDataSets[DATA_OUT]);
     }
-    copyFromInternalKeyBuffer(commandBuffer, { &buffer, 0, buffer.size });
-    previousBuffer = buffer;
+    copyFromInternalKeyBuffer(commandBuffer, region);
+    previousBuffer = *region.buffer;
 }
 
 
@@ -229,20 +233,20 @@ void RadixSort::flipBits(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
 void RadixSort::updateBitFlipDescriptorSet(VulkanBuffer &buffer) {
     if(previousBuffer == buffer.buffer) return;
     auto writes = initializers::writeDescriptorSets();
-    
+
     writes[0].dstSet = bitFlipDescriptorSet;
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     writes[0].descriptorCount = 1;
     VkDescriptorBufferInfo info{ buffer, 0, VK_WHOLE_SIZE };
     writes[0].pBufferInfo = &info;
-    
+
     device->updateDescriptorSets(writes);
 }
 
-void RadixSort::updateConstants(VulkanBuffer& buffer) {
-    workGroupCount = numWorkGroups(buffer);
-    constants.Num_Elements = buffer.size/sizeof(uint);
+void RadixSort::updateConstants(const BufferRegion& region) {
+    workGroupCount = numWorkGroups(region);
+    constants.Num_Elements = region.size()/sizeof(uint);
     constants.Num_Groups_per_WorkGroup = NUM_THREADS_PER_BLOCK / WORD_SIZE;
     constants.Num_Elements_per_WorkGroup = nearestMultiple(constants.Num_Elements / workGroupCount , NUM_THREADS_PER_BLOCK);
     constants.Num_Elements_Per_Group = constants.Num_Elements_per_WorkGroup / constants.Num_Groups_per_WorkGroup;
@@ -251,7 +255,7 @@ void RadixSort::updateConstants(VulkanBuffer& buffer) {
 
 }
 void RadixSort::updateDataDescriptorSets() {
-    auto workGroupCount = numWorkGroups(internal.keys[0]);
+    auto workGroupCount = numWorkGroups({ &internal.keys[0], 0, internal.keys[0].size});
 
     auto dataWrites = initializers::writeDescriptorSets<6>();
 
@@ -306,7 +310,7 @@ void RadixSort::updateDataDescriptorSets() {
     VkDeviceSize countsSize = RADIX * workGroupCount * NUM_GROUPS_PER_WORKGROUP * sizeof(uint);
     countsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, countsSize);
     auto countWrites = initializers::writeDescriptorSets<2>();
-    
+
     VkDescriptorBufferInfo countsInfo{countsBuffer, 0, countsBuffer.size };
     countWrites[COUNTS].dstSet = countsDescriptorSet;
     countWrites[COUNTS].dstBinding = COUNTS;
@@ -334,8 +338,8 @@ void RadixSort::updateDataDescriptorSets() {
     device->updateDescriptorSets(seqWrites);
 }
 
-uint RadixSort::numWorkGroups(VulkanBuffer &buffer) {
-    const uint Num_Elements = buffer.size/sizeof(uint);
+uint RadixSort::numWorkGroups(const BufferRegion& region) {
+    const uint Num_Elements = region.size()/sizeof(uint);
     return std::min(std::max(1u, Num_Elements/ ELEMENTS_PER_WG), MAX_WORKGROUPS);
 }
 

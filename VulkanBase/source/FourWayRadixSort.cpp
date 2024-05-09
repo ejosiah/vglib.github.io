@@ -1,6 +1,8 @@
 #include "FourWayRadixSort.hpp"
 #include "vulkan_util.h"
 
+#include <stdexcept>
+
 FourWayRadixSort::FourWayRadixSort(VulkanDevice *device, uint maxElementsPerWorkGroup, bool debug)
     : GpuSort(device)
     , debug(debug)
@@ -189,4 +191,8 @@ void FourWayRadixSort::initProfiler() {
         profiler.addGroup("prefix_sum", 16);
         profiler.addGroup("global_shuffle", 16);
     }
+}
+
+void FourWayRadixSort::operator()(VkCommandBuffer commandBuffer, const BufferRegion &region) {
+    throw std::runtime_error{ "Not yet implemented!" };
 }

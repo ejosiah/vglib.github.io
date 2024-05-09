@@ -27,6 +27,8 @@ public:
 
     virtual void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer) = 0;
 
+    virtual void operator()(VkCommandBuffer commandBuffer, const BufferRegion& region) = 0;
+
     template<typename Itr>
     void sort(const Itr _first, const Itr _last){
         VkDeviceSize size = sizeof(decltype(*_first)) * std::distance(_first, _last);
@@ -92,7 +94,9 @@ public:
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) override;
 
-    void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer, std::string_view reorderPipeline);
+    void operator()(VkCommandBuffer commandBuffer, const BufferRegion &region) override;
+
+    void operator()(VkCommandBuffer commandBuffer, const BufferRegion &region, std::string_view reorderPipeline);
 
     template<typename T>
     void sortTyped(VkCommandBuffer commandBuffer, VulkanBuffer& buffer) {
@@ -123,9 +127,9 @@ public:
 
     void generateSequence(VkCommandBuffer commandBuffer, uint32_t numEntries);
 
-    void updateConstants(VulkanBuffer& buffer);
+    void updateConstants(const BufferRegion& region);
 
-    static uint numWorkGroups(VulkanBuffer& buffer);
+    static uint numWorkGroups(const BufferRegion& region);
 
     void count(VkCommandBuffer commandBuffer, VkDescriptorSet dataDescriptorSet);
 

@@ -10,6 +10,8 @@ public:
 
     void operator()(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) override;
 
+    void operator()(VkCommandBuffer commandBuffer, const BufferRegion &region) override;
+
 protected:
     std::vector<PipelineMetaData> pipelineMetaData() final;
 
