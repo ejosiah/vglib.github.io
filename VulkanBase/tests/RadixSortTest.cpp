@@ -1,5 +1,5 @@
 #include "SortFixture.hpp"
-#include "IsSorted.hpp"
+#include "OrderChecker.hpp"
 
 struct StudentRecord {
     uint id;
@@ -209,7 +209,7 @@ TEST_F(RadixSortFixture, dataNotSorted50000ItemsBug){
     VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     ASSERT_FALSE(isSorted(buffer)) << "buffer initial state should not be sorted";
 
-    IsSorted _isSorted{ &device };
+    OrderChecker _isSorted{&device };
     _isSorted.init();
 
     sort(buffer);

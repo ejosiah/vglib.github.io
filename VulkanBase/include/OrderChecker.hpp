@@ -4,11 +4,11 @@
 #include "PrefixSum.hpp"
 #include "VulkanBuffer.h"
 
-class IsSorted : public ComputePipelines {
+class OrderChecker : public ComputePipelines {
 public:
-    IsSorted() = default;
+    OrderChecker() = default;
 
-    explicit IsSorted(VulkanDevice* device, VkDeviceSize capacity = INITIAL_CAPACITY);
+    explicit OrderChecker(VulkanDevice* device, VkDeviceSize capacity = INITIAL_CAPACITY);
 
     void init();
 

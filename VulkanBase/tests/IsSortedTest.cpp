@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IsSorted.hpp"
+#include "OrderChecker.hpp"
 #include "VulkanFixture.hpp"
 
 struct Data {
@@ -14,7 +14,7 @@ class IsSortedTest : public VulkanFixture {
 
 protected:
     void postVulkanInit() override {
-        _isSorted = IsSorted{ &device };
+        _isSorted = OrderChecker{&device };
         _isSorted.init();
     }
 
@@ -42,7 +42,7 @@ protected:
     }
 
 protected:
-    IsSorted _isSorted;
+    OrderChecker _isSorted;
 };
 
 TEST_F(IsSortedTest, all32BitsAreSorted) {

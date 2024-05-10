@@ -1,14 +1,14 @@
-#include "IsSorted.hpp"
+#include "OrderChecker.hpp"
 #include "VulkanInitializers.h"
 #include "Barrier.hpp"
 
-IsSorted::IsSorted(VulkanDevice *device, VkDeviceSize capacity)
+OrderChecker::OrderChecker(VulkanDevice *device, VkDeviceSize capacity)
 : ComputePipelines(device)
 , _prefixSum{ device }
 , _capacity{ capacity }
 {}
 
-void IsSorted::init() {
+void OrderChecker::init() {
     createDescriptorPool();
     createDescriptorSetLayout();
     createPipelines();
@@ -16,7 +16,7 @@ void IsSorted::init() {
     _prefixSum.init();
 }
 
-std::vector<PipelineMetaData> IsSorted::pipelineMetaData() {
+std::vector<PipelineMetaData> OrderChecker::pipelineMetaData() {
     return {
             {
                 "is_sorted_less_than",
@@ -27,7 +27,7 @@ std::vector<PipelineMetaData> IsSorted::pipelineMetaData() {
     };
 }
 
-void IsSorted::operator()(VkCommandBuffer commandBuffer, const BufferRegion &data
+void OrderChecker::operator()(VkCommandBuffer commandBuffer, const BufferRegion &data
                          , const BufferRegion &result, uint32_t numBlocks, uint32_t block) {
 
     if(_capacity < data.size()){
@@ -46,7 +46,7 @@ void IsSorted::operator()(VkCommandBuffer commandBuffer, const BufferRegion &dat
     _prefixSum.accumulate(commandBuffer, { &_internal.bitSet, 0, data.size() }, *result.buffer);
 }
 
-void IsSorted::isLessThan(VkCommandBuffer commandBuffer) {
+void OrderChecker::isLessThan(VkCommandBuffer commandBuffer) {
     uint32_t gx = std::max( 1u, static_cast<uint32_t>(_constants.numEntries /WorkGroupSize)) + 1;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("is_sorted_less_than"));
@@ -56,7 +56,7 @@ void IsSorted::isLessThan(VkCommandBuffer commandBuffer) {
     Barrier::computeWriteToRead(commandBuffer, { _internal.bitSet  });
 }
 
-void IsSorted::resizeInternalBuffer() {
+void OrderChecker::resizeInternalBuffer() {
     _internal.data = device->createBuffer(
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VMA_MEMORY_USAGE_GPU_ONLY, _capacity, "is_sorted_internal_data_buffer");
@@ -67,7 +67,7 @@ void IsSorted::resizeInternalBuffer() {
     updateDescriptorSetLayout();
 }
 
-void IsSorted::createDescriptorPool() {
+void OrderChecker::createDescriptorPool() {
     constexpr uint maxSets = 1;
     std::vector<VkDescriptorPoolSize> poolSizes{
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, maxSets * 2}
@@ -76,7 +76,7 @@ void IsSorted::createDescriptorPool() {
     _descriptorPool = device->createDescriptorPool(maxSets, poolSizes);
 }
 
-void IsSorted::createDescriptorSetLayout() {
+void OrderChecker::createDescriptorSetLayout() {
     _lessThanDescriptorSetLayout =
         device->descriptorSetLayoutBuilder()
             .name("is_sorted_less_than")
@@ -93,7 +93,7 @@ void IsSorted::createDescriptorSetLayout() {
 
 }
 
-void IsSorted::updateDescriptorSetLayout() {
+void OrderChecker::updateDescriptorSetLayout() {
     auto writes = initializers::writeDescriptorSets<2>();
     
     writes[0].dstSet = _lessThanDescriptorSet;
@@ -113,7 +113,7 @@ void IsSorted::updateDescriptorSetLayout() {
     device->updateDescriptorSets(writes);
 }
 
-void IsSorted::copyToInternalDataBuffer(VkCommandBuffer commandBuffer, const BufferRegion &src) {
+void OrderChecker::copyToInternalDataBuffer(VkCommandBuffer commandBuffer, const BufferRegion &src) {
     VkBufferCopy region{src.offset, 0, src.size()};
     vkCmdCopyBuffer(commandBuffer, *src.buffer, _internal.data, 1, &region);
     Barrier::transferWriteToComputeRead(commandBuffer,  _internal.data );
