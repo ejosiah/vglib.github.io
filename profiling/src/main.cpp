@@ -1,6 +1,7 @@
 #include "Console.hpp"
 #include "RadixSortPerformance.hpp"
 #include "RadixSortOrderCheckingPerformance.hpp"
+#include "OrderCheckingPerformanceTest.hpp"
 
 #include <fmt/format.h>
 #include <vulkan/vulkan.h>
@@ -23,10 +24,12 @@ int main() {
     Console::start();
     RadixSortPerformance radixSortPerformance{ context };
     RadixSortOrderCheckingPerformance radixSortOrderChecking{ context };
+    OrderCheckingPerformanceTest orderCheckingPerformanceTest{ context };
 
     try {
-        auto report = radixSortPerformance.report();
+//        auto report = radixSortPerformance.report();
 //    auto report = radixSortOrderChecking.report();
+        auto report = orderCheckingPerformanceTest.report();
         fmt::print("{}\n", report);
     }catch(...){
         fmt::print(bg(fmt::color::yellow), "error encountered while running performance tests");
