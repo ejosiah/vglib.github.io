@@ -308,7 +308,7 @@ void RadixSort::updateDataDescriptorSets() {
     device->updateDescriptorSets(dataWrites);
 
     VkDeviceSize countsSize = RADIX * workGroupCount * NUM_GROUPS_PER_WORKGROUP * sizeof(uint);
-    countsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, countsSize);
+    countsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, countsSize);
     auto countWrites = initializers::writeDescriptorSets<2>();
 
     VkDescriptorBufferInfo countsInfo{countsBuffer, 0, countsBuffer.size };
@@ -339,8 +339,15 @@ void RadixSort::updateDataDescriptorSets() {
 }
 
 uint RadixSort::numWorkGroups(const BufferRegion& region) {
-    const uint Num_Elements = region.size()/sizeof(uint);
-    return std::min(std::max(1u, Num_Elements/ ELEMENTS_PER_WG), MAX_WORKGROUPS);
+    // TODO refactor
+    const float numElements = region.size()/sizeof(uint);
+    const float elementsPerWorkGroup = ELEMENTS_PER_WG;
+    uint wGroups = numElements/elementsPerWorkGroup + glm::sign(glm::mod(numElements, elementsPerWorkGroup));
+
+    // num workgroups has to be an even divisor of 256 as we have 256 radixes
+    // so workGroups * Num_Radices_per_WorkGroup must be 256
+    wGroups += glm::sign(float(RADIX % wGroups));
+    return std::min(wGroups, MAX_WORKGROUPS);
 }
 
 void RadixSort::count(VkCommandBuffer commandBuffer, VkDescriptorSet dataDescriptorSet) {

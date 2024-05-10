@@ -1,4 +1,5 @@
 #include "SortFixture.hpp"
+#include "IsSorted.hpp"
 
 struct StudentRecord {
     uint id;
@@ -201,4 +202,42 @@ TEST_F(RadixSortFixture, sortIsStable){
 
     ASSERT_TRUE(isSorted(buffer)) << "buffer should be sorted";
     ASSERT_TRUE(isStable(buffer, indexBuffer)) << "sort should be stable";
+}
+
+TEST_F(RadixSortFixture, dataNotSorted50000ItemsBug){
+    auto items = randomEntries(500000, 1u);
+    VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    ASSERT_FALSE(isSorted(buffer)) << "buffer initial state should not be sorted";
+
+    IsSorted _isSorted{ &device };
+    _isSorted.init();
+
+    sort(buffer);
+
+//    auto block = 0u;
+//    std::stable_sort(items.begin(), items.end(), [block](const auto& a, const auto& b){
+//        auto aBlock = ((a >> (block * 8)) & 0xFF);
+//        auto bBlock = ((b >> (block * 8)) & 0xFF);
+//        return  aBlock < bBlock;
+//    });
+//
+//    auto counts = _sort.countsBuffer.span<uint>();
+//
+//    ASSERT_TRUE(matches(buffer, items));
+
+//    static constexpr VkBufferUsageFlags usage =
+//            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+//            | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+//            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+//
+//    VulkanBuffer result = device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_TO_CPU, sizeof(uint32_t));
+//    auto block = 0u;
+//    execute([&](auto commandBuffer){
+//        _isSorted(commandBuffer, {&buffer, 0, buffer.size} , {&result, 0, result.size}, 4, block);
+//    });
+//    auto sortStatus = *reinterpret_cast<uint32_t*>(result.map());
+//    result.unmap();
+//    EXPECT_EQ(sortStatus, 0) << std::format("block {} was not sorted", block).c_str();
+
+    ASSERT_TRUE(sortedMatch(buffer, items)) << "buffer should be sorted";
 }

@@ -161,7 +161,7 @@ public:
 
     bool debug = false;
 
-protected:
+public:
     static constexpr VkDeviceSize DataUnitSize = sizeof(uint32_t);
     static constexpr const VkDeviceSize INITIAL_CAPACITY = (1 << 20) * DataUnitSize;
     static constexpr const VkDeviceSize NUM_ENTRIES_PER_RECORD = 20;
