@@ -115,6 +115,7 @@ public:
                 VkDeviceSize size = numItems * sizeof(uint32_t);
                 VkBufferCopy region{0, 0, size};
                 vkCmdCopyBuffer(commandBuffer, stagingBuffer, deviceBuffer, 1, &region);
+                Barrier::transferWriteToRead(commandBuffer, { deviceBuffer });
                 _sort(commandBuffer, {&deviceBuffer, 0, size});
             });
     }
@@ -124,7 +125,7 @@ public:
             generateReport("Radix Sort With Index Reorder", [&](auto maxNumItems){
                    stagingBuffer = _context.device.createStagingBuffer(maxNumItems * sizeof(uint32_t));
                    deviceBuffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, maxNumItems * sizeof(uint32_t));
-                               indexBuffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, maxNumItems * sizeof(uint32_t));
+                   indexBuffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, maxNumItems * sizeof(uint32_t));
                    std::span<uint32_t> items = { reinterpret_cast<uint32_t*>(stagingBuffer.map()), maxNumItems };
                    std::iota(items.begin(), items.end(), 0);
                    std::shuffle(items.begin(), items.end(), std::default_random_engine{ 1 << 20 });
@@ -134,13 +135,15 @@ public:
                    VkDeviceSize size = numItems * sizeof(uint32_t);
                    VkBufferCopy region{0, 0, size};
                    vkCmdCopyBuffer(commandBuffer, stagingBuffer, deviceBuffer, 1, &region);
+                   Barrier::transferWriteToRead(commandBuffer, { deviceBuffer });
                    _sort.sortWithIndices(commandBuffer, deviceBuffer, indexBuffer);
                });
 }
 
     std::string report() override {
         warmup();
-        auto partsReport = profileParts();
+//        auto partsReport = profileParts();
+        auto partsReport = "";
         auto indexReorderReport = profileWithIndices();
         return fmt::format("{}\n\n{}", partsReport, indexReorderReport) ;
     }

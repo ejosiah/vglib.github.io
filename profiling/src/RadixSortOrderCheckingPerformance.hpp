@@ -10,92 +10,67 @@
 
 
 class RadixSortOrderCheckingPerformance : public RadixSortPerformanceBase {
-    struct Outcome {
-        std::string label;
-        float value;
-    };
+
 public:
     RadixSortOrderCheckingPerformance(VulkanContext& context)
-    : RadixSortPerformanceBase(context)
+    : RadixSortPerformanceBase(context, false)
     {
+        _profiler = Profiler{ &context.device };
+        _profiler.addQuery("radix_sort_no_order_checking");
+        _profiler.addQuery("radix_sort_order_checking");
     }
 
     ~RadixSortOrderCheckingPerformance() override = default;
 
-    Outcome  runWithoutOrderChecking() {
-        std::span<uint32_t> items = { reinterpret_cast<uint32_t*>(_stagingBuffer.map()), _numItems };
+
+    std::map<size_t, Report> SortWithNoOrderChecking() {
+        std::array<size_t, 6> numItems{ 500000, 3000000, 6000000, 9000000, 12000000, 15000000 };
+        auto maxNumItems = numItems.back();
+        VulkanBuffer stagingBuffer = _context.device.createStagingBuffer(maxNumItems * sizeof(uint32_t));
+        VulkanBuffer deviceBuffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, maxNumItems * sizeof(uint32_t));
+        VulkanBuffer resultBuffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_TO_CPU, sizeof(uint32_t));
+
+        std::map<size_t, Report> reports;
+
+        std::span<uint32_t> items = { reinterpret_cast<uint32_t*>(stagingBuffer.map()), maxNumItems };
         std::iota(items.begin(), items.end(), 0);
-        std::shuffle(items.begin(), items.end(), std::default_random_engine{ 1 << 20 });
-        
-        for(auto i = 0; i < runs; i++){
-            execute([&](auto commandBuffer) {
-                VkBufferCopy region{0, 0, _stagingBuffer.size};
-                vkCmdCopyBuffer(commandBuffer, _stagingBuffer, _deviceBuffer, 1, &region);
-                BufferRegion data{&_deviceBuffer, 0, _deviceBuffer.size};
-                _sort(commandBuffer, data);
-            });
-            if(i % (runs/10) == 0){
-                spdlog::debug("radix sorts (No order checking) {:.2f} % complete", ((float(i) * 100.f/float(runs))));
+
+        for(int i = 0; i < numItems.size(); i++) {
+            for(int j = 0; j < runs; j++) {
+                execute([&](auto commandBuffer) {
+                    VkDeviceSize size = numItems[i] * sizeof(uint32_t);
+
+                    VkBufferCopy region{0, 0, size};
+                    vkCmdCopyBuffer(commandBuffer, stagingBuffer, deviceBuffer, 1, &region);
+
+                    _profiler.profile("radix_sort_no_order_checking", commandBuffer, [&]{
+                        _sort(commandBuffer, { &deviceBuffer, 0, size });
+                    });
+
+                    Barrier::computeWriteToRead(commandBuffer, deviceBuffer);
+
+                });
+                _profiler.commit();
+                if(j % (runs/10) == 0){
+                    spdlog::info("order checking performance test run {} {:.2f} % complete", (i+1), ((j * 100/float(runs))));
+                }
             }
-            _sort.commitProfiler();
+
+            reports.insert(std::make_pair(numItems[i], _profiler.queryStats()));
+            _profiler.clearRunTimes();
         }
-        
-        auto report = _sort.profiler.groupStats();
-        float total = 0;
-        for(auto [_, stats] : report){
-            total += stats.meanValue;
-        }
-        return { "No Order Checking", total };
+
+        return reports;
     }
-    
-    Outcome  runWithAllBlocksOrdered() {
-        return {};
-    }
-    
-    Outcome  runWithBlockZeroOrdered() {
-        return {};
-    }
-    
-    Outcome  runWithBlockOneOrdered() {
-        return {};
-    }
-    
-    Outcome  runWithBlockTwoOrdered() {
-        return {};
-    }
-    
-    Outcome  runWithBlockThreeOrdered() {
-        return {};
-    }
-    
+
     std::string report() final {
         warmup();
-        initializeBuffers();
 
-        std::vector<Outcome> outcomes{};
-        outcomes.push_back(runWithoutOrderChecking());
-
-        std::string report{};
-        report += fmt::format("Radix Sort (Order checking)\n");
-
-        for(auto [label, result] : outcomes) {
-            report += fmt::format("{:25}{:15.4f}\n", label, result);
-        }
-
-        return report;
+        return "";
     }
     
-    void initializeBuffers() {
-        VkDeviceSize size = _numItems * sizeof(uint32_t);
-        _stagingBuffer = _context.device.createStagingBuffer(size);
-        _deviceBuffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, size);
-        _resultBuffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_TO_CPU, sizeof(uint32_t));
-    }
 
 private:
-    size_t _numItems{500000};
-    VulkanBuffer _stagingBuffer;
-    VulkanBuffer _deviceBuffer;
-    VulkanBuffer _resultBuffer;
+    Profiler _profiler;
 
 };

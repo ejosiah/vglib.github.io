@@ -3,6 +3,7 @@
 #define WORKGROUP_SIZE 1024
 #define COUNTS 0
 #define SUMS 1
+#define ORDER_CHECKING 2
 #define DATA 0
 #define INDICES 1
 #define RECORDS 2
@@ -61,11 +62,17 @@ layout(set = 2, binding=SUMS) buffer Sums{
 	uint sums[];
 };
 
+layout(set = 2, binding=ORDER_CHECKING) buffer OrderChecking{
+	uint isOrdered;
+};
+
 
 shared uint local_counts[8192];
 shared uint local_sum[256];
 
 void main(){
+	if(isOrdered == 0) return;
+
 	uint thid = gl_LocalInvocationIndex;
 	uint group = thid/R;
 	

@@ -68,6 +68,7 @@ class RadixSort : public GpuSort{
     static constexpr uint KEY = 0;
     static constexpr uint COUNTS = 0;
     static constexpr uint SUMS = 1;
+    static constexpr uint ORDER_CHECKING = 2;
     static constexpr uint NUM_DATA_ELEMENTS = 1;
     static constexpr uint ELEMENTS_PER_WG = 1 << 14;
     static constexpr uint MAX_WORKGROUPS = 64;
@@ -80,6 +81,8 @@ public:
     explicit RadixSort(VulkanDevice* device = nullptr, bool debug = false);
 
     void init() override;
+
+    void enableOrderChecking();
 
     void createDescriptorPool();
 
@@ -132,6 +135,8 @@ public:
 
     static uint numWorkGroups(const BufferRegion& region);
 
+    void checkOrder(VkCommandBuffer commandBuffer, const BufferRegion& region);
+
     void count(VkCommandBuffer commandBuffer, VkDescriptorSet dataDescriptorSet);
 
     void prefixSum(VkCommandBuffer commandBuffer);
@@ -177,6 +182,7 @@ public:
     VkDescriptorSet countsDescriptorSet;
     VulkanBuffer countsBuffer;
     VulkanBuffer sumBuffer;
+    VulkanBuffer orderBuffer;
     VulkanBuffer dataScratchBuffer;
     uint workGroupCount = 0;
     VulkanDescriptorSetLayout bitFlipSetLayout;
@@ -215,6 +221,7 @@ public:
         uint recordSize{};
     } constants{};
     VkBuffer previousBuffer{};
+    std::optional<OrderChecker> _orderChecker;
 
     VkDeviceSize capacity{INITIAL_CAPACITY};
 

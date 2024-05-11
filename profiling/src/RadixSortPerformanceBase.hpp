@@ -1,23 +1,23 @@
 #pragma once
 
-#include "BasePerformace.hpp"
+#include "BasePerformance.hpp"
 #include "Sort.hpp"
-#include "IsSorted.hpp"
+#include "OrderChecker.hpp"
 #include "Barrier.hpp"
 
 class RadixSortPerformanceBase : public BasePerformance {
 public:
-    RadixSortPerformanceBase(VulkanContext &context)
+    RadixSortPerformanceBase(VulkanContext &context, bool useInternalProfiler = true)
     : BasePerformance(context) {
-        _sort = RadixSort{&context.device, true};
-        _isSorted = IsSorted{&context.device, (1 << 10) * 90};
+        _sort = RadixSort{&context.device, useInternalProfiler};
+        _isSorted = OrderChecker{&context.device, (1 << 10) * 90};
         _sort.init();
         _isSorted.init();
     }
 
     void warmup() {
         VulkanBuffer buffer = _context.device.createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, 1024);
-        spdlog::info("warming up Radix sort performance, 1000 runs");
+        spdlog::info("warming up Radix sort performance, {} runs", warmUpRuns);
         for(int i = 0; i < warmUpRuns; i++) {
             execute([&](auto commandBuffer){
                 _sort(commandBuffer, buffer);
@@ -29,7 +29,5 @@ public:
 
 protected:
     RadixSort _sort;
-    IsSorted _isSorted;
-    static constexpr int warmUpRuns = 1000;
-    static constexpr int runs = 10000;
+    OrderChecker _isSorted;
 };

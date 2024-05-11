@@ -28,8 +28,8 @@ int main() {
 
     try {
 //        auto report = radixSortPerformance.report();
-//    auto report = radixSortOrderChecking.report();
-        auto report = orderCheckingPerformanceTest.report();
+    auto report = radixSortOrderChecking.report();
+//        auto report = orderCheckingPerformanceTest.report();
         fmt::print("{}\n", report);
     }catch(...){
         fmt::print(bg(fmt::color::yellow), "error encountered while running performance tests");
