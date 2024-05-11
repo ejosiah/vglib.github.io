@@ -265,7 +265,7 @@ void RadixSort::updateConstants(const BufferRegion& region) {
     constants.Num_Groups_per_WorkGroup = NUM_THREADS_PER_BLOCK / WORD_SIZE;
     constants.Num_Elements_per_WorkGroup = nearestMultiple(constants.Num_Elements / workGroupCount , NUM_THREADS_PER_BLOCK);
     constants.Num_Elements_Per_Group = constants.Num_Elements_per_WorkGroup / constants.Num_Groups_per_WorkGroup;
-    constants.Num_Radices_Per_WorkGroup = RADIX / workGroupCount;
+    constants.Num_Radices_Per_WorkGroup = RADIX  / workGroupCount;
     constants.Num_Groups = workGroupCount * constants.Num_Groups_per_WorkGroup;
 
 }
@@ -364,15 +364,10 @@ void RadixSort::updateDataDescriptorSets() {
 }
 
 uint RadixSort::numWorkGroups(const BufferRegion& region) {
-    // TODO refactor
-    const float numElements = region.size()/sizeof(uint);
-    const float elementsPerWorkGroup = ELEMENTS_PER_WG;
-    uint wGroups = numElements/elementsPerWorkGroup + glm::sign(glm::mod(numElements, elementsPerWorkGroup));
+    const uint Num_Elements = alignedSize(region.size()/sizeof(uint), ELEMENTS_PER_WG);
+    auto count = std::min(std::max(1u, Num_Elements/ ELEMENTS_PER_WG), MAX_WORKGROUPS);
 
-    // num workgroups has to be an even divisor of 256 as we have 256 radixes
-    // so workGroups * Num_Radices_per_WorkGroup must be 256
-    wGroups += glm::sign(float(RADIX % wGroups));
-    return std::min(wGroups, MAX_WORKGROUPS);
+    return nearestPowerOfTwo(count);
 }
 
 void RadixSort::checkOrder(VkCommandBuffer commandBuffer, const BufferRegion& data) {
