@@ -84,6 +84,8 @@ public:
 
     void enableOrderChecking();
 
+    void disableOrderChecking();
+
     void createDescriptorPool();
 
     void createDescriptorSetLayouts();
