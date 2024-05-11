@@ -41,7 +41,7 @@ layout(set = 0, binding=SUMS) buffer Sums{
 	uint sums[];
 };
 
-layout(set = 2, binding=ORDER_CHECKING) buffer OrderChecking{
+layout(set = 0, binding=ORDER_CHECKING) buffer OrderChecking{
 	uint isOrdered;
 };
 

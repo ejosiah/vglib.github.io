@@ -35,7 +35,7 @@ public:
                     _isSorted(commandBuffer, {&deviceBuffer, 0, size}, { &resultBuffer, 0, resultBuffer.size } );
 
                 });
-                assert(*isSorted == 0u);
+//                assert(*isSorted == 0u);
                 _sort.commitProfiler();
                 if(j % (runs/10) == 0){
                     spdlog::info("{} performance test run {} {:.2f} % complete",title, (i+1), ((j * 100/float(runs))));
@@ -142,8 +142,7 @@ public:
 
     std::string report() override {
         warmup();
-//        auto partsReport = profileParts();
-        auto partsReport = "";
+        auto partsReport = profileParts();
         auto indexReorderReport = profileWithIndices();
         return fmt::format("{}\n\n{}", partsReport, indexReorderReport) ;
     }

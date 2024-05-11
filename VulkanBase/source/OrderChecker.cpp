@@ -41,6 +41,7 @@ void OrderChecker::operator()(VkCommandBuffer commandBuffer, const BufferRegion 
     _constants.numEntries = data.sizeAs<uint32_t>();
 
     vkCmdFillBuffer(commandBuffer, *result.buffer, 0, DataUnitSize, 0xFFFFFFFF);
+    Barrier::transferWriteToComputeWrite(commandBuffer, *result.buffer);
     copyToInternalDataBuffer(commandBuffer, data);
     isLessThan(commandBuffer);
     _prefixSum.accumulate(commandBuffer, { &_internal.bitSet, 0, data.size() }, *result.buffer);

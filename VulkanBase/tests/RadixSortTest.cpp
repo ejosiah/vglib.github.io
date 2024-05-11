@@ -128,9 +128,22 @@ TEST_F(RadixSortFixture, sortIntsWithNegativeValues) {
 }
 
 TEST_F(RadixSortFixture, sortWithIndices) {
-    auto buffer = entries({5, 1, 8, 11, 15, 20, 10, 6, 9, 7, 3, 4, 2, 13, 16, 14, 17, 19, 18, 12});
-    std::vector<uint32_t> expectedIndices{ 1, 12, 10, 11, 0, 7, 9, 2, 8, 6, 3, 19, 13, 15, 4, 14, 16, 18, 17, 5 };
-    VulkanBuffer indexBuffer = device.createStagingBuffer(BYTE_SIZE(expectedIndices));
+    std::vector<uint32_t> items = randomEntries(20000);
+    VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+    std::vector<std::pair<uint32_t, uint32_t>> itemsWithIndexes(items.size());
+    for(auto i = 0; i < items.size(); ++i){
+        itemsWithIndexes[i] = std::make_pair(items[i], i);
+    }
+    std::stable_sort(itemsWithIndexes.begin(), itemsWithIndexes.end(), [](const auto& a, const auto& b) {
+        return a.first < b.first;
+    });
+    std::vector<uint32_t> expectedIndices{};
+    for(auto [_, index] : itemsWithIndexes) {
+        expectedIndices.push_back(index);
+    }
+
+    VulkanBuffer indexBuffer = device.createStagingBuffer(BYTE_SIZE(items));
 
     sortWithIndex(buffer, indexBuffer);
 
@@ -238,6 +251,27 @@ TEST_F(RadixSortFixture, dataNotSorted50000ItemsBug){
 //    auto sortStatus = *reinterpret_cast<uint32_t*>(result.map());
 //    result.unmap();
 //    EXPECT_EQ(sortStatus, 0) << std::format("block {} was not sorted", block).c_str();
+
+    ASSERT_TRUE(sortedMatch(buffer, items)) << "buffer should be sorted";
+}
+
+TEST_F(RadixSortFixture, only255ItemsAfterSortingBug){
+    auto items = randomEntries(80000);
+    VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    ASSERT_FALSE(isSorted(buffer)) << "buffer initial state should not be sorted";
+
+    sort(buffer);
+
+    ASSERT_TRUE(sortedMatch(buffer, items)) << "buffer should be sorted";
+}
+
+TEST_F(RadixSortFixture, sortWithOrderCheckingEnabled){
+    _sort.enableOrderChecking();
+    auto items = randomEntries(1 << 20);
+    VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    ASSERT_FALSE(isSorted(buffer)) << "buffer initial state should not be sorted";
+
+    sort(buffer);
 
     ASSERT_TRUE(sortedMatch(buffer, items)) << "buffer should be sorted";
 }

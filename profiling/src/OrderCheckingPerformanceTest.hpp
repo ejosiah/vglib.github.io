@@ -36,12 +36,11 @@ public:
 
                     VkBufferCopy region{0, 0, size};
                     vkCmdCopyBuffer(commandBuffer, stagingBuffer, deviceBuffer, 1, &region);
+                    Barrier::transferWriteToComputeRead(commandBuffer, { deviceBuffer });
                     
                     _profiler.profile("order_checking", commandBuffer, [&]{
                         _checkOrder(commandBuffer, { &deviceBuffer, 0, size }, { &resultBuffer, 0, resultBuffer.size});
                     });
-                    
-                    Barrier::computeWriteToRead(commandBuffer, deviceBuffer);
 
                 });
                 _profiler.commit();

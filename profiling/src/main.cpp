@@ -27,8 +27,8 @@ int main() {
     OrderCheckingPerformanceTest orderCheckingPerformanceTest{ context };
 
     try {
-//        auto report = radixSortPerformance.report();
-    auto report = radixSortOrderChecking.report();
+        auto report = radixSortPerformance.report();
+//    auto report = radixSortOrderChecking.report();
 //        auto report = orderCheckingPerformanceTest.report();
         fmt::print("{}\n", report);
     }catch(...){

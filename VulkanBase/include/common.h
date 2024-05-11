@@ -219,7 +219,7 @@ bool vectorEquals(glm::vec<L, T, Q> v0, glm::vec<L, T, Q> v1, float eps = 1e-4){
     return glm::all(glm::epsilonEqual(v0, v1, eps));
 }
 
-constexpr int nearestPowerOfTwo(int x) {
+constexpr uint32_t nearestPowerOfTwo(uint32_t x) {
     if (x <= 1) return 2;
     x -= 1;
     x |= (x >> 1);

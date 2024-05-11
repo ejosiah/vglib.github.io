@@ -110,7 +110,9 @@ void main(){
 				if(thid%R == i) {
 					uint localOffset = local_counts[bitIdx]++;
 					uint globalOffset = local_sum[bit];
-					data_out[KEY_ID].buf[localOffset + globalOffset] = data_in[KEY_ID].buf[idx];
+					uint oIdx = localOffset + globalOffset;
+					if(oIdx >= Num_Elements) continue;
+					data_out[KEY_ID].buf[oIdx] = data_in[KEY_ID].buf[idx];
 				}
 				barrier();
 			}
