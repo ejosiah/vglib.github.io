@@ -58,7 +58,7 @@ void RadixSort::createDescriptorSetLayouts() {
 
     dataSetLayout = device->createDescriptorSetLayout(bindings);
 
-    bindings.resize(2);
+    bindings.resize(3);
     bindings[COUNTS].binding = COUNTS;
     bindings[COUNTS].descriptorCount = NUM_DATA_ELEMENTS;
     bindings[COUNTS].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -69,10 +69,10 @@ void RadixSort::createDescriptorSetLayouts() {
     bindings[SUMS].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     bindings[SUMS].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-//    bindings[ORDER_CHECKING].binding = ORDER_CHECKING;
-//    bindings[ORDER_CHECKING].descriptorCount = NUM_DATA_ELEMENTS;
-//    bindings[ORDER_CHECKING].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-//    bindings[ORDER_CHECKING].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    bindings[ORDER_CHECKING].binding = ORDER_CHECKING;
+    bindings[ORDER_CHECKING].descriptorCount = NUM_DATA_ELEMENTS;
+    bindings[ORDER_CHECKING].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[ORDER_CHECKING].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     countsSetLayout = device->createDescriptorSetLayout(bindings);
 
@@ -114,31 +114,31 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
     return {
             {
                 "radix_sort_count_radices",
-                __glsl_radix_sort_count_radices,
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\count_radices.comp.spv)",
                 {&dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_prefix_sum",
-                __glsl_radix_sort_prefix_sum,
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\prefix_sum.comp.spv)",
                 { &countsSetLayout },
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder",
-                __glsl_radix_sort_reorder,
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder.comp.spv)",
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_indices",
-                __glsl_radix_sort_reorder_indexes,
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_indices.comp.spv)",
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_records",
-                __glsl_radix_sort_reorder_records,
+                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_records.comp.spv)",
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
@@ -324,7 +324,7 @@ void RadixSort::updateDataDescriptorSets() {
 
     VkDeviceSize countsSize = RADIX * workGroupCount * NUM_GROUPS_PER_WORKGROUP * sizeof(uint);
     countsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, countsSize);
-    auto countWrites = initializers::writeDescriptorSets<2>();
+    auto countWrites = initializers::writeDescriptorSets<3>();
 
     VkDescriptorBufferInfo countsInfo{countsBuffer, 0, countsBuffer.size };
     countWrites[COUNTS].dstSet = countsDescriptorSet;
@@ -342,14 +342,14 @@ void RadixSort::updateDataDescriptorSets() {
     countWrites[SUMS].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     countWrites[SUMS].pBufferInfo = &sumInfo;
 
-//    uint unOrdered = 0xFFFFFFFF;
-//    orderBuffer = device->createDeviceLocalBuffer(&unOrdered, DataUnitSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-//    VkDescriptorBufferInfo orderCheckingInfo{ orderBuffer, 0, orderBuffer.size };
-//    countWrites[ORDER_CHECKING].dstSet = countsDescriptorSet;
-//    countWrites[ORDER_CHECKING].dstBinding = ORDER_CHECKING;
-//    countWrites[ORDER_CHECKING].descriptorCount = 1;
-//    countWrites[ORDER_CHECKING].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-//    countWrites[ORDER_CHECKING].pBufferInfo = &orderCheckingInfo;
+    uint unOrdered = 0xFFFFFFFF;
+    orderBuffer = device->createDeviceLocalBuffer(&unOrdered, DataUnitSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    VkDescriptorBufferInfo orderCheckingInfo{ orderBuffer, 0, orderBuffer.size };
+    countWrites[ORDER_CHECKING].dstSet = countsDescriptorSet;
+    countWrites[ORDER_CHECKING].dstBinding = ORDER_CHECKING;
+    countWrites[ORDER_CHECKING].descriptorCount = 1;
+    countWrites[ORDER_CHECKING].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    countWrites[ORDER_CHECKING].pBufferInfo = &orderCheckingInfo;
 
     device->updateDescriptorSets(countWrites);
 
