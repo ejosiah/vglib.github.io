@@ -31,9 +31,8 @@ public:
                 execute([&](auto commandBuffer) {
                     VkDeviceSize size = numItems[i] * sizeof(uint32_t);
                     testFunc(commandBuffer, numItems[i]);
-                    Barrier::computeWriteToRead(commandBuffer, deviceBuffer);
                     _isSorted(commandBuffer, {&deviceBuffer, 0, size}, { &resultBuffer, 0, resultBuffer.size } );
-
+                    Barrier::transferWriteToHostRead(commandBuffer, resultBuffer);
                 });
 //                assert(*isSorted == 0u);
                 _sort.commitProfiler();

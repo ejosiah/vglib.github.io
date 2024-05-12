@@ -106,7 +106,7 @@ void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
     size_t numItems = buffer.sizeAs<int>();
     uint32_t sumsSize = glm::ceil(static_cast<float>(numItems)/static_cast<float>(ITEMS_PER_WORKGROUP)) * sizeof(uint32_t);
     sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_GPU_ONLY, sumsSize);
-    constants.N = numItems;
+    constants.N = numItems; // TODO move this to when scan is requested as we are now copying data into our internal buffer
 
     VkDescriptorBufferInfo info{ buffer, 0, VK_WHOLE_SIZE};
     auto writes = initializers::writeDescriptorSets<4>(descriptorSet);
@@ -161,30 +161,30 @@ void PrefixSum::copyFromInternalBuffer(VkCommandBuffer commandBuffer, const Buff
     Barrier::transferWriteToComputeRead(commandBuffer, {*region.buffer});
 }
 
-void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion section) {
-    if(section.sizeAs<uint32_t>() > MAX_NUM_ITEMS){
+void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion data) {
+    if(data.sizeAs<uint32_t>() > MAX_NUM_ITEMS){
         throw DataSizeExceedsMaxSupported{};
     }
-    if(capacity < section.size()){
-        capacity = section.size() * 2;
+    if(capacity < data.size()){
+        capacity = data.size() * 2;
         resizeInternalBuffer();
     }
     static constexpr uint32_t SumSlot = 1;
-    size_t size = section.sizeAs<uint32_t>();
+    size_t size = data.sizeAs<uint32_t>();
     uint32_t numWorkGroups = glm::ceil(static_cast<float>(size + SumSlot)/static_cast<float>(ITEMS_PER_WORKGROUP));
 
-    vkCmdFillBuffer(commandBuffer, internalDataBuffer, section.size(), sizeof(uint32_t), 0);
-    copyToInternalBuffer(commandBuffer, section);
+    vkCmdFillBuffer(commandBuffer, internalDataBuffer, data.size(), sizeof(uint32_t), 0);
+    copyToInternalBuffer(commandBuffer, data);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("prefix_scan"));
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &descriptorSet, 0, nullptr);
     vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
 
     if(numWorkGroups > 1){
-        Barrier::computeWriteToRead(commandBuffer, {*section.buffer, sumsBuffer});
+        Barrier::computeWriteToRead(commandBuffer, {internalDataBuffer, sumsBuffer});
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &sumScanDescriptorSet, 0, nullptr);
         vkCmdDispatch(commandBuffer, 1, 1, 1);
 
-        Barrier::computeWriteToRead(commandBuffer, {*section.buffer, sumOfSumsBuffer});
+        Barrier::computeWriteToRead(commandBuffer, {internalDataBuffer, sumOfSumsBuffer});
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add"), 0, 1, &descriptorSet, 0, nullptr);
         vkCmdPushConstants(commandBuffer, layout("add"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);

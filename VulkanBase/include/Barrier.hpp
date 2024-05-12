@@ -7,6 +7,8 @@ class Barrier {
 private:
     Barrier() = default;
 public:
+
+    static void gpuToCpu(VkCommandBuffer commandBuffer);
     
     static void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
@@ -23,6 +25,8 @@ public:
     static void transferWriteToComputeRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
     static void transferWriteToComputeRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
+
+    static void transferWriteToHostRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
 
     static void transferWriteToComputeWrite(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
 

@@ -272,7 +272,7 @@ struct BufferRegion {
     }
 
     template<typename T>
-    std::span<T> span() {
+    std::span<T> span() const {
         return { reinterpret_cast<T*>(map()), sizeAs<T>() };
     }
 };
