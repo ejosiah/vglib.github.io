@@ -99,7 +99,7 @@ void OrderChecker::resizeInternalBuffer() {
     _internal.data =
             device->createBuffer(
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                    VMA_MEMORY_USAGE_CPU_TO_GPU, _capacity, "order_checker_data");
+                    VMA_MEMORY_USAGE_GPU_ONLY, _capacity, "order_checker_data");
 
     _internal.sumOfSumsBuffer =
             device->createBuffer(
@@ -140,7 +140,7 @@ void OrderChecker::createDescriptorSetLayout() {
 void OrderChecker::updateDescriptorSetLayout() {
     size_t numItems = _internal.data.sizeAs<int>();
     uint32_t sumsSize = glm::ceil(static_cast<float>(numItems)/static_cast<float>(ITEMS_PER_WORKGROUP)) * sizeof(uint32_t);
-    _internal.sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sumsSize);
+    _internal.sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, sumsSize);
 
     VkDescriptorBufferInfo info{ _internal.data, 0, VK_WHOLE_SIZE};
     auto writes = initializers::writeDescriptorSets<4>(_descriptorSet);
