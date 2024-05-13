@@ -323,7 +323,7 @@ void RadixSort::updateDataDescriptorSets() {
     device->updateDescriptorSets(dataWrites);
 
     VkDeviceSize countsSize = RADIX * workGroupCount * NUM_GROUPS_PER_WORKGROUP * sizeof(uint);
-    countsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, countsSize);
+    countsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, countsSize);
     auto countWrites = initializers::writeDescriptorSets<3>();
 
     VkDescriptorBufferInfo countsInfo{countsBuffer, 0, countsBuffer.size };
@@ -425,7 +425,9 @@ void RadixSort::reorder(VkCommandBuffer commandBuffer, std::array<VkDescriptorSe
 
 void RadixSort::createProfiler() {
     if(debug) {
-        profiler = Profiler{device, PASSES * 6};
+        profiler = Profiler{device};
+        profiler.addGroup("copy_to_key", 1);
+        profiler.addGroup("copy_from_key", 1);
         profiler.addGroup("count", PASSES);
         profiler.addGroup("radix_sort_prefix_sum", PASSES);
         profiler.addGroup("reorder", PASSES);
@@ -470,17 +472,20 @@ void RadixSort::commitProfiler() {
 }
 
 void RadixSort::copyToInternalKeyBuffer(VkCommandBuffer commandBuffer, const BufferRegion &src) {
-    BufferRegion dst{ &internal.keys[0], 0, src.size() };
-    copyBuffer(commandBuffer, src, dst);
-    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+    profiler.profile("copy_to_key_0", commandBuffer, [&]{
+        BufferRegion dst{ &internal.keys[0], 0, src.size() };
+        copyBuffer(commandBuffer, src, dst);
+        Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+    });
 }
 
 void RadixSort::copyFromInternalKeyBuffer(VkCommandBuffer commandBuffer, const BufferRegion &dst) {
-    BufferRegion src{ &internal.keys[0], 0, dst.size() };
-
-    Barrier::computeWriteToTransferRead(commandBuffer, { src });
-    copyBuffer(commandBuffer, src, dst);
-    Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+    profiler.profile("copy_from_key_0", commandBuffer, [&]{
+        BufferRegion src{ &internal.keys[0], 0, dst.size() };
+        Barrier::computeWriteToTransferRead(commandBuffer, { src });
+        copyBuffer(commandBuffer, src, dst);
+        Barrier::transferWriteToComputeRead(commandBuffer, { dst });
+    });
 }
 
 void RadixSort::copyFromInternalIndexBuffer(VkCommandBuffer commandBuffer, const BufferRegion &dst) {

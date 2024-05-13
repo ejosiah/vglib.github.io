@@ -46,11 +46,11 @@ public:
         }
 
         std::string report{};
-        report += fmt::format("{:_>105}\n", "");
-        report += fmt::format("{:^105}\n", title);
-        report += fmt::format("{:_>105}\n", "");
-        report += fmt::format("{:15}{:15}{:15}{:15}{:15}{:15}{:15}\n", "num items (1e6)", 0.5, 3, 6, 9, 12, 15);
-        report += fmt::format("{:15}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n","count (ms)"
+        report += fmt::format("{:_>110}\n", "");
+        report += fmt::format("{:^110}\n", title);
+        report += fmt::format("{:_>110}\n", "");
+        report += fmt::format("{:20}{:15}{:15}{:15}{:15}{:15}{:15}\n", "num items (1e6)", 0.5, 3, 6, 9, 12, 15);
+        report += fmt::format("{:20}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n","count (ms)"
                 , reports[500000]["count"].meanValue
                 , reports[3000000]["count"].meanValue
                 , reports[6000000]["count"].meanValue
@@ -59,7 +59,7 @@ public:
                 , reports[15000000]["count"].meanValue
         );
         report +=
-                fmt::format("{:15}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "prefix sum (ms)"
+                fmt::format("{:20}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "prefix sum (ms)"
                         , reports[500000]["radix_sort_prefix_sum"].meanValue
                         , reports[3000000]["radix_sort_prefix_sum"].meanValue
                         , reports[6000000]["radix_sort_prefix_sum"].meanValue
@@ -67,7 +67,7 @@ public:
                         , reports[12000000]["radix_sort_prefix_sum"].meanValue
                         , reports[15000000]["radix_sort_prefix_sum"].meanValue
                 );
-        report += fmt::format("{:15}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "reorder (ms)"
+        report += fmt::format("{:20}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "reorder (ms)"
                 , reports[500000]["reorder"].meanValue
                 , reports[3000000]["reorder"].meanValue
                 , reports[6000000]["reorder"].meanValue
@@ -75,7 +75,23 @@ public:
                 , reports[12000000]["reorder"].meanValue
                 , reports[15000000]["reorder"].meanValue
         );
-        report += fmt::format("{:_>105}\n", "");
+        report += fmt::format("{:20}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "copy data in (ms)"
+                , reports[500000]["copy_to_key"].meanValue
+                , reports[3000000]["copy_to_key"].meanValue
+                , reports[6000000]["copy_to_key"].meanValue
+                , reports[9000000]["copy_to_key"].meanValue
+                , reports[12000000]["copy_to_key"].meanValue
+                , reports[15000000]["copy_to_key"].meanValue
+        );
+        report += fmt::format("{:20}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "copy data out (ms)"
+                , reports[500000]["copy_from_key"].meanValue
+                , reports[3000000]["copy_from_key"].meanValue
+                , reports[6000000]["copy_from_key"].meanValue
+                , reports[9000000]["copy_from_key"].meanValue
+                , reports[12000000]["copy_from_key"].meanValue
+                , reports[15000000]["copy_from_key"].meanValue
+        );
+        report += fmt::format("{:_>110}\n", "");
 
         std::map<size_t, float> totals{};
         for(auto key : numItems){
@@ -85,7 +101,7 @@ public:
             }
         }
 
-        report += fmt::format("{:15}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "totals (ms)"
+        report += fmt::format("{:20}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}{:15.4f}\n", "totals (ms)"
                 , totals[500000]
                 , totals[3000000]
                 , totals[6000000]
@@ -94,7 +110,7 @@ public:
                 , totals[15000000]
         );
 
-        report += fmt::format("{:->105}\n", "");
+        report += fmt::format("{:->110}\n", "");
 
         return report;
     }
