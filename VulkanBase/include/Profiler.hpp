@@ -195,7 +195,7 @@ public:
     mutable bool paused = false;
 
 private:
-    static constexpr uint32_t DEFAULT_QUERY_COUNT = 20;
+    static constexpr uint32_t DEFAULT_QUERY_COUNT = 1024;
 
     TimestampQueryPool queryPool;
     VulkanDevice* device = nullptr;

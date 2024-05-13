@@ -75,8 +75,8 @@ TEST_F(PrefixScanTest, ScanWithMutipleWorkGroups){
     }
 }
 
-TEST_F(PrefixScanTest, scanOverAMillionItems){
-    std::vector<int> data((2 << 20) );
+TEST_F(PrefixScanTest, scanLargeNumberOfItems){
+    std::vector<int> data((15 << 20) );
     auto rng = rngFunc<int>(0, 100, 1 << 20);
     std::generate(begin(data), end(data), [&]{ return rng(); });
 

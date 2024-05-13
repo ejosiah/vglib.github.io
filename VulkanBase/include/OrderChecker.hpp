@@ -6,6 +6,10 @@
 
 class OrderChecker : public ComputePipelines {
 public:
+    static constexpr VkDeviceSize DataUnitSize = sizeof(uint32_t);
+    static constexpr uint32_t ITEMS_PER_WORKGROUP = 8192;
+    static constexpr uint32_t MAX_NUM_ITEMS = ITEMS_PER_WORKGROUP * ITEMS_PER_WORKGROUP;
+
     OrderChecker() = default;
 
     explicit OrderChecker(VulkanDevice* device, VkDeviceSize capacity = INITIAL_CAPACITY);
@@ -23,6 +27,8 @@ public:
     struct {
         VulkanBuffer data;
         VulkanBuffer bitSet;
+        VulkanBuffer sumsBuffer;
+        VulkanBuffer sumOfSumsBuffer;
     } _internal{};
 
 protected:
@@ -38,24 +44,24 @@ protected:
 
     void copyToInternalDataBuffer(VkCommandBuffer commandBuffer, const BufferRegion& src);
 
+    void copySum(VkCommandBuffer commandBuffer, const BufferRegion& dst);
+
 
 protected:
     static constexpr uint32_t WorkGroupSize{256};
-    static constexpr VkDeviceSize DataUnitSize = sizeof(uint32_t);
-    static constexpr const VkDeviceSize INITIAL_CAPACITY = (1 << 20) * DataUnitSize;
+    static constexpr const VkDeviceSize INITIAL_CAPACITY = (2 << 20) * DataUnitSize;
     VkDeviceSize _capacity{INITIAL_CAPACITY};
 
     PrefixSum _prefixSum;
 
 
     struct {
-        uint32_t wordSize;
-        uint32_t block;
-        uint32_t mask;
+        uint32_t itemsPerWorkGroup = ITEMS_PER_WORKGROUP;
         uint32_t numEntries;
-    } _constants;
+    } _constants{};
 
     VulkanDescriptorPool _descriptorPool;
-    VulkanDescriptorSetLayout _lessThanDescriptorSetLayout;
-    VkDescriptorSet _lessThanDescriptorSet{};
+    VulkanDescriptorSetLayout _descriptorSetLayout;
+    VkDescriptorSet _descriptorSet{};
+    VkDescriptorSet _sumScanDescriptorSet{};
 };
