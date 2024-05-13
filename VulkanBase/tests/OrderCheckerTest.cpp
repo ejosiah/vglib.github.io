@@ -10,7 +10,7 @@ struct Data {
     uint8_t d;
 };
 
-class IsSortedTest : public VulkanFixture {
+class OrderCheckerTest : public VulkanFixture {
 
 protected:
     void postVulkanInit() override {
@@ -49,7 +49,7 @@ protected:
     OrderChecker _isSorted;
 };
 
-TEST_F(IsSortedTest, all32BitsAreSorted) {
+TEST_F(OrderCheckerTest, all32BitsAreSorted) {
     auto items = randomEntries(1 << 20);
     std::sort(items.begin(), items.end());
 
@@ -57,13 +57,13 @@ TEST_F(IsSortedTest, all32BitsAreSorted) {
 
 }
 
-TEST_F(IsSortedTest, all32BitsAreNotSorted) {
+TEST_F(OrderCheckerTest, all32BitsAreNotSorted) {
     auto items = randomEntries(1 << 20, 1u);
 
     EXPECT_FALSE(isSorted(items, 1, 0)) << "items should be reported as not sorted";
 }
 
-TEST_F(IsSortedTest, checkSmallDataSetIsSorted) {
+TEST_F(OrderCheckerTest, checkSmallDataSetIsSorted) {
     auto items = randomEntries(8192);
     std::sort(items.begin(), items.end());
 
@@ -71,7 +71,7 @@ TEST_F(IsSortedTest, checkSmallDataSetIsSorted) {
 }
 
 
-TEST_F(IsSortedTest, checkLargeDataSetIsSorted) {
+TEST_F(OrderCheckerTest, checkLargeDataSetIsSorted) {
     auto items = randomEntries((1 << 20) * 15, 1u);
     std::sort(items.begin(), items.end());
 

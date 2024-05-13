@@ -30,6 +30,7 @@ std::vector<PipelineMetaData> OrderChecker::pipelineMetaData() {
                     "order_checker_sum_scan",
                     R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\scan.comp.spv)",
                     { &_descriptorSetLayout },
+                    { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants)} }
             },
             {
                     "add",
@@ -55,7 +56,8 @@ void OrderChecker::operator()(VkCommandBuffer commandBuffer, const BufferRegion 
         resizeInternalBuffer();
     }
 
-    _constants.numEntries = data.sizeAs<uint32_t>() + SumSlot;
+    const auto numEntries = data.sizeAs<uint32_t>() + SumSlot;
+    _constants.numEntries =  numEntries;
 
     uint32_t numWorkGroups = glm::ceil(static_cast<float>(_constants.numEntries)/static_cast<float>(ITEMS_PER_WORKGROUP));
 
@@ -72,10 +74,14 @@ void OrderChecker::operator()(VkCommandBuffer commandBuffer, const BufferRegion 
     vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
 
     if(numWorkGroups > 1){
+        _constants.numEntries = numWorkGroups;
         Barrier::computeWriteToRead(commandBuffer, {_internal.data, _internal.sumsBuffer});
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("order_checker_sum_scan"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("order_checker_sum_scan"), 0, 1, &_sumScanDescriptorSet, 0, nullptr);
+        vkCmdPushConstants(commandBuffer, layout("order_checker_sum_scan"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants), &_constants);
         vkCmdDispatch(commandBuffer, 1, 1, 1);
 
+        _constants.numEntries = numEntries;
         Barrier::computeWriteToRead(commandBuffer, {_internal.data, _internal.sumOfSumsBuffer});
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add"), 0, 1, &_descriptorSet, 0, nullptr);
