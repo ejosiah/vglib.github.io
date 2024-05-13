@@ -96,8 +96,8 @@ private:
     VkDeviceSize capacity{ITEMS_PER_WORKGROUP * 128 * DataUnitSize};
 
     struct {
-        int itemsPerWorkGroup = ITEMS_PER_WORKGROUP;
-        int N = 0;
+        uint32_t itemsPerWorkGroup = ITEMS_PER_WORKGROUP;
+        uint32_t N = 0;
     } constants;
 
     VulkanBuffer sumsBuffer;

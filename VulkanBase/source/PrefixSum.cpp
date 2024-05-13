@@ -40,12 +40,14 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
     return {
             {
                     "prefix_scan",
-                    __ps_glsl_scan_comp_spv,
-                    { &setLayout }
+                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\scan.comp.spv)",
+                    { &setLayout },
+                    { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
+
             },
             {
                     "add",
-                    __ps_glsl_add_comp_spv,
+                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\add.comp.spv)",
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
             }
@@ -170,20 +172,25 @@ void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion data) {
         resizeInternalBuffer();
     }
     static constexpr uint32_t SumSlot = 1;
-    size_t size = data.sizeAs<uint32_t>();
-    uint32_t numWorkGroups = glm::ceil(static_cast<float>(size + SumSlot)/static_cast<float>(ITEMS_PER_WORKGROUP));
+    const  auto numEntries = data.sizeAs<uint32_t>() + SumSlot;
+    uint32_t numWorkGroups = glm::ceil(static_cast<float>(numEntries)/static_cast<float>(ITEMS_PER_WORKGROUP));
 
+    constants.N = numEntries;
     vkCmdFillBuffer(commandBuffer, internalDataBuffer, data.size(), sizeof(uint32_t), 0);
     copyToInternalBuffer(commandBuffer, data);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("prefix_scan"));
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &descriptorSet, 0, nullptr);
+    vkCmdPushConstants(commandBuffer, layout("prefix_scan"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
     vkCmdDispatch(commandBuffer, numWorkGroups, 1, 1);
 
     if(numWorkGroups > 1){
+        constants.N = numWorkGroups;
         Barrier::computeWriteToRead(commandBuffer, {internalDataBuffer, sumsBuffer});
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("prefix_scan"), 0, 1, &sumScanDescriptorSet, 0, nullptr);
+        vkCmdPushConstants(commandBuffer, layout("prefix_scan"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, 1, 1, 1);
 
+        constants.N = numEntries;
         Barrier::computeWriteToRead(commandBuffer, {internalDataBuffer, sumOfSumsBuffer});
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add"), 0, 1, &descriptorSet, 0, nullptr);
