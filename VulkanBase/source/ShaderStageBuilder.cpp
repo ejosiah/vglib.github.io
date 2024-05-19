@@ -1,110 +1,48 @@
 #include "ShaderStageBuilder.hpp"
 #include "VulkanInitializers.h"
 
+#include <stdexcept>
+#include <algorithm>
+
 ShaderStageBuilder::ShaderStageBuilder(VulkanDevice *device, GraphicsPipelineBuilder *parent)
 : GraphicsPipelineBuilder(device, parent)
 {
 
 }
 
-ShaderStageBuilder &ShaderStageBuilder::vertexShader(const std::string &path) {
-    auto shaderModule = device().createShaderModule(path);
-    _stages[VK_SHADER_STAGE_VERTEX_BIT] = { shaderModule, VK_SHADER_STAGE_VERTEX_BIT };
-    return *this;
+ShaderStageBuilder::ShaderStageBuilder(ShaderStageBuilder *parent)
+: GraphicsPipelineBuilder(parent->_device, parent)
+{
 }
 
-ShaderStageBuilder &ShaderStageBuilder::vertexShader(const byte_string &data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_VERTEX_BIT] = { shaderModule, VK_SHADER_STAGE_VERTEX_BIT };
-    return *this;
+ShaderBuilder &ShaderStageBuilder::vertexShader(const ShaderSource &source) {
+    return addShader(source, VK_SHADER_STAGE_VERTEX_BIT);
 }
 
-ShaderStageBuilder &ShaderStageBuilder::vertexShader(const std::vector<uint32_t> &data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_VERTEX_BIT] = { shaderModule, VK_SHADER_STAGE_VERTEX_BIT };
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::fragmentShader(const std::string &path) {
-    auto shaderModule = device().createShaderModule(path);
-    _stages[VK_SHADER_STAGE_FRAGMENT_BIT] = { shaderModule, VK_SHADER_STAGE_FRAGMENT_BIT };
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::fragmentShader(const byte_string &data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_FRAGMENT_BIT] = { shaderModule, VK_SHADER_STAGE_FRAGMENT_BIT };
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::fragmentShader(const std::vector<uint32_t>& data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_FRAGMENT_BIT] = { shaderModule, VK_SHADER_STAGE_FRAGMENT_BIT };
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::geometryShader(const std::string &path) {
-    auto shaderModule = device().createShaderModule(path);
-    _stages[VK_SHADER_STAGE_GEOMETRY_BIT] = { shaderModule, VK_SHADER_STAGE_GEOMETRY_BIT};
-    return *this;
+ShaderBuilder &ShaderStageBuilder::fragmentShader(const ShaderSource &source) {
+    return addShader(source, VK_SHADER_STAGE_FRAGMENT_BIT);
 }
 
 
-ShaderStageBuilder &ShaderStageBuilder::geometryShader(const byte_string& data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_GEOMETRY_BIT] = { shaderModule, VK_SHADER_STAGE_GEOMETRY_BIT};
-    return *this;
+ShaderBuilder &ShaderStageBuilder::geometryShader(const ShaderSource &source) {
+   return addShader(source, VK_SHADER_STAGE_GEOMETRY_BIT);
 }
 
-ShaderStageBuilder &ShaderStageBuilder::geometryShader(const std::vector<uint32_t>& data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_GEOMETRY_BIT] = { shaderModule, VK_SHADER_STAGE_GEOMETRY_BIT};
-    return *this;
+ShaderBuilder &ShaderStageBuilder::tessellationEvaluationShader(const ShaderSource &source) {
+    return addShader(source, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
 }
 
-ShaderStageBuilder &ShaderStageBuilder::tessellationEvaluationShader(const std::string &path) {
-    auto shaderModule = device().createShaderModule(path);
-    _stages[VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT] = { shaderModule, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT};
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::tessellationEvaluationShader(const byte_string &data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT] = { shaderModule, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT};
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::tessellationEvaluationShader(const std::vector<uint32_t> &data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT] = { shaderModule, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT};
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::tessellationControlShader(const std::string &path) {
-    auto shaderModule = device().createShaderModule(path);
-    _stages[VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT] = { shaderModule, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT};
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::tessellationControlShader(const byte_string &data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT] = { shaderModule, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT};
-    return *this;
-}
-
-ShaderStageBuilder &ShaderStageBuilder::tessellationControlShader(const std::vector<uint32_t> &data) {
-    auto shaderModule = device().createShaderModule(data);
-    _stages[VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT] = { shaderModule, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT};
-    return *this;
+ShaderBuilder &ShaderStageBuilder::tessellationControlShader(const ShaderSource& source) {
+    return addShader(source, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
 }
 
 void ShaderStageBuilder::validate() const {
 
-    if(!_stages.contains(VK_SHADER_STAGE_VERTEX_BIT)){
+    if(!hasVertexShader()){
         throw std::runtime_error{"at least vertex shader should be provided"};
     }
 
-    if(_stages.contains(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT) && !_stages.contains(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT)){
+    if(hasTessControlShader() && !hasTessEvalShader()){
         throw std::runtime_error{"tessellation eval shader required if tessellation control shader provided"};
     }
 }
@@ -112,20 +50,116 @@ void ShaderStageBuilder::validate() const {
 std::vector<VkPipelineShaderStageCreateInfo>& ShaderStageBuilder::buildShaderStage()  {
     validate();
 
-    std::vector<ShaderInfo> stages;
-    for(auto [_, stage] : _stages) {
-        stages.push_back(stage);
+    for(auto& builder : _shaderBuilders) {
+        auto& stage = builder->buildShader();
+        _vkStages.push_back(stage);
     }
-    _vkStages = initializers::vertexShaderStages(stages);
 
     return _vkStages;
 }
 
 ShaderStageBuilder& ShaderStageBuilder::clear() {
-    _stages.clear();
+    _shaderBuilders.clear();
     return *this;
 }
 
 void ShaderStageBuilder::copy(const ShaderStageBuilder &source) {
-    _stages = source._stages;
+    for(auto& sBuilder : source._shaderBuilders) {
+        auto builder = std::make_unique<ShaderBuilder>(this);
+        builder->copy(*sBuilder);
+        _shaderBuilders.push_back(std::move(builder));
+    }
+}
+
+ShaderBuilder &
+ShaderStageBuilder::addShader(const ShaderStageBuilder::ShaderSource &source, VkShaderStageFlagBits stage) {
+    _shaderBuilders.push_back(std::make_unique<ShaderBuilder>(source, stage, this));
+    return *_shaderBuilders.back();
+}
+
+bool ShaderStageBuilder::hasVertexShader() const {
+    auto itr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(), [](const auto& builder){ return builder->isVertexShader(); });
+    return itr != _shaderBuilders.end();
+}
+
+bool ShaderStageBuilder::hasTessControlShader() const {
+    auto itr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(), [](const auto& builder){ return builder->isTessControlShader(); });
+    return itr != _shaderBuilders.end();
+}
+
+bool ShaderStageBuilder::hasTessEvalShader() const {
+    auto itr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(), [](const auto& builder){ return builder->isTessEvalShader(); });
+    return itr != _shaderBuilders.end();
+}
+
+ShaderBuilder::ShaderBuilder(ShaderStageBuilder *parent)
+: ShaderStageBuilder(parent) {}
+
+ShaderBuilder::ShaderBuilder(const ShaderSource &source, VkShaderStageFlagBits stage, ShaderStageBuilder *parent)
+: ShaderStageBuilder(parent)
+{
+    _stage.stage = stage;
+    std::visit(overloaded{
+        [&](const byte_string source) { _stage.module = device().createShaderModule(source); },
+        [&](const std::vector<uint32_t> source) { _stage.module = device().createShaderModule(source); },
+        [&](const std::string &source) { _stage.module = device().createShaderModule(source); },
+    }, source);
+}
+
+VkPipelineShaderStageCreateInfo& ShaderBuilder::buildShader() {
+    _createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    _createInfo.stage = _stage.stage;
+    _createInfo.module = _stage.module.handle;
+    _createInfo.pName = _stage.entry;
+
+    _specialization.mapEntryCount = _entries.size();
+    _specialization.pMapEntries = _entries.data();
+    _specialization.dataSize = _data.size();
+    _specialization.pData = _data.data();
+    _createInfo.pSpecializationInfo = &_specialization;
+
+    return _createInfo;
+}
+
+ShaderBuilder &ShaderBuilder::vertexShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->vertexShader(source);
+}
+
+ShaderBuilder &ShaderBuilder::fragmentShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->fragmentShader(source);
+}
+
+ShaderStageBuilder *ShaderBuilder::parent() {
+    return reinterpret_cast<ShaderStageBuilder*>(_parent);
+}
+
+ShaderBuilder &ShaderBuilder::geometryShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->geometryShader(source);
+}
+
+ShaderBuilder &ShaderBuilder::tessellationEvaluationShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->tessellationEvaluationShader(source);
+}
+
+ShaderBuilder &ShaderBuilder::tessellationControlShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->tessellationControlShader(source);
+}
+
+bool ShaderBuilder::isVertexShader() const {
+    return _stage.stage == VK_SHADER_STAGE_VERTEX_BIT;
+}
+
+bool ShaderBuilder::isTessEvalShader() const {
+    return _stage.stage == VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+}
+
+bool ShaderBuilder::isTessControlShader() const {
+    return _stage.stage == VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+}
+
+void ShaderBuilder::copy(const ShaderBuilder &source) {
+    _stage = source._stage;
+    _entries = source._entries;
+    _data.resize(source._data.size());
+    std::memcpy(_data.data(), source._data.data(), source._data.size());
 }
