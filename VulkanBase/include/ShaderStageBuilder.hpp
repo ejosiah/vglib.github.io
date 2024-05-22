@@ -44,6 +44,8 @@ public:
    [[nodiscard]]
    std::vector<VkPipelineShaderStageCreateInfo>& buildShaderStage();
 
+   void clearStages();
+
 protected:
     ShaderBuilder& addShader(const ShaderSource & source, VkShaderStageFlagBits stage);
 
@@ -95,6 +97,8 @@ public:
     bool isTessEvalShader() const;
 
     bool isTessControlShader() const;
+
+    bool isStage(VkShaderStageFlagBits stage) const;
 
     void copy(const ShaderBuilder& source);
 

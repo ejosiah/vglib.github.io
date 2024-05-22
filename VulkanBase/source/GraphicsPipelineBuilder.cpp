@@ -163,6 +163,7 @@ VulkanPipeline GraphicsPipelineBuilder::build(VulkanPipelineLayout& pipelineLayo
         device().setName<VK_OBJECT_TYPE_PIPELINE>(_name, pipeline.handle);
         device().setName<VK_OBJECT_TYPE_PIPELINE_LAYOUT>(_name, pipelineLayout.handle);
     }
+    _shaderStageBuilder->clearStages();
     return pipeline;
 }
 

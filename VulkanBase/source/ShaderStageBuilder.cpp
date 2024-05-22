@@ -73,6 +73,12 @@ void ShaderStageBuilder::copy(const ShaderStageBuilder &source) {
 
 ShaderBuilder &
 ShaderStageBuilder::addShader(const ShaderStageBuilder::ShaderSource &source, VkShaderStageFlagBits stage) {
+    auto itr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(),[&](const auto& builder){
+        return builder->isStage(stage);
+    });
+    if(itr != _shaderBuilders.end()) {
+        _shaderBuilders.erase(itr);
+    }
     _shaderBuilders.push_back(std::make_unique<ShaderBuilder>(source, stage, this));
     return *_shaderBuilders.back();
 }
@@ -90,6 +96,10 @@ bool ShaderStageBuilder::hasTessControlShader() const {
 bool ShaderStageBuilder::hasTessEvalShader() const {
     auto itr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(), [](const auto& builder){ return builder->isTessEvalShader(); });
     return itr != _shaderBuilders.end();
+}
+
+void ShaderStageBuilder::clearStages() {
+    _vkStages.clear();
 }
 
 ShaderBuilder::ShaderBuilder(ShaderStageBuilder *parent)
@@ -162,4 +172,8 @@ void ShaderBuilder::copy(const ShaderBuilder &source) {
     _entries = source._entries;
     _data.resize(source._data.size());
     std::memcpy(_data.data(), source._data.data(), source._data.size());
+}
+
+bool ShaderBuilder::isStage(VkShaderStageFlagBits stage) const {
+    return _stage.stage == stage;
 }
