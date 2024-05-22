@@ -133,15 +133,15 @@ void DebugDrawer::createLineBuffer() {
 
 void DebugDrawer::draw(VkCommandBuffer commandBuffer) {
     if(!_lines.empty()) {
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines.lines.pipeLine);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines.lines.pipeLine.handle);
         uint32_t numLines = _lines.size();
 
         VkDeviceSize offsets = 0u;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, _lineBuffer, &offsets);
         for (int i = 0; i < numLines; i++) {
             auto &line = _lines[i];
-            vkCmdPushConstants(commandBuffer, _pipelines.lines.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Camera), _camera);
-            vkCmdPushConstants(commandBuffer, _pipelines.lines.layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(Camera),
+            vkCmdPushConstants(commandBuffer, _pipelines.lines.layout.handle, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Camera), _camera);
+            vkCmdPushConstants(commandBuffer, _pipelines.lines.layout.handle, VK_SHADER_STAGE_VERTEX_BIT, sizeof(Camera),
                                sizeof(glm::vec3), &line.color);
             vkCmdDraw(commandBuffer, 2, 1, i * 2, 0);
         }

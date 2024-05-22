@@ -11,7 +11,7 @@ function(compile_glsl)
     cmake_parse_arguments(COMPILE "${noValues}" "${singleValues}" "${multiValues}" ${ARGN})
 
     if(NOT COMPILE_SPV_VERSION)
-        set(COMPILE_SPV_VERSION spv1.5)
+        set(COMPILE_SPV_VERSION spv1.6)
     endif()
 
     if(NOT EXISTS ${COMPILE_SRC_FILE})

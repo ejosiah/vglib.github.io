@@ -140,6 +140,8 @@ protected:
 
     void pickPhysicalDevice();
 
+    virtual void beforeDeviceCreation();
+
     void createSwapChain();
 
     void createDepthBuffer();
