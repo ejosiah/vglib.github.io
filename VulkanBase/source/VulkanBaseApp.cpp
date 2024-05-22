@@ -120,6 +120,7 @@ void VulkanBaseApp::initVulkan() {
     ext::init(instance);
     createDebugMessenger();
     pickPhysicalDevice();
+    beforeDeviceCreation();
     initMixins();
     addPluginDeviceExtensions();
     createLogicalDevice();
@@ -275,6 +276,8 @@ void VulkanBaseApp::pickPhysicalDevice() {
     checkDeviceExtensionSupport();
     spdlog::info("selected device: {}", device.name());
 }
+
+void VulkanBaseApp::beforeDeviceCreation() {}
 
 void VulkanBaseApp::addPlugin(std::unique_ptr<Plugin>& plugin) {
     plugins.push_back(std::move(plugin));
