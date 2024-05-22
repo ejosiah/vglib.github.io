@@ -74,7 +74,6 @@ namespace textures{
 
         Pipeline compute;
 
-        std::vector<VkDescriptorSetLayout> setLayouts{ setLayout};
         compute.layout = device.createPipelineLayout( { setLayout } );
 
         auto computeCreateInfo = initializers::computePipelineCreateInfo();

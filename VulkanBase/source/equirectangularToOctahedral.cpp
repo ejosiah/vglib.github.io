@@ -79,7 +79,7 @@ namespace textures {
     }
 
     VulkanFramebuffer createFrameBuffer(const VulkanDevice &device, const VulkanRenderPass& renderPass, const Texture &texture, uint32_t size) {
-        std::vector<VkImageView> attachments{ texture.imageView };
+        std::vector<VkImageView> attachments{ texture.imageView.handle };
         return device.createFramebuffer(renderPass, attachments, size, size);
     }
 

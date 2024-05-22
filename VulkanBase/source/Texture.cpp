@@ -219,7 +219,7 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, std::strin
 }
 
 void textures::fromFile(const VulkanDevice &device, Texture &texture, const std::vector<std::string> &paths, bool flipUv,
-                        VkFormat format) {
+                        VkFormat format, uint32_t levels) {
 
     auto load = [flipUv](std::string_view path, int& width, int& height, int& channel){
         stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
@@ -250,7 +250,7 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, const std:
         std::advance(itr, 1);
     }
 
-    createTextureArray(device, texture, VK_IMAGE_TYPE_2D, format, data, {texWidth, texHeight, 1u});
+    createTextureArray(device, texture, VK_IMAGE_TYPE_2D, format, data, {texWidth, texHeight, 1u}, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1, VK_IMAGE_TILING_OPTIMAL, levels);
     for(auto memory : data){
         stbi_image_free(memory);
     }
@@ -414,6 +414,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
         samplerInfo.addressModeW = addressMode;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.mipmapMode = isIntegral(format) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.maxLod = levelCount;
 
         texture.sampler = device.createSampler(samplerInfo);
     }
@@ -421,7 +422,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
 
 void textures::createTextureArray(const VulkanDevice &device, Texture &texture, VkImageType imageType, VkFormat format,
                       const std::vector<void *> &data, Dimension3D<uint32_t> dimensions,
-                      VkSamplerAddressMode addressMode, uint32_t sizeMultiplier, VkImageTiling tiling) {
+                      VkSamplerAddressMode addressMode, uint32_t sizeMultiplier, VkImageTiling tiling, uint32_t levels) {
 
     const auto layers = data.size();
     texture.format = format;
@@ -439,11 +440,13 @@ void textures::createTextureArray(const VulkanDevice &device, Texture &texture, 
     imageCreateInfo.imageType = imageType;
     imageCreateInfo.format = format;
     imageCreateInfo.extent = { static_cast<uint32_t>(dimensions.x), static_cast<uint32_t>(dimensions.y), dimensions.z};
-    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.mipLevels = levels;
     imageCreateInfo.arrayLayers = layers;
     imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageCreateInfo.tiling = tiling;
-    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    imageCreateInfo.usage =
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+            ( (format != VK_FORMAT_R8G8B8A8_SRGB) * VK_IMAGE_USAGE_STORAGE_BIT);
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -455,6 +458,7 @@ void textures::createTextureArray(const VulkanDevice &device, Texture &texture, 
     texture.height = dimensions.y;
     texture.depth = dimensions.z;
     texture.layers = layers;
+    texture.levels = levels;
 
     commandPool.oneTimeCommand([&](auto commandBuffer) {
         std::vector<VkBufferImageCopy> regions;
@@ -489,6 +493,7 @@ void textures::createTextureArray(const VulkanDevice &device, Texture &texture, 
             barrier.subresourceRange.baseArrayLayer = layer;
             barrier.srcAccessMask = VK_ACCESS_NONE;
             barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.subresourceRange.levelCount = levels;
 
             transferBarriers.push_back(barrier);
 
@@ -516,7 +521,7 @@ void textures::createTextureArray(const VulkanDevice &device, Texture &texture, 
     VkImageSubresourceRange subresourceRange;
     subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     subresourceRange.baseMipLevel = 0;
-    subresourceRange.levelCount = 1;
+    subresourceRange.levelCount = levels;
     subresourceRange.baseArrayLayer = 0;
     subresourceRange.layerCount = layers;
 
@@ -533,6 +538,7 @@ void textures::createTextureArray(const VulkanDevice &device, Texture &texture, 
         samplerInfo.addressModeW = addressMode;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.maxLod = levels;
 
         texture.sampler = device.createSampler(samplerInfo);
     }
@@ -1117,68 +1123,86 @@ void textures::save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFo
     }
 }
 
-void textures::generateLOD(const VulkanDevice &device, Texture &texture, uint32_t levels) {
-    generateLOD(device, texture.image, texture.width, texture.height, levels);
+void textures::generateLOD(const VulkanDevice &device, Texture &texture, uint32_t levels, uint32_t layers) {
+    generateLOD(device, texture.image, texture.width, texture.height, levels, layers);
 }
 
-void textures::generateLOD(const VulkanDevice& device, VulkanImage& image, uint32_t width, uint32_t height, uint32_t levels) {
-    if(levels <= 1) return;
-
-    VkImageBlit blit{};
-    blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    blit.srcSubresource.baseArrayLayer = 0;
-    blit.srcSubresource.layerCount = 1;
-    blit.srcOffsets[0] = {0, 0, 0};
-    blit.srcOffsets[1] = {static_cast<int32_t>(width), static_cast<int32_t>(height), 1};
-
-    blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    blit.dstSubresource.baseArrayLayer = 0;
-    blit.dstSubresource.layerCount = 1;
-    blit.dstOffsets[0] = {0, 0, 0};
-    blit.dstOffsets[1] = {static_cast<int32_t>(width/2), static_cast<int32_t>(height/2), 1};
-
-    VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-    barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    barrier.image = image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
+void textures::generateLOD(const VulkanDevice& device, VulkanImage& image, uint32_t width, uint32_t height, uint32_t levels, uint32_t layers) {
+    if(levels <= 1) {
+        spdlog::warn("texture LOD requested with  mipLevels set to {}", levels);
+        return;
+    }
 
     device.commandPoolFor(*device.findFirstActiveQueue()).oneTimeCommand([&](auto commandBuffer) {
+        auto w = static_cast<int32_t>(width);
+        auto h = static_cast<int32_t>(height);
+        VkImageBlit blit{};
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.srcOffsets[0] = {0, 0, 0};
 
-        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+        blit.dstOffsets[0] = {0, 0, 0};
+        blit.dstOffsets[1] = {w/2, h/2, 1};
 
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.subresourceRange.baseMipLevel = 1;
-        barrier.subresourceRange.levelCount = levels - 1;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
+        VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        barrier.image = image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
 
-        barrier.subresourceRange.levelCount = 1;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        for(auto level = 1u; level < levels; ++level) {
-            blit.srcSubresource.mipLevel = level - 1;
-            blit.dstSubresource.mipLevel = level;
+        for(auto layer = 0; layer < layers; ++layer) {
+            blit.srcOffsets[1] = {w, h, 1};
+            blit.dstOffsets[1] = {w/2, h/2, 1};
 
-            vkCmdBlitImage(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+            barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.subresourceRange.baseMipLevel = 0;
+            barrier.subresourceRange.levelCount = 1;
+            barrier.subresourceRange.baseArrayLayer = layer;
+            barrier.subresourceRange.layerCount = 1;
 
-            barrier.subresourceRange.baseMipLevel = level;
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
 
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.subresourceRange.baseMipLevel = 1;
+            barrier.subresourceRange.levelCount = levels - 1;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
+
+
+            barrier.subresourceRange.levelCount = 1;
+            barrier.subresourceRange.layerCount = 1;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
+            for (auto level = 1u; level < levels; ++level) {
+                blit.srcSubresource.mipLevel = level - 1;
+                blit.dstSubresource.mipLevel = level;
+                blit.srcSubresource.baseArrayLayer = layer;
+                blit.dstSubresource.baseArrayLayer = layer;
+
+                vkCmdBlitImage(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+
+                barrier.subresourceRange.baseMipLevel = level;
+                barrier.subresourceRange.baseArrayLayer = layer;
+                vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,0, 0, 0, 0, 1, &barrier);
+
+                blit.srcOffsets[1].x >>= 1;
+                blit.srcOffsets[1].y >>= 1;
+
+                blit.dstOffsets[1].x = std::max(blit.dstOffsets[1].x >> 1, 1);
+                blit.dstOffsets[1].y = std::max(blit.dstOffsets[1].y >> 1, 1);
+            }
             blit.srcOffsets[1].x >>= 1;
             blit.srcOffsets[1].y >>= 1;
-
-            blit.dstOffsets[1].x = std::max(blit.dstOffsets[1].x >> 1, 1);
-            blit.dstOffsets[1].y = std::max(blit.dstOffsets[1].y >> 1, 1);
         }
 
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -1187,6 +1211,8 @@ void textures::generateLOD(const VulkanDevice& device, VulkanImage& image, uint3
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = levels;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = layers;
         vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
     });
 }
