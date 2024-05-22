@@ -61,7 +61,7 @@ namespace textures{
 
     void create(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format, void* data
                 , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
-                , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
+                , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, uint32_t levelCount = 1);
 
     void createTextureArray(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format, const std::vector<void*>& data
                 , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
@@ -81,7 +81,7 @@ namespace textures{
 
     RawImage loadImage(std::string_view path, bool flipUv = false);
 
-    void fromFile(const VulkanDevice& device, Texture& texture, std::string_view path, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM);
+    void fromFile(const VulkanDevice& device, Texture& texture, std::string_view path, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, uint32_t levelCount = 1);
 
     void fromFile(const VulkanDevice& device, Texture& texture, const std::vector<std::string>& paths, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM);
 
@@ -132,4 +132,8 @@ namespace textures{
     void save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format, const std::string& path, int width, int height);
 
     void save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image);
+
+    void generateLOD(const VulkanDevice& device, Texture& texture, uint32_t levels);
+
+    void generateLOD(const VulkanDevice& device, VulkanImage& image, uint32_t width, uint32_t height, uint32_t levels);
 }
