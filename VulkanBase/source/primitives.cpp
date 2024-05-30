@@ -2,46 +2,53 @@
 
 static constexpr auto PI = glm::pi<float>();
 
+struct Surface {
+    glm::vec3 position{};
+    glm::vec3 normal{0, 1, 0};
+    glm::vec3 tangent{1, 0, 0};
+    glm::vec3 bitangent{0, 0, 1};
+};
+
 Vertices primitives::cube(const glm::vec4& color){
     Vertices mesh;
 
     mesh.vertices = {
 
             // FRONT FACE
-            {{-0.5, -0.5, 0.5, 1}, color, {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0},  {0, 0}},
-            {{0.5, -0.5, 0.5, 1}, color,  {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0}, {1, 0}},
-            {{0.5, 0.5, 0.5, 1}, color,  {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0}, {1, 1}},
-            {{-0.5, 0.5, 0.5, 1}, color,  {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0}, {0, 1}},
+            {{-1.0, -1.0, 1.0, 1}, color, {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0},  {0, 0}},
+            {{1.0, -1.0, 1.0, 1}, color,  {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0}, {1, 0}},
+            {{1.0, 1.0, 1.0, 1}, color,  {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0}, {1, 1}},
+            {{-1.0, 1.0, 1.0, 1}, color,  {0.0f, 0.0f, 1.0f}, {1, 0, 0}, {0, 1, 0}, {0, 1}},
 
             // RIGHT FACE
-            {{0.5, -0.5, 0.5, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {0, 0}},
-            {{0.5, -0.5, -0.5, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {1, 0}},
-            {{0.5, 0.5, -0.5, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {1, 1}},
-            {{0.5, 0.5, 0.5, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {0, 1}},
+            {{1.0, -1.0, 1.0, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {0, 0}},
+            {{1.0, -1.0, -1.0, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {1, 0}},
+            {{1.0, 1.0, -1.0, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {1, 1}},
+            {{1.0, 1.0, 1.0, 1}, color,  {1.0f, 0.0f, 0.0f}, {0, 0, -1}, {0, 1, 0}, {0, 1}},
 
             // BACK FACE
-            {{-0.5, -0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {1, 0}},
-            {{-0.5, 0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {1, 1}},
-            {{0.5, 0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {0, 1}},
-            {{0.5, -0.5, -0.5, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {0, 0}},
+            {{-1.0, -1.0, -1.0, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {1, 0}},
+            {{-1.0, 1.0, -1.0, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {1, 1}},
+            {{1.0, 1.0, -1.0, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {0, 1}},
+            {{1.0, -1.0, -1.0, 1}, color, {0.0f, 0.0f, -1.0f}, {-1, 0, 0}, {0, 1, 0}, {0, 0}},
 
             // LEFT FACE
-            {{-0.5, -0.5, 0.5, 1},  color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0}, {1, 0}},
-            {{-0.5, 0.5, 0.5, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {1, 1}},
-            {{-0.5, 0.5, -0.5, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {0, 1}},
-            {{-0.5, -0.5, -0.5, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {0, 0}},
+            {{-1.0, -1.0, 1.0, 1},  color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0}, {1, 0}},
+            {{-1.0, 1.0, 1.0, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {1, 1}},
+            {{-1.0, 1.0, -1.0, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {0, 1}},
+            {{-1.0, -1.0, -1.0, 1}, color, {-1.0f, 0.0f, 0.0f}, {0, 0, 1}, {0, 1, 0},  {0, 0}},
 
             // BOTTOM FACE
-            {{-0.5, -0.5, 0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {0, 1}},
-            {{-0.5, -0.5, -0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {0, 0}},
-            {{0.5, -0.5, -0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {1, 0}},
-            {{0.5, -0.5, 0.5, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {1, 1}},
+            {{-1.0, -1.0, 1.0, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {0, 1}},
+            {{-1.0, -1.0, -1.0, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {0, 0}},
+            {{1.0, -1.0, -1.0, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {1, 0}},
+            {{1.0, -1.0, 1.0, 1}, color, {0.0f, -1.0f, 0.0f}, {1, 0, 0}, {0, 0, 1},  {1, 1}},
 
             // TOP FACE
-            {{-0.5, 0.5, 0.5, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {0, 0}},
-            {{0.5, 0.5, 0.5, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {1, 0}},
-            {{0.5, 0.5, -0.5, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {1, 1}},
-            {{-0.5, 0.5, -0.5, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {0, 1}},
+            {{-1.0, 1.0, 1.0, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {0, 0}},
+            {{1.0, 1.0, 1.0, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {1, 0}},
+            {{1.0, 1.0, -1.0, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {1, 1}},
+            {{-1.0, 1.0, -1.0, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {0, 1}},
     };
 
     mesh.indices = {
@@ -73,10 +80,18 @@ Vertices primitives::sphere(int rows, int columns, float radius, glm::mat4 xform
         float nz = std::sin(u) * std::sin(v);
         float z = r * nz;
 
-       return std::make_tuple(glm::vec3(x, y, z), glm::vec3(nx, ny, nz));
+        float tx = -r * std::sin(u) * std::sin(v);
+        float ty = 0;
+        float tz = r * std::cos(u) * std::sin(v);
+
+        float bx = r * std::cos(u) * std::cos(v);
+        float by = -r * std::sin(v);
+        float bz = r * std::sin(u) * std::cos(v);
+
+       return Surface{ {x, y, z}, {nx, ny, nz}, {tx, ty, tz}, {bx, by, bz} };
     };
 
-    return surface(p, q, f, color, xform, topology);
+    return generateSurface(p, q, f, color, xform, topology);
 }
 
 Vertices primitives::hemisphere(int rows, int columns, float radius, const glm::vec4 &color, VkPrimitiveTopology topology) {
@@ -96,10 +111,10 @@ Vertices primitives::hemisphere(int rows, int columns, float radius, const glm::
         float nz = std::sin(u) * std::sin(v);
         float z = radius * nz;
 
-        return std::make_tuple(glm::vec3(x, y, z), glm::vec3(nx, ny, nz));
+        return Surface{ glm::vec3(x, y, z), glm::vec3(nx, ny, nz) };
     };
 
-    return surface(p, q, f, color, glm::mat4{1}, topology);
+    return generateSurface(p, q, f, color, glm::mat4{1}, topology);
 }
 
 Vertices primitives::cone(int rows, int columns, float radius, float height, const glm::vec4 &color, VkPrimitiveTopology topology) {
@@ -120,10 +135,10 @@ Vertices primitives::cone(int rows, int columns, float radius, float height, con
         float nz = 0;
         float z =  v - h * 0.5f;
 
-        return std::make_tuple(glm::vec3(x, y, z), glm::vec3(nx, ny, nz));
+        return Surface{ glm::vec3(x, y, z), glm::vec3(nx, ny, nz) };
     };
 
-    return surface(p, q, f, color, glm::mat4{1}, topology);
+    return generateSurface(p, q, f, color, glm::mat4{1}, topology);
 }
 
 Vertices primitives::cylinder(int rows, int columns, float radius, float height, const glm::vec4 &color, VkPrimitiveTopology topology) {
@@ -143,10 +158,10 @@ Vertices primitives::cylinder(int rows, int columns, float radius, float height,
         float nz = std::cos(u);
         float z = radius * height * std::cos(u);
 
-        return std::make_tuple(glm::vec3(x, y, z), glm::vec3(nx, ny, nz));
+        return Surface{ glm::vec3(x, y, z), glm::vec3(nx, ny, nz) };
     };
 
-    return surface(p, q, f, color, glm::mat4{1}, topology);
+    return generateSurface(p, q, f, color, glm::mat4{1}, topology);
 }
 
 Vertices primitives::torus(int rows, int columns, float innerRadius, float outerRadius,  glm::mat4 xform, const glm::vec4 &color, VkPrimitiveTopology topology) {
@@ -168,11 +183,11 @@ Vertices primitives::torus(int rows, int columns, float innerRadius, float outer
         float z = r * std::sin(v);
         float nz =  std::sin(v);
 
-        return std::make_tuple(glm::vec3(x, y, z), glm::vec3(nx, ny, nz));
+        return Surface{ glm::vec3(x, y, z), glm::vec3(nx, ny, nz) };
     };
 
 
-    return surface(p, q, f, color, xform, topology);
+    return generateSurface(p, q, f, color, xform, topology);
 }
 
 Vertices primitives::plane(int rows, int columns, float width, float height, const glm::mat4& xform, const glm::vec4 &color, VkPrimitiveTopology topology) {
@@ -196,10 +211,10 @@ Vertices primitives::plane(int rows, int columns, float width, float height, con
         float nz = 1;
 
 
-        return std::make_tuple(glm::vec3(x, y, z), glm::vec3(nx, ny, nz));
+        return Surface{ glm::vec3(x, y, z), glm::vec3(nx, ny, nz) };
     };
 
-    auto vertices = surface(p, q, f, color, xform, topology);
+    auto vertices = generateSurface(p, q, f, color, xform, topology);
 
     glm::vec3 N{0.0f, 0.0f, 1.0f};
     glm::vec3 T{1, 0, 0};
@@ -221,17 +236,18 @@ Vertices primitives::plane(int rows, int columns, float width, float height, con
 
 
 template<typename SurfaceFunction>
-Vertices primitives::surface(int p, int q, SurfaceFunction &&f, const glm::vec4 &color, const glm::mat4& xform, VkPrimitiveTopology topology) {
+Vertices primitives::generateSurface(int p, int q, SurfaceFunction &&f, const glm::vec4 &color, const glm::mat4& xform, VkPrimitiveTopology topology) {
     Vertices vertices;
     vertices.topology = topology;
     auto nXform = glm::inverseTranspose(glm::mat3(xform));
     for (int j = 0; j <= q; j++) {
         for (int i = 0; i <= p; i++) {
-            auto [position, normal] = f(i, j);
+            auto [position, normal, tangent, bitangent] = f(i, j);
             Vertex vertex{};
             vertex.position = xform * glm::vec4(position, 1.0);
             vertex.normal =  nXform * normal;
-            // TODO construct tangents
+            vertex.tangent = nXform * tangent;
+            vertex.bitangent = nXform * bitangent;
             vertex.color = color;
             vertex.uv = {float(i) / float(p), float(j) / float(q)};
             vertices.vertices.push_back(vertex);

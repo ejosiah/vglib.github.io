@@ -89,7 +89,7 @@ namespace primitives{
      * @return  returns a surface defined by the parametric function f
      */
     template<typename SurfaceFunction>
-    Vertices surface(int p,
+    Vertices generateSurface(int p,
                      int q,
                      SurfaceFunction&& f,
                      const glm::vec4& color,
