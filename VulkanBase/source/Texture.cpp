@@ -154,6 +154,7 @@ uint32_t nunChannels(VkFormat format) {
         case VK_FORMAT_R32_SFLOAT:
         case VK_FORMAT_D32_SFLOAT:
         case VK_FORMAT_R8_UNORM:
+        case VK_FORMAT_R32_UINT:
             return 1;
         case VK_FORMAT_R8G8_SRGB:
         case VK_FORMAT_R8G8_UNORM:
