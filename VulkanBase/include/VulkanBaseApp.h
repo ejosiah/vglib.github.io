@@ -309,6 +309,8 @@ protected:
 
     void save(const FramebufferAttachment& attachment);
 
+    static FileManager& fileManager();
+
 private:
     void setPaused(bool flag);
 
@@ -365,7 +367,6 @@ protected:
     bool ready = false;
     bool toggleFullscreen = false;
     void* deviceCreateNextChain = nullptr;
-    FileManager fileManager{};
 
     std::map<std::string, uint32_t> attachmentIndices;
     uint32_t numFrameBufferAttachments{0};

@@ -40,6 +40,7 @@ VulkanBaseApp::VulkanBaseApp(std::string_view name, const Settings& settings, st
     appInstance = this;
     this->settings.deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     this->settings.deviceExtensions.push_back(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
+    auto& fileManager = FileManager::instance();
     fileManager.addSearchPath("../../data/shaders");
     fileManager.addSearchPath("../../data/models");
     fileManager.addSearchPath("../../data/textures");
@@ -65,7 +66,7 @@ void VulkanBaseApp::init() {
     initVulkan();
     postVulkanInit();
 
-    gpu::init(device, fileManager);
+    gpu::init(device, fileManager());
 
     createSwapChain();
     createSyncObjects();
@@ -816,11 +817,11 @@ void VulkanBaseApp::checkInstanceExtensionSupport() {
 }
 
 byte_string VulkanBaseApp::load(const std::string &resource) {
-    return fileManager.load(resource);
+    return fileManager().load(resource);
 }
 
 std::string VulkanBaseApp::resource(const std::string& name) {
-    auto res = fileManager.getFullPath(name);
+    auto res = fileManager().getFullPath(name);
     assert(res.has_value());
     return res->string();
 }
@@ -987,4 +988,8 @@ void VulkanBaseApp::invalidateSwapChain() {
 
 void VulkanBaseApp::save(const FramebufferAttachment &attachment) {
 
+}
+
+FileManager &VulkanBaseApp::fileManager()  {
+    return FileManager::instance();
 }
