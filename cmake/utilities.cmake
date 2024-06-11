@@ -66,6 +66,10 @@ function(compile_glsl_directory)
         "${COMPILE_SRC_DIR}/*.rahit*"
         "${COMPILE_SRC_DIR}/*.rint*"
         "${COMPILE_SRC_DIR}/*.rcall*"
+        "${COMPILE_SRC_DIR}/*.mesh*"
+        "${COMPILE_SRC_DIR}/*.msh*"
+        "${COMPILE_SRC_DIR}/*.task*"
+        "${COMPILE_SRC_DIR}/*.tsk*"
     )
 
     file(MAKE_DIRECTORY ${COMPILE_OUT_DIR})

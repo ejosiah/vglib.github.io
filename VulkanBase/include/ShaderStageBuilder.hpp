@@ -21,6 +21,9 @@ public:
    [[nodiscard]]
    virtual ShaderBuilder& vertexShader(const ShaderSource & source);
 
+   virtual ShaderBuilder& taskSShader(const ShaderSource & source);
+
+   virtual ShaderBuilder& meshShader(const ShaderSource & source);
 
    [[nodiscard]]
    virtual ShaderBuilder& fragmentShader(const ShaderSource & source);
@@ -55,9 +58,15 @@ protected:
 
     bool hasTessEvalShader() const;
 
+    bool meshShaderSupported() const;
+
+    bool taskShaderSupported() const;
+
 private:
     std::vector<VkPipelineShaderStageCreateInfo> _vkStages;
     std::vector<std::unique_ptr<ShaderBuilder>> _shaderBuilders;
+    VkPhysicalDeviceFeatures2 _features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+    VkPhysicalDeviceMeshShaderFeaturesEXT _meshFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT };
 };
 
 class ShaderBuilder : public ShaderStageBuilder {
@@ -82,6 +91,10 @@ public:
 
     ShaderBuilder &vertexShader(const ShaderSource &source) override;
 
+    ShaderBuilder &taskSShader(const ShaderSource &source) override;
+
+    ShaderBuilder &meshShader(const ShaderSource &source) override;
+
     ShaderBuilder &fragmentShader(const ShaderSource &source) override;
 
     ShaderBuilder &geometryShader(const ShaderSource &source) override;
@@ -93,6 +106,8 @@ public:
     VkPipelineShaderStageCreateInfo& buildShader();
 
     bool isVertexShader() const;
+
+    bool isMeshShader() const;
 
     bool isTessEvalShader() const;
 

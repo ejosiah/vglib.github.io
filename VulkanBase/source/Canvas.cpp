@@ -64,7 +64,7 @@ void Canvas::draw(VkCommandBuffer commandBuffer) {
 }
 
 void Canvas::draw(VkCommandBuffer commandBuffer, VkDescriptorSet imageSet) {
-    assert(pipeline);
+    assert(pipeline && "canvas pipeline not yet created");
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout.handle, 0, 1, &imageSet, 0, VK_NULL_HANDLE);
 

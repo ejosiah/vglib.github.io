@@ -133,6 +133,11 @@ DynamicStateBuilder &DynamicStateBuilder::colorWriteEnable() {
     return *this;
 }
 
+DynamicStateBuilder &DynamicStateBuilder::polygonModeEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_POLYGON_MODE_EXT);
+    return *this;
+}
+
 DynamicStateBuilder &DynamicStateBuilder::clear() {
     _dynamicStates.clear();
     return *this;

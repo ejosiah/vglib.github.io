@@ -7,16 +7,28 @@
 ShaderStageBuilder::ShaderStageBuilder(VulkanDevice *device, GraphicsPipelineBuilder *parent)
 : GraphicsPipelineBuilder(device, parent)
 {
-
+    _features.pNext = &_meshFeatures;
+    vkGetPhysicalDeviceFeatures2(device->physicalDevice, &_features);
 }
 
 ShaderStageBuilder::ShaderStageBuilder(ShaderStageBuilder *parent)
 : GraphicsPipelineBuilder(parent->_device, parent)
 {
+    _meshFeatures = parent->_meshFeatures;
 }
 
 ShaderBuilder &ShaderStageBuilder::vertexShader(const ShaderSource &source) {
     return addShader(source, VK_SHADER_STAGE_VERTEX_BIT);
+}
+
+ShaderBuilder &ShaderStageBuilder::taskSShader(const ShaderSource &source) {
+    if(!taskShaderSupported()) throw std::runtime_error{ "Task Shader not supported" };
+    return addShader(source, VK_SHADER_STAGE_TASK_BIT_EXT);
+}
+
+ShaderBuilder &ShaderStageBuilder::meshShader(const ShaderSource &source) {
+    if(!meshShaderSupported()) throw std::runtime_error{ "Mesh Shader not supported" };
+    return addShader(source, VK_SHADER_STAGE_MESH_BIT_EXT);
 }
 
 ShaderBuilder &ShaderStageBuilder::fragmentShader(const ShaderSource &source) {
@@ -39,7 +51,7 @@ ShaderBuilder &ShaderStageBuilder::tessellationControlShader(const ShaderSource&
 void ShaderStageBuilder::validate() const {
 
     if(!hasVertexShader()){
-        throw std::runtime_error{"at least vertex shader should be provided"};
+        throw std::runtime_error{"at least vertex/mesh shader should be provided"};
     }
 
     if(hasTessControlShader() && !hasTessEvalShader()){
@@ -84,8 +96,9 @@ ShaderStageBuilder::addShader(const ShaderStageBuilder::ShaderSource &source, Vk
 }
 
 bool ShaderStageBuilder::hasVertexShader() const {
-    auto itr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(), [](const auto& builder){ return builder->isVertexShader(); });
-    return itr != _shaderBuilders.end();
+    auto vertItr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(), [](const auto& builder){ return builder->isVertexShader(); });
+    auto meshItr = std::find_if(_shaderBuilders.begin(), _shaderBuilders.end(), [](const auto& builder){ return builder->isMeshShader(); });
+    return vertItr != _shaderBuilders.end() || meshItr != _shaderBuilders.end();
 }
 
 bool ShaderStageBuilder::hasTessControlShader() const {
@@ -101,6 +114,15 @@ bool ShaderStageBuilder::hasTessEvalShader() const {
 void ShaderStageBuilder::clearStages() {
     _vkStages.clear();
 }
+
+bool ShaderStageBuilder::meshShaderSupported() const {
+    return static_cast<bool>(_meshFeatures.meshShader);
+}
+
+bool ShaderStageBuilder::taskShaderSupported() const {
+    return static_cast<bool>(_meshFeatures.taskShader);
+}
+
 
 ShaderBuilder::ShaderBuilder(ShaderStageBuilder *parent)
 : ShaderStageBuilder(parent) {}
@@ -135,6 +157,14 @@ ShaderBuilder &ShaderBuilder::vertexShader(const ShaderStageBuilder::ShaderSourc
     return parent()->vertexShader(source);
 }
 
+ShaderBuilder &ShaderBuilder::taskSShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->taskSShader(source);
+}
+
+ShaderBuilder &ShaderBuilder::meshShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->meshShader(source);
+}
+
 ShaderBuilder &ShaderBuilder::fragmentShader(const ShaderStageBuilder::ShaderSource &source) {
     return parent()->fragmentShader(source);
 }
@@ -157,6 +187,10 @@ ShaderBuilder &ShaderBuilder::tessellationControlShader(const ShaderStageBuilder
 
 bool ShaderBuilder::isVertexShader() const {
     return _stage.stage == VK_SHADER_STAGE_VERTEX_BIT;
+}
+
+bool ShaderBuilder::isMeshShader() const {
+    return _stage.stage == VK_SHADER_STAGE_MESH_BIT_EXT;
 }
 
 bool ShaderBuilder::isTessEvalShader() const {
