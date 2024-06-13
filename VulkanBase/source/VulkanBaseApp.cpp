@@ -121,9 +121,9 @@ void VulkanBaseApp::initVulkan() {
     ext::init(instance);
     createDebugMessenger();
     pickPhysicalDevice();
-    beforeDeviceCreation();
     initMixins();
     addPluginDeviceExtensions();
+    beforeDeviceCreation();
     createLogicalDevice();
     vkDevice = device.logicalDevice;
 }
