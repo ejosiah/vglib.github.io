@@ -32,6 +32,8 @@ public:
 
     static void transferWriteToComputeWrite(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
 
+    static void transferWriteToFragmentRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
+
     static void transferWriteToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
     static void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
