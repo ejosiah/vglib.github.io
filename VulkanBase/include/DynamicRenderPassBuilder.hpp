@@ -20,7 +20,7 @@ public:
     [[nodiscard]]
     bool enabled() const;
 
-    const VkPipelineRenderingCreateInfo* buildDynamicRenderInfo();
+    const VkPipelineRenderingCreateInfo& buildDynamicRenderInfo();
 
 private:
     VkPipelineRenderingCreateInfo m_renderingCreateInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };

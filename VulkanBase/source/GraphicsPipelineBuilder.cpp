@@ -211,7 +211,7 @@ VkGraphicsPipelineCreateInfo GraphicsPipelineBuilder::createInfo() {
     info.subpass = _subpass;
 
     if(_dynamicRenderStateBuilder->enabled()) {
-        info.pNext = _dynamicRenderStateBuilder->buildDynamicRenderInfo();
+        info.pNext = &_dynamicRenderStateBuilder->buildDynamicRenderInfo();
     }
 
     return info;

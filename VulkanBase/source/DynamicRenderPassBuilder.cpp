@@ -34,9 +34,9 @@ bool DynamicRenderPassBuilder::enabled() const {
     return m_enabled;
 }
 
-const VkPipelineRenderingCreateInfo* DynamicRenderPassBuilder::buildDynamicRenderInfo() {
+const VkPipelineRenderingCreateInfo& DynamicRenderPassBuilder::buildDynamicRenderInfo() {
     assert(!m_colorAttachments.empty() || m_renderingCreateInfo.depthAttachmentFormat != VK_FORMAT_UNDEFINED);
     m_renderingCreateInfo.colorAttachmentCount = m_colorAttachments.size();
     m_renderingCreateInfo.pColorAttachmentFormats = m_colorAttachments.data();
-    return &m_renderingCreateInfo;
+    return m_renderingCreateInfo;
 }
