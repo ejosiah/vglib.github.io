@@ -235,7 +235,8 @@ void RadixSort::generateSequence(VkCommandBuffer commandBuffer, uint32_t numEntr
 }
 
 void RadixSort::flipBits(VkCommandBuffer commandBuffer, VulkanBuffer &buffer) {
-    const auto gx = glm::max(1ULL, buffer.sizeAs<int>()/256);
+    static constexpr uint32_t wgSize = 256;
+    const auto gx =  (buffer.sizeAs<uint32_t>() + wgSize)/wgSize;
 
     updateBitFlipDescriptorSet(buffer);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("radix_sort_bit_flip"));
