@@ -139,19 +139,21 @@ struct VulkanSwapChain{
         return static_cast<uint32_t>(images.size());
     }
 
+    template<typename T = uint32_t>
     [[nodiscard]]
-    uint32_t width() const {
-        return extent.width;
+    T width() const {
+        return static_cast<T>(extent.width);
     }
 
     [[nodiscard]]
     float aspectRatio() const {
-        return float(extent.width)/float(extent.height);
+        return width<float>()/height<float>();
     };
 
+    template<typename T = uint32_t>
     [[nodiscard]]
-    uint32_t height() const {
-        return extent.height;
+    T height() const {
+        return static_cast<T>(extent.height);
     }
 
     operator VkSwapchainKHR() const {

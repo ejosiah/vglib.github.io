@@ -11,7 +11,7 @@ struct Canvas{
     Canvas() = default;
 
     Canvas(const VulkanBaseApp* application,
-           VkImageUsageFlags usage,
+           VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT,
            VkFormat fmt = VK_FORMAT_R32G32B32A32_SFLOAT,
            std::optional<std::string> vertexShader = {},
            std::optional<std::string> fragShader = {},
@@ -40,6 +40,8 @@ struct Canvas{
     void createImageStorage();
 
     void setConstants(void* constants);
+
+    VulkanDescriptorSetLayout getDescriptorSetLayout() const;
 
     VulkanBuffer buffer;
     VulkanBuffer colorBuffer;

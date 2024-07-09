@@ -73,8 +73,12 @@ public:
     [[nodiscard]]
     virtual const Camera& cam() const = 0;
 
+    virtual const Camera& previousCamera() const = 0;
+
     virtual void newFrame() = 0;
 
     [[nodiscard]]
     virtual bool moved() const = 0;
+
+    virtual void jitter(float jx, float jy) = 0;
 };

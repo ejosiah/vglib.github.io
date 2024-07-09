@@ -367,13 +367,18 @@ void BaseCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLay
 }
 
 void BaseCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags) {
-    camera.model = model;
-    vkCmdPushConstants(commandBuffer, layout.handle, stageFlags, 0, sizeof(Camera), &camera);
+    const Camera aCamera{ .model = model, .view = camera.view, .proj = camera.proj };
+    vkCmdPushConstants(commandBuffer, layout.handle, stageFlags, 0, sizeof(Camera), &aCamera);
 }
 
 const Camera &BaseCameraController::cam() const {
     return camera;
 }
+
+const Camera &BaseCameraController::previousCamera() const {
+    return _previousCamera;
+}
+
 
 void BaseCameraController::onPositionChanged() {
 
@@ -393,6 +398,7 @@ const glm::vec3 &BaseCameraController::getYAxis() {
 
 void BaseCameraController::newFrame() {
     _moved = false;
+    _previousCamera = camera;
 }
 
 bool BaseCameraController::moved() const {
@@ -409,5 +415,11 @@ float BaseCameraController::far() {
 
 void BaseCameraController::fieldOfView(float value) {
     perspective(value, aspectRatio, znear, zfar);
+}
+
+void BaseCameraController::jitter(float jx, float jy) {
+    perspective(fov, aspectRatio, znear, zfar);
+    glm::mat4 jMatrix = glm::translate(glm::mat4{1}, {jx, jy, 0});
+    camera.proj = jMatrix * camera.proj;
 }
 

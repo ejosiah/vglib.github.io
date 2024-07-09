@@ -34,7 +34,6 @@ struct BindlessDescriptor {
     VkDescriptorSet descriptorSet{};
     std::map<VkDescriptorType, std::atomic_int> bindingIds;
     std::map<VkDescriptorType, int> bindings;
-    int reserveSlots{};
 
     BindlessDescriptor() = default;
 
@@ -43,7 +42,6 @@ struct BindlessDescriptor {
     , descriptorSetLayout(&descriptorSetLayout)
     , descriptorSet(descriptorSet) 
     , bindings(std::move(bindings))
-    , reserveSlots(reserveSlots)
     {
         bindingIds[VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER] = reserveSlots;
         bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE] = 0;
@@ -59,6 +57,12 @@ struct BindlessDescriptor {
 
     BindlessTexture next(const Texture& texture, VkDescriptorType type) {
         return BindlessTexture{ &texture, type, nextIndex(type) };
+    }
+
+    int reserveSlots(VkDescriptorType type, int numSlots) {
+        auto offset = bindingIds[type].load();
+        bindingIds[type] += numSlots;
+        return offset;
     }
 
     BindlessBuffer next(const VulkanBuffer& buffer, VkDescriptorType type) {
@@ -228,35 +232,35 @@ public:
         std::vector<VkSampler> samplers(MaxDescriptorResources, m_defaultSampler.handle);
         auto nextBinding = sequence(TextureResourceBindingPoint);
         auto bindings =
-                device().descriptorSetLayoutBuilder()
-                        .name("bind_less_descriptor_set_layout")
-                        .bindless()
-                        .binding(nextBinding())
+            device().descriptorSetLayoutBuilder()
+                    .name("bind_less_descriptor_set_layout")
+                    .bindless()
+                    .binding(nextBinding())
                         .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
                         .immutableSamplers(samplers.data())
-                        .binding(nextBinding())
+                    .binding(nextBinding())
                         .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
-                        .binding(nextBinding())
+                    .binding(nextBinding())
                         .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLER)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
-                        .binding(nextBinding())
+                    .binding(nextBinding())
                         .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
-                        .binding(nextBinding())
+                    .binding(nextBinding())
                         .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
-                        .binding(nextBinding())
+                    .binding(nextBinding())
                         .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
-                        .build();
+                    .build();
 
         for(const auto& binding : m_additionalBindings) {
             bindings.push_back(binding);

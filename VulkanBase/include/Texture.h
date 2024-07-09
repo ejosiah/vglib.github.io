@@ -52,9 +52,13 @@ struct RawImage{
 
 template<typename T>
 using Dimension3D = glm::vec<3, T, glm::defaultp>;
+using iDimension3D = Dimension3D<int32_t>;
+using uDimension3D = Dimension3D<uint32_t>;
 
 template<typename T>
 using Dimension2D = glm::vec<2, T, glm::defaultp>;
+using iDimension2D = Dimension2D<int32_t>;
+using uDimension2D = Dimension2D<uint32_t>;
 
 namespace textures{
 
@@ -137,4 +141,6 @@ namespace textures{
     void generateLOD(const VulkanDevice& device, Texture& texture, uint32_t levels, uint32_t layers = 1);
 
     void generateLOD(const VulkanDevice& device, VulkanImage& image, uint32_t width, uint32_t height, uint32_t levels, uint32_t layers = 1);
+
+    void generateLOD(VkCommandBuffer commandBuffer, VulkanImage& image, uint32_t width, uint32_t height, uint32_t levels, uint32_t layers = 1);
 }

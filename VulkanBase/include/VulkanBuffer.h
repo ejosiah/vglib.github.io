@@ -275,4 +275,8 @@ struct BufferRegion {
     std::span<T> span() const {
         return { reinterpret_cast<T*>(map()), sizeAs<T>() };
     }
+
+    void upload(void* data)  {
+        buffer->copy(data, size(), offset);
+    }
 };

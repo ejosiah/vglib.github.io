@@ -101,6 +101,8 @@ public:
     [[nodiscard]]
     const Camera& cam() const final;
 
+    const Camera& previousCamera() const;
+
     [[nodiscard]]
     const glm::quat &getOrientation() const final;
 
@@ -116,6 +118,8 @@ public:
     void newFrame() override;
 
     bool moved() const override;
+
+    void jitter(float jx, float jy) override;
 
 
     float fov;
@@ -143,6 +147,7 @@ public:
     glm::quat orientation;
     glm::vec3 direction;
     mutable Camera camera;
+    mutable Camera _previousCamera;
     const Mouse& mouse;
 
     float zoomAmount = 0;

@@ -10,8 +10,6 @@ struct VulkanCommandPool{
     inline VulkanCommandPool(VkDevice device , uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags = 0,  uint32_t queueIndex = 0, void* nextChain = VK_NULL_HANDLE)
     :device(device)
     {
-        VkCommandPoolCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         createInfo.pNext = nextChain;
         createInfo.flags = flags;
         createInfo.queueFamilyIndex = queueFamilyIndex;
@@ -164,4 +162,5 @@ struct VulkanCommandPool{
     VkDevice device = VK_NULL_HANDLE;
     VkCommandPool pool = VK_NULL_HANDLE;
     VkQueue queue = VK_NULL_HANDLE;
+    VkCommandPoolCreateInfo createInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 };

@@ -119,6 +119,7 @@ VkDeviceSize byteSize(VkFormat format){
         case VK_FORMAT_R16G16B16A16_UINT:
         case VK_FORMAT_R16G16B16A16_SINT:
         case VK_FORMAT_R16G16B16A16_SFLOAT:
+        case VK_FORMAT_D16_UNORM:
             return 2;
         case VK_FORMAT_R32_UINT:
         case VK_FORMAT_R32_SINT:
@@ -158,8 +159,10 @@ uint32_t nunChannels(VkFormat format) {
             return 1;
         case VK_FORMAT_R8G8_SRGB:
         case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R16G16_SFLOAT:
         case VK_FORMAT_R32G32_SINT:
         case VK_FORMAT_R32G32_SFLOAT:
+        case VK_FORMAT_D16_UNORM:
             return 2;
         case VK_FORMAT_R8G8B8_SRGB:
         case VK_FORMAT_B8G8R8_SRGB:
@@ -1135,85 +1138,89 @@ void textures::generateLOD(const VulkanDevice& device, VulkanImage& image, uint3
     }
 
     device.commandPoolFor(*device.findFirstActiveQueue()).oneTimeCommand([&](auto commandBuffer) {
-        auto w = static_cast<int32_t>(width);
-        auto h = static_cast<int32_t>(height);
-        VkImageBlit blit{};
-        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount = 1;
-        blit.srcOffsets[0] = {0, 0, 0};
+        generateLOD(commandBuffer, image, width, height, levels, layers);
+    });
+}
 
-        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.dstSubresource.baseArrayLayer = 0;
-        blit.dstSubresource.layerCount = 1;
-        blit.dstOffsets[0] = {0, 0, 0};
+void textures::generateLOD(VkCommandBuffer commandBuffer, VulkanImage &image, uint32_t width, uint32_t height, uint32_t levels, uint32_t layers) {
+    auto w = static_cast<int32_t>(width);
+    auto h = static_cast<int32_t>(height);
+    VkImageBlit blit{};
+    blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blit.srcSubresource.baseArrayLayer = 0;
+    blit.srcSubresource.layerCount = 1;
+    blit.srcOffsets[0] = {0, 0, 0};
+
+    blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blit.dstSubresource.baseArrayLayer = 0;
+    blit.dstSubresource.layerCount = 1;
+    blit.dstOffsets[0] = {0, 0, 0};
+    blit.dstOffsets[1] = {w/2, h/2, 1};
+
+    VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+
+    for(auto layer = 0; layer < layers; ++layer) {
+        blit.srcOffsets[1] = {w, h, 1};
         blit.dstOffsets[1] = {w/2, h/2, 1};
 
-        VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-        barrier.image = image;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = layer;
+        barrier.subresourceRange.layerCount = 1;
+
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
+
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.subresourceRange.baseMipLevel = 1;
+        barrier.subresourceRange.levelCount = levels - 1;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
 
 
-        for(auto layer = 0; layer < layers; ++layer) {
-            blit.srcOffsets[1] = {w, h, 1};
-            blit.dstOffsets[1] = {w/2, h/2, 1};
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.layerCount = 1;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
-            barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.subresourceRange.baseMipLevel = 0;
-            barrier.subresourceRange.levelCount = 1;
+        for (auto level = 1u; level < levels; ++level) {
+            blit.srcSubresource.mipLevel = level - 1;
+            blit.dstSubresource.mipLevel = level;
+            blit.srcSubresource.baseArrayLayer = layer;
+            blit.dstSubresource.baseArrayLayer = layer;
+
+            vkCmdBlitImage(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+
+            barrier.subresourceRange.baseMipLevel = level;
             barrier.subresourceRange.baseArrayLayer = layer;
-            barrier.subresourceRange.layerCount = 1;
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,0, 0, 0, 0, 1, &barrier);
 
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
-
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.subresourceRange.baseMipLevel = 1;
-            barrier.subresourceRange.levelCount = levels - 1;
-            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
-
-
-            barrier.subresourceRange.levelCount = 1;
-            barrier.subresourceRange.layerCount = 1;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-
-            for (auto level = 1u; level < levels; ++level) {
-                blit.srcSubresource.mipLevel = level - 1;
-                blit.dstSubresource.mipLevel = level;
-                blit.srcSubresource.baseArrayLayer = layer;
-                blit.dstSubresource.baseArrayLayer = layer;
-
-                vkCmdBlitImage(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
-
-                barrier.subresourceRange.baseMipLevel = level;
-                barrier.subresourceRange.baseArrayLayer = layer;
-                vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,0, 0, 0, 0, 1, &barrier);
-
-                blit.srcOffsets[1].x >>= 1;
-                blit.srcOffsets[1].y >>= 1;
-
-                blit.dstOffsets[1].x = std::max(blit.dstOffsets[1].x >> 1, 1);
-                blit.dstOffsets[1].y = std::max(blit.dstOffsets[1].y >> 1, 1);
-            }
             blit.srcOffsets[1].x >>= 1;
             blit.srcOffsets[1].y >>= 1;
-        }
 
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = levels;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = layers;
-        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
-    });
+            blit.dstOffsets[1].x = std::max(blit.dstOffsets[1].x >> 1, 1);
+            blit.dstOffsets[1].y = std::max(blit.dstOffsets[1].y >> 1, 1);
+        }
+        blit.srcOffsets[1].x >>= 1;
+        blit.srcOffsets[1].y >>= 1;
+    }
+
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = levels;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = layers;
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
 }

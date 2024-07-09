@@ -260,3 +260,7 @@ void Canvas::createImageStorage() {
 void Canvas::setConstants(void *constants) {
     pushConstants = constants;
 }
+
+VulkanDescriptorSetLayout Canvas::getDescriptorSetLayout() const {
+    return descriptorSetLayout;
+}
