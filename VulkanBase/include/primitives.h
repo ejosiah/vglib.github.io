@@ -21,6 +21,14 @@ namespace primitives{
     Vertices cube(const glm::vec4& color = randomColor());
 
 
+    /**
+     * Generates vertices for cube
+     * @param color cube color
+     * @return vertices defining outline a cube
+     */
+    Vertices cubeOutline(const glm::vec4& color = randomColor());
+
+
     Vertices teapot(glm::mat4 xform = glm::mat4{1}, glm::mat4 lidXform = glm::mat4{1}, const glm::vec4& color = randomColor());
 
     /**

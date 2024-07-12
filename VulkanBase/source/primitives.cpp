@@ -62,6 +62,55 @@ Vertices primitives::cube(const glm::vec4& color){
     return mesh;
 }
 
+Vertices primitives::cubeOutline(const glm::vec4& color) {
+    Vertices vertices{
+        .vertices = {
+// FRONT
+                { .position = glm::vec4(-1, -1, -1, 1), .color = color},
+                { .position = glm::vec4(-1, 1, -1, 1), .color = color},
+
+                { .position = glm::vec4(-1, 1, -1, 1), .color = color},
+                { .position = glm::vec4(1, 1, -1, 1), .color = color},
+
+                { .position = glm::vec4(1, 1, -1, 1), .color = color},
+                { .position = glm::vec4(1, -1, -1, 1), .color = color},
+
+                { .position = glm::vec4(1, -1, -1, 1), .color = color},
+                { .position = glm::vec4(-1, -1, -1, 1), .color = color},
+
+// BACK
+                { .position = glm::vec4(-1, -1, 1, 1), .color = color},
+                { .position = glm::vec4(-1, 1, 1, 1), .color = color},
+
+                { .position = glm::vec4(-1, 1, 1, 1), .color = color},
+                { .position = glm::vec4(1, 1, 1, 1), .color = color},
+
+                { .position = glm::vec4(1, 1, 1, 1), .color = color},
+                { .position = glm::vec4(1, -1, 1, 1), .color = color},
+
+                { .position = glm::vec4(1, -1, 1, 1), .color = color},
+                { .position = glm::vec4(-1, -1, 1, 1), .color = color},
+
+
+// SIDES
+                { .position = glm::vec4(-1, -1, -1, 1), .color = color},
+                { .position = glm::vec4(-1, -1, 1, 1), .color = color},
+
+                { .position = glm::vec4(-1, 1, -1, 1), .color = color},
+                { .position = glm::vec4(-1, 1, 1, 1), .color = color},
+
+                { .position = glm::vec4(1, 1, -1, 1), .color = color},
+                { .position = glm::vec4(1, 1, 1, 1), .color = color},
+
+                { .position = glm::vec4(1, -1, -1, 1), .color = color},
+                { .position = glm::vec4(1, -1, 1, 1), .color = color},
+        }
+    };
+
+    return vertices;
+
+}
+
 Vertices primitives::sphere(int rows, int columns, float radius, glm::mat4 xform, const glm::vec4 &color, VkPrimitiveTopology topology) {
     const auto p = columns;
     const auto q = rows;

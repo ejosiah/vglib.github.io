@@ -463,6 +463,10 @@ void VulkanBaseApp::createSyncObjects() {
         imageAcquired[i] = device.createSemaphore();
         renderingFinished[i] = device.createSemaphore();
         inFlightFences[i] = device.createFence();
+
+        device.setName<VK_OBJECT_TYPE_SEMAPHORE>("renderer_image_acquired", imageAcquired[i].semaphore);
+        device.setName<VK_OBJECT_TYPE_SEMAPHORE>("renderer_rendering_finished", renderingFinished[i].semaphore);
+        device.setName<VK_OBJECT_TYPE_FENCE>("renderer_in_flight_frames", inFlightFences[i].fence);
     }
 }
 

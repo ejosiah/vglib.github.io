@@ -63,7 +63,7 @@ struct VulkanBuffer{
     template<typename T>
     void copy(std::vector<T> source, uint32_t offset = 0) const {
         assert(!source.empty());
-        copy(source.data(), sizeof(T) * source.size(), offset);
+        copy(source.data(), sizeof(T) * source.size(), offset); // FIXME offset should be offset * sizeof(T)
     }
 
     void copy(const void* source, VkDeviceSize size, uint32_t offset = 0) const {
@@ -276,7 +276,11 @@ struct BufferRegion {
         return { reinterpret_cast<T*>(map()), sizeAs<T>() };
     }
 
-    void upload(void* data)  {
+    void upload(const void* data)  {
         buffer->copy(data, size(), offset);
+    }
+
+    void copy(const void* source, VkDeviceSize size, uint32_t rOffset) const {
+        buffer->copy(source, size, offset + rOffset);
     }
 };
