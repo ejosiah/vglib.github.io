@@ -32,6 +32,8 @@ public:
 
     void updateModel(const glm::vec3& position, const glm::quat& orientation = {1, 0, 0, 0});
 
+    void updateModel(const glm::vec3& bMin, const glm::vec3& bMax);
+
     void move(float dx, float dy, float dz) override;
 
     void move(const glm::vec3 &direction, const glm::vec3 &amount) override;

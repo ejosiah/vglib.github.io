@@ -123,6 +123,17 @@ void OrbitingCameraController::updateModel(const glm::vec3& position, const glm:
     model.position = position;
 }
 
+void OrbitingCameraController::updateModel(const glm::vec3& bMin, const glm::vec3& bMax) {
+    const auto dim = bMax - bMin;
+    const auto center = (bMin + bMax) * 0.5f;
+    model.position = center;
+    target = center;
+    offsetDistance = glm::length(dim) * 2.0f;
+    auto eyes = target + zAxis * offsetDistance;
+    lookAt(eyes, target, targetYAxis);
+
+}
+
 void OrbitingCameraController::updateViewMatrix() {
     auto& view = camera.view;
     view = glm::mat4_cast(orientation);
