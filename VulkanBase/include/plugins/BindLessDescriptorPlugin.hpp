@@ -165,7 +165,6 @@ public:
 
     void init() override {
         setBindingPoints();
-        createDefaultSampler();
         createDescriptorPool();
         createDescriptorSetLayout();
     }
@@ -229,7 +228,6 @@ public:
     }
 
     void createDescriptorSetLayout() {
-        std::vector<VkSampler> samplers(MaxDescriptorResources, m_defaultSampler.handle);
         auto nextBinding = sequence(TextureResourceBindingPoint);
         auto bindings =
             device().descriptorSetLayoutBuilder()
@@ -239,7 +237,6 @@ public:
                         .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
-                        .immutableSamplers(samplers.data())
                     .binding(nextBinding())
                         .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
                         .descriptorCount(MaxDescriptorResources)
@@ -292,19 +289,6 @@ protected:
         bindings[VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER] = nextBinding();
 
     }
-
-    void createDefaultSampler() {
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter =  VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        m_defaultSampler = device().createSampler(samplerInfo);
-    }
     
     void createDescriptorPool() {
         std::array<VkDescriptorPoolSize, DescriptorPoolSize> poolSizes{
@@ -332,6 +316,5 @@ private:
     std::map<VkDescriptorType, int> bindings;
     VulkanDescriptorPool m_descriptorPool{};
     VulkanDescriptorSetLayout m_descriptorSetLayout{};
-    VulkanSampler m_defaultSampler;
     std::vector<VkDescriptorSetLayoutBinding> m_additionalBindings;
 };
