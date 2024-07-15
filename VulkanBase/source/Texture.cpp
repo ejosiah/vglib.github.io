@@ -39,7 +39,7 @@ bool isIntegral(VkFormat format){
     }
 }
 
-VkDeviceSize byteSize(VkFormat format){
+VkDeviceSize textures::byteSize(VkFormat format){
     switch(format){
         case VK_FORMAT_R8_UNORM:
         case VK_FORMAT_R8_SNORM:
@@ -542,7 +542,7 @@ void textures::createTextureArray(const VulkanDevice &device, Texture &texture, 
         samplerInfo.addressModeW = addressMode;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.maxLod = levels;
+        samplerInfo.maxLod = static_cast<float>(levels - 1);
 
         texture.sampler = device.createSampler(samplerInfo);
     }
@@ -561,8 +561,8 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
     imageCreateInfo.imageType = imageType;
     imageCreateInfo.format = format;
     imageCreateInfo.extent = { static_cast<uint32_t>(dimensions.x), static_cast<uint32_t>(dimensions.y), dimensions.z};
-    imageCreateInfo.mipLevels = 1;
-    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.mipLevels = texture.levels;
+    imageCreateInfo.arrayLayers = texture.layers;
     imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageCreateInfo.tiling = tiling;
     imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
@@ -588,7 +588,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
     subresourceRange.layerCount = 1;
 
     auto imageViewType = getImageViewType(imageType);
-    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);  // FIXME derive image view type
+    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
 
     if(!texture.sampler.handle) {
         VkSamplerCreateInfo samplerInfo{};
@@ -600,6 +600,61 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
         samplerInfo.addressModeW = addressMode;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.maxLod = static_cast<float>(texture.levels - 1);
+
+        texture.sampler = device.createSampler(samplerInfo);
+    }
+
+}
+
+void textures::createNoTransition(const VulkanDevice &device, Texture &texture, VkImageType imageType, VkFormat format,
+                      Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode, VkImageTiling tiling) {
+
+    texture.format = format;
+    VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * byteSize(format);
+
+    VkImageCreateInfo imageCreateInfo{};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = imageType;
+    imageCreateInfo.format = format;
+    imageCreateInfo.extent = { static_cast<uint32_t>(dimensions.x), static_cast<uint32_t>(dimensions.y), dimensions.z};
+    imageCreateInfo.mipLevels = texture.levels;
+    imageCreateInfo.arrayLayers = texture.layers;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = tiling;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    texture.image = device.createImage(imageCreateInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+    texture.image.size = imageSize;
+    texture.width = dimensions.x;
+    texture.height = dimensions.y;
+    texture.depth = dimensions.z;
+    texture.spec = imageCreateInfo;
+
+    VkImageSubresourceRange subresourceRange;
+    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = texture.levels;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount = texture.layers;
+
+    auto imageViewType = getImageViewType(imageType);
+    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
+
+    if(!texture.sampler.handle) {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = addressMode;
+        samplerInfo.addressModeV = addressMode;
+        samplerInfo.addressModeW = addressMode;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.minLod = 0;
+        samplerInfo.maxLod = static_cast<float>(texture.levels - 1);
 
         texture.sampler = device.createSampler(samplerInfo);
     }

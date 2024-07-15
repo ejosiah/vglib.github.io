@@ -5,6 +5,7 @@
 #include "VulkanDevice.h"
 #include "VulkanBuffer.h"
 #include  <stb_image.h>
+#include <atomic>
 
 enum class FileFormat {
     PNG, BMP, TGA, JPG, HDR, EXR
@@ -16,12 +17,16 @@ struct Texture{
     VulkanSampler sampler;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageAspectFlags aspectMask{VK_IMAGE_ASPECT_COLOR_BIT};
-    VkImageCreateInfo spec{};
+    VkImageCreateInfo spec{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     uint32_t width{0};
     uint32_t height{0};
     uint32_t depth{1};
     uint32_t layers = 1;
     uint32_t levels = 1;
+    uint32_t bindingId = std::numeric_limits<uint32_t>::max();
+    bool lod{};
+    bool flipped{};
+    std::string path;
 };
 
 struct Distribution1DTexture {
@@ -64,6 +69,8 @@ namespace textures{
 
     using ColorGen = std::function<glm::vec3(int, int, float , float)>;
 
+    VkDeviceSize byteSize(VkFormat format);
+
     void create(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format, void* data
                 , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
                 , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, uint32_t levelCount = 1);
@@ -75,6 +82,10 @@ namespace textures{
     void create(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format
             , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
             , uint32_t sizeMultiplier = 1, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
+
+    void createNoTransition(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format
+            , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
+            , VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
 
     void createExportable(const VulkanDevice& device, Texture& texture, VkImageType imageType, VkFormat format
             , Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
