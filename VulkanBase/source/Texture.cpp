@@ -196,6 +196,18 @@ constexpr VkFormat getFormat(uint32_t numChannels){
     }
 }
 
+constexpr bool isDepthTexture(VkFormat format) {
+    switch(format) {
+        case VK_FORMAT_D16_UNORM:
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT:
+            return true;
+        default:
+            return false;
+    }
+}
 
 RawImage textures::loadImage(std::string_view path, bool flipUv) {
     int texWidth, texHeight,  texChannels;
@@ -565,27 +577,32 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
     imageCreateInfo.arrayLayers = texture.layers;
     imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageCreateInfo.tiling = tiling;
-    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    if(isDepthTexture(format)){
+        imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    }
+
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     auto& commandPool = device.commandPoolFor(*device.findFirstActiveQueue());
+
+    VkImageSubresourceRange subresourceRange;
+    subresourceRange.aspectMask = isDepthTexture(format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = texture.levels;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount = texture.layers;
 
     texture.image = device.createImage(imageCreateInfo, VMA_MEMORY_USAGE_GPU_ONLY);
     texture.image.size = imageSize;
     texture.width = dimensions.x;
     texture.height = dimensions.y;
     texture.depth = dimensions.z;
-    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
     texture.spec = imageCreateInfo;
 
-    VkImageSubresourceRange subresourceRange;
-    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    subresourceRange.baseMipLevel = 0;
-    subresourceRange.levelCount = 1;
-    subresourceRange.baseArrayLayer = 0;
-    subresourceRange.layerCount = 1;
 
     auto imageViewType = getImageViewType(imageType);
     texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
@@ -634,7 +651,7 @@ void textures::createNoTransition(const VulkanDevice &device, Texture &texture, 
     texture.spec = imageCreateInfo;
 
     VkImageSubresourceRange subresourceRange;
-    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresourceRange.aspectMask = isDepthTexture(format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
     subresourceRange.baseMipLevel = 0;
     subresourceRange.levelCount = texture.levels;
     subresourceRange.baseArrayLayer = 0;

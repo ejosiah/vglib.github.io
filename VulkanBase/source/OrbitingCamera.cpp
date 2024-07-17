@@ -128,7 +128,7 @@ void OrbitingCameraController::updateModel(const glm::vec3& bMin, const glm::vec
     const auto center = (bMin + bMax) * 0.5f;
     model.position = center;
     target = center;
-    offsetDistance = glm::length(dim) * 2.0f;
+    offsetDistance = glm::length(dim);
     auto eyes = target + zAxis * offsetDistance;
     lookAt(eyes, target, targetYAxis);
 
@@ -158,10 +158,14 @@ void OrbitingCameraController::onPositionChanged() {
 }
 
 void OrbitingCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
-    camera.model = glm::mat4_cast(model.orientation) * translate(glm::mat4(1), model.position);
+    camera.model = getModel();
     BaseCameraController::push(commandBuffer, layout, stageFlags);
 }
 
 void OrbitingCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4 &model, VkShaderStageFlags stageFlags) {
     BaseCameraController::push(commandBuffer, layout, model, stageFlags);
+}
+
+glm::mat4 OrbitingCameraController::getModel() const {
+    return glm::mat4_cast(model.orientation) * translate(glm::mat4(1), model.position);
 }

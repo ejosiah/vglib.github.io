@@ -82,6 +82,10 @@ void VulkanBaseApp::init() {
     prototypes = std::make_unique<Prototypes>( device, swapChain, renderPass);
     initApp();
     ready = true;
+
+    std::stringstream ss;
+    ss << std::this_thread::get_id();
+    spdlog::info("Application[{}] running on thread {}", title, ss.str());
 }
 
 void VulkanBaseApp::initMixins() {

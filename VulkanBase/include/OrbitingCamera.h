@@ -52,6 +52,9 @@ public:
 
     void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4 &model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) override;
 
+    [[nodiscard]]
+    glm::mat4 getModel() const;
+
 private:
     float offsetDistance;
     float orbitRollSpeed;
