@@ -138,6 +138,11 @@ DynamicStateBuilder &DynamicStateBuilder::polygonModeEnable() {
     return *this;
 }
 
+DynamicStateBuilder &DynamicStateBuilder::colorBlendEnable() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_COLOR_BLEND_ENABLE_EXT);
+    return *this;
+}
+
 DynamicStateBuilder &DynamicStateBuilder::clear() {
     _dynamicStates.clear();
     return *this;

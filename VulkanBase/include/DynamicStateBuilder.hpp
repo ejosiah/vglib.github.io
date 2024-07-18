@@ -58,6 +58,8 @@ public:
 
     DynamicStateBuilder& polygonModeEnable();
 
+    DynamicStateBuilder& colorBlendEnable();
+
     DynamicStateBuilder& clear();
 
     VkPipelineDynamicStateCreateInfo& buildPipelineDynamicState();

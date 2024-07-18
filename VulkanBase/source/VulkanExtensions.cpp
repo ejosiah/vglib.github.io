@@ -16,6 +16,7 @@ static PFN_vkSetDebugUtilsObjectNameEXT pfn_vkSetDebugUtilsObjectNameEXT = nullp
 static PFN_vkGetSemaphoreWin32HandleKHR pfn_vkGetSemaphoreWin32HandleKHR = nullptr;
 static PFN_vkCmdDrawMeshTasksEXT pfn_vkCmdDrawMeshTasksEXT = nullptr;
 static PFN_vkCmdSetPolygonModeEXT pfn_vkCmdSetPolygonModeEXT = nullptr;
+static PFN_vkCmdSetColorBlendEnableEXT pfn_vkCmdSetColorBlendEnableEXT = nullptr;
 
 #ifdef WIN32
 static PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR = nullptr;
@@ -41,6 +42,7 @@ namespace ext {
         pfn_vkGetRayTracingShaderGroupHandlesKHR = procAddress<PFN_vkGetRayTracingShaderGroupHandlesKHR>(instance, "vkGetRayTracingShaderGroupHandlesKHR");
         pfn_vkCmdDrawMeshTasksEXT = procAddress<PFN_vkCmdDrawMeshTasksEXT>(instance, "vkCmdDrawMeshTasksEXT");
         pfn_vkCmdSetPolygonModeEXT = procAddress<PFN_vkCmdSetPolygonModeEXT>(instance, "vkCmdSetPolygonModeEXT");
+        pfn_vkCmdSetColorBlendEnableEXT = procAddress<PFN_vkCmdSetColorBlendEnableEXT>(instance, "vkCmdSetColorBlendEnableEXT");
 
 #ifdef WIN32
         pfn_vkGetMemoryWin32HandleKHR = procAddress<PFN_vkGetMemoryWin32HandleKHR>(instance, "vkGetMemoryWin32HandleKHR");
@@ -181,4 +183,13 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetPolygonModeEXT(
 
     assert(pfn_vkCmdSetPolygonModeEXT);
     return pfn_vkCmdSetPolygonModeEXT(commandBuffer, polygonMode);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdSetColorBlendEnableEXT(
+        VkCommandBuffer                             commandBuffer,
+        uint32_t                                    firstAttachment,
+        uint32_t                                    attachmentCount,
+        const VkBool32*                             pColorBlendEnables) {
+    assert(pfn_vkCmdSetColorBlendEnableEXT);
+    return pfn_vkCmdSetColorBlendEnableEXT(commandBuffer, firstAttachment, attachmentCount, pColorBlendEnables);
 }
