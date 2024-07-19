@@ -70,7 +70,7 @@ struct BindlessDescriptor {
     }
 
     uint32_t update(const Texture& texture, VkDescriptorType type) {
-        auto id = nextIndex(type);
+        auto id = texture.bindingId == ~0u ? nextIndex(type) : texture.bindingId;
         update({ &texture, type, id});
         return id;
     }
