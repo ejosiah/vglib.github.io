@@ -87,6 +87,48 @@ struct Vertex{
     }
 };
 
+struct VertexMultiAttributes{
+    glm::vec4 position;
+
+    union {
+        struct {
+            glm::vec4 color0;
+            glm::vec4 color1;
+        };
+        std::array<glm::vec4, 2> color;
+    };
+
+    glm::vec3 normal;
+    glm::vec3 tangent;
+    glm::vec3 bitangent;
+
+    union {
+        struct {
+            glm::vec2 uv0;
+            glm::vec2 uv1;
+        };
+        std::array<glm::vec2, 2> uv;
+
+    };
+
+    static VkVertexInputBindingDescription bindingDescription() {
+        return { 0, sizeof(VertexMultiAttributes), VK_VERTEX_INPUT_RATE_VERTEX};
+    }
+
+    static std::vector<VkVertexInputAttributeDescription> attributeDescription() {
+        return {
+                {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, position)},
+                {1, 0, VK_FORMAT_R32G32B32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, normal)},
+                {2, 0, VK_FORMAT_R32G32B32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, tangent)},
+                {3, 0, VK_FORMAT_R32G32B32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, bitangent)},
+                {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, color0)},
+                {5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, color1)},
+                {6, 0, VK_FORMAT_R32G32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, uv0)},
+                {7, 0, VK_FORMAT_R32G32_SFLOAT, (uint32_t)offsetof(VertexMultiAttributes, uv1)}
+        };
+    }
+};
+
 
 struct Vertices{
     std::vector<Vertex> vertices;

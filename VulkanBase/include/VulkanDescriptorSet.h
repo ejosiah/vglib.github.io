@@ -4,6 +4,8 @@
 #include "RefCounted.hpp"
 #include "VulkanRAII.h"
 
+#include <atomic>
+
 struct VulkanDescriptorPool : RefCounted {
 
 
@@ -61,6 +63,7 @@ struct VulkanDescriptorPool : RefCounted {
 
         std::vector<VkDescriptorSet> sets(layouts.size());
         vkAllocateDescriptorSets(device, &allocInfo, sets.data());
+        allocationCount += layouts.size();
 
         return sets;
     }
@@ -78,18 +81,23 @@ struct VulkanDescriptorPool : RefCounted {
         allocInfo.pSetLayouts = handles.data();
 
         vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data());
+
+        allocationCount += layouts.size();
     }
 
     inline void free(VkDescriptorSet set) const {
        vkFreeDescriptorSets(device, pool, 1, &set);
+       --allocationCount;
     }
 
     inline void free(const std::vector<VkDescriptorSet>& sets) const {
         vkFreeDescriptorSets(device, pool ,COUNT(sets), sets.data());
+        allocationCount += sets.size();
     }
 
     inline void reset() const {
         vkResetDescriptorPool(device, pool, 0);
+        allocationCount = 0;
     }
 
 
@@ -99,4 +107,5 @@ struct VulkanDescriptorPool : RefCounted {
 
     VkDevice device = VK_NULL_HANDLE;
     VkDescriptorPool pool = VK_NULL_HANDLE;
+    mutable std::atomic_uint32_t allocationCount{};
 };

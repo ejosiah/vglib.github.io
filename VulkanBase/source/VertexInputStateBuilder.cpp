@@ -13,9 +13,21 @@ VertexInputStateBuilder::addVertexBindingDescription(uint32_t binding, uint32_t 
 }
 
 VertexInputStateBuilder &
+VertexInputStateBuilder::addVertexBindingDescription(const VkVertexInputBindingDescription &description) {
+    _bindings.push_back(description);
+    return *this;
+}
+
+VertexInputStateBuilder &
 VertexInputStateBuilder::addVertexAttributeDescription(uint32_t location, uint32_t binding, VkFormat format,
                                                        uint32_t offset) {
     _attributes.push_back({location, binding, format, offset});
+    return *this;
+}
+
+VertexInputStateBuilder &
+VertexInputStateBuilder::addVertexAttributeDescription(const VkVertexInputAttributeDescription &description) {
+    _attributes.push_back(description);
     return *this;
 }
 
