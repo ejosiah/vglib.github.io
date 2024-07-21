@@ -260,3 +260,9 @@ constexpr float gb = mb * kb;
 inline auto remap(auto x, auto a, auto b, auto c, auto d){
     return glm::mix(c, d, (x - a)/(b - a));
 }
+
+template<typename T>
+T* as(auto u) { return reinterpret_cast<T*>(u); }
+
+template<typename T>
+T to(auto u){ return static_cast<T>(u); }
