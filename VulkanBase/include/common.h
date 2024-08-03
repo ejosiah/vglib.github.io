@@ -265,4 +265,4 @@ template<typename T>
 T* as(auto u) { return reinterpret_cast<T*>(u); }
 
 template<typename T>
-T to(auto u){ return static_cast<T>(u); }
+constexpr T to(auto u){ return static_cast<T>(u); }

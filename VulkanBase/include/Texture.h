@@ -147,7 +147,7 @@ namespace textures{
 
     void save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format, const std::string& path, int width, int height);
 
-    void save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image);
+    void save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image, FileFormat fileFormat = FileFormat::HDR);
 
     void generateLOD(const VulkanDevice& device, Texture& texture, uint32_t levels, uint32_t layers = 1);
 

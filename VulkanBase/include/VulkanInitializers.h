@@ -411,4 +411,25 @@ namespace initializers{
         info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
         return info;
     }
+
+    inline VkImageCopy imageCopy(uint32_t width, uint32_t height, uint32_t depth = 1) {
+        VkImageCopy region{};
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.mipLevel = 0;
+        region.srcSubresource.baseArrayLayer = 0;
+        region.srcSubresource.layerCount = 1;
+        region.srcOffset = {0, 0};
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.mipLevel = 0;
+        region.dstSubresource.baseArrayLayer = 0;
+        region.dstSubresource.layerCount = 1;
+        region.dstOffset = {0, 0};
+        region.extent = { width, height, 1 };
+
+        return region;
+    }
+
+    inline VkImageCopy imageCopy(glm::uvec3 size) {
+        return imageCopy(size.x, size.y, size.z);
+    }
 }

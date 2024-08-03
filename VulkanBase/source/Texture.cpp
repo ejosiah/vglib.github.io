@@ -173,6 +173,7 @@ uint32_t nunChannels(VkFormat format) {
         case VK_FORMAT_R8G8B8A8_SRGB:
         case VK_FORMAT_B8G8R8A8_SRGB:
         case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_UNORM:
         case VK_FORMAT_R16G16B16A16_SFLOAT:
         case VK_FORMAT_R32G32B32A32_SFLOAT:
             return 4;
@@ -1099,7 +1100,8 @@ void saveAsBmp(VkFormat format, const std::string& path, int width, int height, 
 }
 
 void saveAsJpg(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
-    throw std::runtime_error{"jpg save not yet implemented!"};
+    int comp = to<int>(nunChannels(format));
+    stbi_write_jpg(path.c_str(), width, height, comp, data.map(), 90);
 }
 
 void saveAsHdr(VkFormat format, const std::string& path, int width, int height, const VulkanBuffer& data){
@@ -1126,8 +1128,9 @@ void saveAsExr(VkFormat format, const std::string& path, int width, int height, 
     throw std::runtime_error{"exr save not yet implemented!"};
 }
 
-void textures::save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image){
-    VulkanBuffer buffer = device.createStagingBuffer(image.size);
+void textures::save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image, FileFormat fileFormat){
+    VkDeviceSize imageSize = width * height * nunChannels(format) * byteSize(format);
+    VulkanBuffer buffer = device.createStagingBuffer(imageSize);
 
     device.graphicsCommandPool().oneTimeCommand([&](auto cb){
         VkBufferImageCopy region{
@@ -1152,7 +1155,7 @@ void textures::save(const VulkanDevice& device, const std::string& path, uint32_
         }
         format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
-    save(device, buffer, format, FileFormat::HDR, path, width, height);
+    save(device, buffer, format, fileFormat, path, width, height);
 }
 
 void textures::save(const VulkanDevice &device, Texture &texture,  FileFormat fileFormat, const std::string& path) {
