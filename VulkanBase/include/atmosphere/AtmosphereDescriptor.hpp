@@ -40,7 +40,7 @@ struct AtmosphereDescriptor {
 
     AtmosphereDescriptor() = default;
 
-    explicit AtmosphereDescriptor(VulkanDevice* device, VulkanDescriptorPool* m_descriptorPool, BindlessDescriptor* bindlessDescriptor);
+    explicit AtmosphereDescriptor(VulkanDevice* device, VulkanDescriptorPool* m_descriptorPool, BindlessDescriptor* bindlessDescriptor = nullptr);
 
     void init();
 
