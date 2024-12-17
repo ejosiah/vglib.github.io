@@ -22,23 +22,22 @@ struct fmt::formatter<glm::vec<L, T, Q>> {
         }
 
 
-        template <typename FormatContext>
-        auto format(const glm::vec<L, T, Q>& v, FormatContext& ctx) {
+        auto format(const glm::vec<L, T, Q>& v, format_context& ctx) const {
 
             if constexpr (L == 2) {
                 return format_to(
                         ctx.out(),
-                        presentation == 'f' ? "[{:.10f}, {:.10f}]" : "[{:.10e}, {:.10e}]",
+                        runtime(presentation == 'f' ? "[{:.10f}, {:.10f}]" : "[{:.10e}, {:.10e}]"),
                         v.x, v.y);
             }else if constexpr (L == 3){
                 return format_to(
                         ctx.out(),
-                        presentation == 'f' ? "[{:.10f}, {:.10f}, {:.10f}]" : "[{:.1e}, {:.1e}, {:.1e}]",
+                        runtime(presentation == 'f' ? "[{:.10f}, {:.10f}, {:.10f}]" : "[{:.1e}, {:.1e}, {:.1e}]"),
                         v.x, v.y, v.z);
             } else if constexpr (L == 4){
                 return format_to(
                         ctx.out(),
-                        presentation == 'f' ? "[{:.10f}, {:.10f}, {:.10f}, {:.10f}]" : "[{:.1e}, {:.1e}, {:.1e}, {:.1e}]",
+                        runtime(presentation == 'f' ? "[{:.10f}, {:.10f}, {:.10f}, {:.10f}]" : "[{:.1e}, {:.1e}, {:.1e}, {:.1e}]"),
                         v.x, v.y, v.z, v.w);
             }else {
                 std::string msg = fmt::format("Invalid vector length: {}", L);
@@ -67,8 +66,7 @@ struct fmt::formatter<glm::qua<T, Q>> {
     }
 
 
-    template <typename FormatContext>
-    auto format(const glm::qua<T, Q>& q, FormatContext& ctx) {
+    auto format(const glm::qua<T, Q>& q, format_context& ctx) const {
         return format_to(
                 ctx.out(),
                 presentation == 'f' ? "[{:.10f}, < {:.10f}, {:.10f}, {:.10f}>]" : "[{:.1e}, <{:.1e}, {:.1e}, {:.1e} >]",
@@ -96,8 +94,7 @@ struct fmt::formatter<glm::mat<C, R, T, Q>> {
     }
 
 
-    template <typename FormatContext>
-    auto format(const glm::mat<C, R, T, Q>& mat, FormatContext& ctx) {
+    auto format(const glm::mat<C, R, T, Q>& mat, format_context& ctx) const {
 
         if constexpr (R == 2) {
             return format_to(

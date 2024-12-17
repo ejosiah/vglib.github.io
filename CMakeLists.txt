@@ -12,9 +12,6 @@ if(CMAKE_GENERATOR STREQUAL "Xcode")
     add_compile_options(-Wno-nullability-completeness)
 endif()
 
-message(STATUS "setting up conan")
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
 
 include(cmake/utilities.cmake)
 include(cmake/setup.cmake)

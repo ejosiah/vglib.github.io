@@ -207,13 +207,13 @@ struct VulkanBuffer{
     static void incrementRef(VkBuffer buffer){
         ensureRef(buffer);
         refCounts[buffer]++;
-        spdlog::debug("{} current references to VkBuffer[{}]", refCounts[buffer], (uint64_t)buffer);
+        spdlog::debug("{} current references to VkBuffer[{}]", refCounts[buffer].load(), (uint64_t)buffer);
     }
 
     static void decrementRef(VkBuffer buffer){
         ensureRef(buffer);
         refCounts[buffer]--;
-        spdlog::debug("{} current references to VkBuffer[{}]", refCounts[buffer], (uint64_t)buffer);
+        spdlog::debug("{} current references to VkBuffer[{}]", refCounts[buffer].load(), (uint64_t)buffer);
     }
 
     static void ensureRef(VkBuffer buffer){

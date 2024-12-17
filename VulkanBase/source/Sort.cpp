@@ -114,31 +114,31 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
     return {
             {
                 "radix_sort_count_radices",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\count_radices.comp.spv)",
+                R"(.\data\shaders\radix_sort_li_grand\count_radices.comp.spv)",
                 {&dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_prefix_sum",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\prefix_sum.comp.spv)",
+                R"(.\data\shaders\radix_sort_li_grand\prefix_sum.comp.spv)",
                 { &countsSetLayout },
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder.comp.spv)",
+                R"(.\data\shaders\radix_sort_li_grand\reorder.comp.spv)",
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_indices",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_indices.comp.spv)",
+                R"(.\data\shaders\radix_sort_li_grand\reorder_indices.comp.spv)",
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_records",
-                R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\radix_sort_li_grand\reorder_records.comp.spv)",
+                R"(.\data\shaders\radix_sort_li_grand\reorder_records.comp.spv)",
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },

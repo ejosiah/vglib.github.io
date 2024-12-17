@@ -40,14 +40,14 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
     return {
             {
                     "prefix_scan",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\scan.comp.spv)",
+                    R"(.\data\shaders\prefix_scan\scan.comp.spv)",
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
 
             },
             {
                     "add",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\add.comp.spv)",
+                    R"(.\data\shaders\prefix_scan\add.comp.spv)",
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
             }

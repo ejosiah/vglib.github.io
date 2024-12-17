@@ -1,3 +1,4 @@
+#ifdef OPENCL_AVAILABLE
 #include "common.h"
 #include "random.h"
 #include "convexHullbuilder.hpp"
@@ -310,3 +311,4 @@ void LoggingAdaptor::Log(const char *const msg) {
 void Callback::Update(const double overallProgress, const double stageProgress, const double operationProgress,
                       const char *const stage, const char *const operation) {
 }
+#endif // OPENCL_AVAILABLE

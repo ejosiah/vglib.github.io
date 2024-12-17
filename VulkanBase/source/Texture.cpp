@@ -135,7 +135,7 @@ VkDeviceSize textures::byteSize(VkFormat format){
         case VK_FORMAT_R32G32B32A32_SFLOAT:
             return 4;
         default:
-            throw std::runtime_error{fmt::format("format: {} not implemented", format)};
+            throw std::runtime_error{fmt::format("format: {} not implemented", static_cast<int>(format))};
     }
 }
 
@@ -178,7 +178,7 @@ uint32_t nunChannels(VkFormat format) {
         case VK_FORMAT_R32G32B32A32_SFLOAT:
             return 4;
         default:
-            throw std::runtime_error{fmt::format("format: {}, not implemented", format)};
+            throw std::runtime_error{fmt::format("format: {}, not implemented", static_cast<int>(format))};
     }
 }
 

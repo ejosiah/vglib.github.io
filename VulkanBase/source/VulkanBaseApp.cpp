@@ -253,7 +253,7 @@ VkFormat VulkanBaseApp::findDepthFormat() {
     if(!possibleFormat.has_value()){
         throw std::runtime_error{"Failed to find a suitable depth format"};
     }
-    spdlog::info("App will be using depth buffer with: format: {}", *possibleFormat);
+    spdlog::info("App will be using depth buffer with: format: {}", static_cast<int>(*possibleFormat));
     return *possibleFormat;
 }
 

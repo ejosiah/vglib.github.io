@@ -22,19 +22,19 @@ std::vector<PipelineMetaData> OrderChecker::pipelineMetaData() {
     return {
             {
                     "order_checker_scan",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\order_checking.comp.spv)",
+                    R"(.\data\shaders\order_checking.comp.spv)",
                     { &_descriptorSetLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants)} }
             },
             {
                     "order_checker_sum_scan",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\scan.comp.spv)",
+                    R"(.\data\shaders\prefix_scan\scan.comp.spv)",
                     { &_descriptorSetLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants)} }
             },
             {
                     "add",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\order_checking_add.comp.spv)",
+                    R"(.\data\shaders\order_checking_add.comp.spv)",
                     { &_descriptorSetLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants)} }
             }

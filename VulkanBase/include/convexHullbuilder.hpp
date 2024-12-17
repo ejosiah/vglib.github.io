@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef OPENCL_AVAILABLE
+
 #include "ThreadPool.hpp"
 #include "oclHelper.h"
 #include "Vertex.h"
@@ -79,3 +81,5 @@ private:
     VulkanCommandPool m_commandPool;
     bool m_openCLOnline = false;
 };
+
+#endif // OPENCL_AVAILABLE

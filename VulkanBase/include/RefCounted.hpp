@@ -24,7 +24,7 @@ public:
     , _name{ name }
     {
         counts[_handle]++; // TODO might race
-        spdlog::debug("ref added, {} references to {}[{}]", counts[_handle], _name, _handle);
+        spdlog::debug("ref added, {} references to {}[{}]", counts[_handle].load(), _name, _handle);
     }
 
     RefCounted(const RefCounted& source)
@@ -72,7 +72,7 @@ private:
         if(itr != counts.end()){
             ++itr->second;
         }
-        spdlog::debug("ref added, {} references to {}[{}]", itr->second, _name, _handle);
+        spdlog::debug("ref added, {} references to {}[{}]", itr->second.load(), _name, _handle);
     }
 
     [[nodiscard]] uint32_t decrementRef() const {

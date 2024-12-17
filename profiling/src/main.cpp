@@ -7,8 +7,8 @@
 #include <vulkan/vulkan.h>
 #include <fmt/color.h>
 
-
 int main() {
+    fs::current_path("../../../");
     ContextCreateInfo createInfo{};
     createInfo.applicationInfo.sType  = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     createInfo.applicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
