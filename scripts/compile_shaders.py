@@ -1,5 +1,8 @@
 from pathlib import Path
 import subprocess
+import sys
+
+input_dir = sys.argv[1] if sys.argv[1:] else "../data/shaders"
 
 shader_ext = ['.vert', '.tecs', '.tess' '.frag', '.comp', '.geom']
 
@@ -18,4 +21,4 @@ def visit(path, consume):
             visit(p, consume)
 
 
-visit(Path('../data/shaders'), compile_shader)
+visit(Path(input_dir), compile_shader)
