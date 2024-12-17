@@ -31,11 +31,11 @@ add_definitions(
 
 set(CONAN_LIBS_DEP assimp::assimp glm::glm glfw
                     stb::stb spdlog::spdlog
-                    Freetype::Freetype imgui::imgui
+                     imgui::imgui
                     boost::boost argparse::argparse
                     Bullet::Bullet EnTT::EnTT
                     meshoptimizer::meshoptimizer
-                    openexr::openexr Taskflow::Taskflow ZLIB::ZLIB)
+                    openexr::openexr Taskflow::Taskflow)
 
 
 set(VGLIB_INCLUDE_DIRS
@@ -66,7 +66,7 @@ if (OpenCL_FOUND)
     add_compile_definitions(OPENCL_AVAILABLE)
 endif()
 
-add_executable(VulkanBaseTest ${HPP_FILES} ${TEST_FILES})
+add_executable(VulkanBaseTest  ${TEST_FILES})
 target_link_libraries(VulkanBaseTest PRIVATE VulkanBase Vulkan::Vulkan  gtest::gtest)
 
 include(GoogleTest)

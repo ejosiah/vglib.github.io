@@ -11,6 +11,8 @@
 #include <ImfNamespace.h>
 #include <ImfRgbaFile.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 #ifndef STBI_MSC_SECURE_CRT
 #define STBI_MSC_SECURE_CRT
 #ifndef STB_IMAGE_WRITE_IMPLEMENTATION
