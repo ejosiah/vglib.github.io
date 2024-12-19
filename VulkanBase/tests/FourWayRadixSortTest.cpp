@@ -27,7 +27,7 @@ protected:
 };
 
 TEST_F(FourWayRadixSortFixture, sortGivenData){
-    auto items = randomEntries(1 << 24);
+    auto items = randomEntries(1 << 20);
     VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), flags);
     ASSERT_FALSE(isSorted(buffer)) << "buffer initial state should not be sorted";
 

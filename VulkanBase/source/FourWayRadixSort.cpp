@@ -77,7 +77,7 @@ std::vector<PipelineMetaData> FourWayRadixSort::pipelineMetaData() {
     return {
             {
                 "local_sort",
-                "../../data/shaders/radix_sort_4_way/local_sort.comp.spv",
+                "data/shaders/radix_sort_4_way/local_sort.comp.spv",
                 { &dataLayoutSet, &dataLayoutSet, &scanLayoutSet },
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} },
                 {
@@ -88,7 +88,7 @@ std::vector<PipelineMetaData> FourWayRadixSort::pipelineMetaData() {
             },
             {
                 "global_shuffle",
-                "../../data/shaders/radix_sort_4_way/global_shuffle.comp.spv",
+                "data/shaders/radix_sort_4_way/global_shuffle.comp.spv",
                 { &dataLayoutSet, &dataLayoutSet, &scanLayoutSet },
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} },
                 {

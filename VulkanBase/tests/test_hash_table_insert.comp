@@ -1,0 +1,8 @@
+#version 460
+
+#include "../../data/shaders/data_structure/hash_table.glsl"
+
+void main() {
+    if(gl_GlobalInvocationID.x >= numItems) return;
+    hash_table_insert(gl_GlobalInvocationID.x);
+}

@@ -1,0 +1,9 @@
+#version 460
+
+#include "../../data/shaders/data_structure/hash_table.glsl"
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    uint value = hash_table_query(gid);
+    query_results[gl_GlobalInvocationID.x] = value;
+}
