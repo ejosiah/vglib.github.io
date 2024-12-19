@@ -21,11 +21,7 @@ protected:
         values_buffer = device.createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, NUM_ITEMS * sizeof(uint32_t), "hash_values");
         insert_status = device.createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, NUM_ITEMS * sizeof(uint32_t), "insert_status");
         query_results = device.createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, NUM_ITEMS * sizeof(uint32_t), "query_results");
-
-        std::vector<uint> nullEntries(TABLE_SIZE);
-        std::generate(nullEntries.begin(), nullEntries.end(), []{ return 0xFFFFFFFFu; });
-
-        table_keys = device.createCpuVisibleBuffer(nullEntries.data(), BYTE_SIZE(nullEntries), usage);
+        table_keys = device.createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, TABLE_SIZE * sizeof(uint32_t), "table_keys");
         table_values = device.createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, TABLE_SIZE * sizeof(uint32_t), "table_values");
     }
 
@@ -80,7 +76,6 @@ protected:
 
 TEST_F(HashTableFixture, HashTableInsert) {
     hash_table_insert();
-
 
     auto tableKeys = table_keys.span<uint32_t>(TABLE_SIZE);
     auto tableValues =  table_values.span<uint32_t>(TABLE_SIZE);

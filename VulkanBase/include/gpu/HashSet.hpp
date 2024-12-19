@@ -2,40 +2,24 @@
 
 #include "VulkanDevice.h"
 #include "VulkanBuffer.h"
-#include "ComputePipelins.hpp"
+#include "HashTable.hpp"
 
 namespace gpu {
-    class HashSet : public ComputePipelines {
+    class HashSet : public HashTable {
     public:
-        HashSet(VulkanDevice& device, VulkanDescriptorPool& descriptorPool, uint32_t capacity_);
+        HashSet() = default;
 
-        void init();
+        HashSet(VulkanDevice &device, VulkanDescriptorPool& descriptorPool, uint32_t capacity)
+        :HashTable(device, descriptorPool, capacity, true){}
 
-        void insert(VkCommandBuffer commandBuffer, BufferRegion keys, BufferRegion values);
+    protected:
+        std::string insertShaderPath() override {
+            return "data/shaders/data_structure/cuckoo_hash_set_insert.comp.spv";
+        }
 
-        void find(VkCommandBuffer commandBuffer, BufferRegion values, BufferRegion result);
+        std::string findShaderPath() override {
+            return "data/shaders/data_structure/cuckoo_hash_set_query.comp.spv";
+        }
 
-    private:
-        void createInternalBuffers();
-
-        void createDescriptorSet();
-
-
-    private:
-        uint32_t capacity;
-        uint32_t maxIterations{5};
-        VulkanBuffer keys_buffer;
-        VulkanBuffer table;
-        VulkanBuffer insert_status;
-        VulkanBuffer insert_locations;
-        VulkanBuffer query_results;
-        VulkanDescriptorSetLayout setLayout;
-        VkDescriptorSet descriptorSet{};
-        VulkanDescriptorPool* descriptorPool_{};
-
-        struct {
-            uint32_t tableSize{};
-            uint32_t numItems{};
-        } constants;
     };
 }

@@ -1,4 +1,5 @@
 #include "gpu/HashTable.hpp"
+#include "DescriptorSetBuilder.hpp"
 
 gpu::HashTable::HashTable(VulkanDevice &device, VulkanDescriptorPool& descriptorPool_, uint32_t capacity, bool keysOnly_)
 : ComputePipelines(&device)
@@ -136,11 +137,40 @@ void gpu::HashTable::createBuffers(uint32_t numItems) {
 }
 
 void gpu::HashTable::creatDescriptorSetLayout() {
-    setLayout =
+    if(!keysOnly) {
+        setLayout =
+            device->descriptorSetLayoutBuilder()
+                    .binding(0)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(2)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(1)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(2)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(3)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(4)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(5)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .createLayout();
+    } else {
+        setLayout =
             device->descriptorSetLayoutBuilder()
                 .binding(0)
                     .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                    .descriptorCount(2)
+                    .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
                 .binding(1)
                     .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
@@ -158,25 +188,30 @@ void gpu::HashTable::creatDescriptorSetLayout() {
                     .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                     .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
-                .binding(5)
-                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                    .descriptorCount(1)
-                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
+
+    }
 }
 
 void gpu::HashTable::createDescriptorSet() {
 
     descriptorSet = descriptorPool->allocate({ setLayout }).front();
     auto writes = initializers::writeDescriptorSets<6>();
+
+    if(keysOnly) {
+        writes.resize(5);
+    }
+
     writes[0].dstSet = descriptorSet;
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writes[0].descriptorCount = 2;
-    std::vector<VkDescriptorBufferInfo> tableInfo{
-            { table_keys, 0, VK_WHOLE_SIZE },
-            {table_values, 0, VK_WHOLE_SIZE}
-    };
+    std::vector<VkDescriptorBufferInfo> tableInfo;
+
+    tableInfo.emplace_back(table_keys, 0, VK_WHOLE_SIZE);
+    if (!keysOnly) {
+        tableInfo.emplace_back(table_values, 0, VK_WHOLE_SIZE);
+    }
+    writes[0].descriptorCount = tableInfo.size();
     writes[0].pBufferInfo = tableInfo.data();
 
     writes[1].dstSet = descriptorSet;
@@ -200,19 +235,28 @@ void gpu::HashTable::createDescriptorSet() {
     VkDescriptorBufferInfo keyInfo{ keys_buffer, 0, VK_WHOLE_SIZE};
     writes[3].pBufferInfo = &keyInfo;
 
-    writes[4].dstSet = descriptorSet;
-    writes[4].dstBinding = 4;
-    writes[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writes[4].descriptorCount = 1;
-    VkDescriptorBufferInfo valueInfo{ values_buffer, 0, VK_WHOLE_SIZE};
-    writes[4].pBufferInfo = &valueInfo;
+    if (!keysOnly) {
+        writes[4].dstSet = descriptorSet;
+        writes[4].dstBinding = 4;
+        writes[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[4].descriptorCount = 1;
+        VkDescriptorBufferInfo valueInfo{values_buffer, 0, VK_WHOLE_SIZE};
+        writes[4].pBufferInfo = &valueInfo;
 
-    writes[5].dstSet = descriptorSet;
-    writes[5].dstBinding = 5;
-    writes[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writes[5].descriptorCount = 1;
-    VkDescriptorBufferInfo queryInfo{ query_results, 0, VK_WHOLE_SIZE};
-    writes[5].pBufferInfo = &queryInfo;
+        writes[5].dstSet = descriptorSet;
+        writes[5].dstBinding = 5;
+        writes[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[5].descriptorCount = 1;
+        VkDescriptorBufferInfo queryInfo{query_results, 0, VK_WHOLE_SIZE};
+        writes[5].pBufferInfo = &queryInfo;
+    } else {
+        writes[4].dstSet = descriptorSet;
+        writes[4].dstBinding = 4;
+        writes[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[4].descriptorCount = 1;
+        VkDescriptorBufferInfo queryInfo{query_results, 0, VK_WHOLE_SIZE};
+        writes[4].pBufferInfo = &queryInfo;
+    }
 
     device->updateDescriptorSets(writes);
 }
