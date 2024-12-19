@@ -1,0 +1,8 @@
+#version 460
+
+#include "../../data/shaders/data_structure/cuckoo_hash_set.glsl"
+
+void main() {
+    if(gl_GlobalInvocationID.x >= numItems) return;
+    hash_set_insert(gl_GlobalInvocationID.x);
+}

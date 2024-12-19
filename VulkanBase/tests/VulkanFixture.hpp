@@ -58,10 +58,9 @@ protected:
     }
 
     void createDescriptorPool(){
-        std::array<VkDescriptorPoolSize, 17> poolSizes{
+        std::array<VkDescriptorPoolSize, 10> poolSizes{
                 {
                         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100 * maxSets},
-                        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100 * maxSets},
                         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100 * maxSets},
                         { VK_DESCRIPTOR_TYPE_SAMPLER, 100 * maxSets },
                         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100 * maxSets },
@@ -71,12 +70,6 @@ protected:
                         { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 100 * maxSets },
                         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100 * maxSets },
                         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100 * maxSets },
-                        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100 * maxSets },
-                        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 100 * maxSets },
-                        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 100 * maxSets },
-                        { VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT, 100 * maxSets },
-                        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 100 * maxSets },
-                        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 100 * maxSets },
 
                 }
         };
@@ -107,16 +100,23 @@ protected:
     }
 
     void createDevice(){
+        VkPhysicalDeviceVulkan12Features features12{};
+        features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        features12.hostQueryReset = VK_TRUE;
+
+        VkPhysicalDeviceVulkan13Features features13{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
+        features13.maintenance4 = true;
+        features13.synchronization2 = true;
+        features12.pNext = &features13;
+
         auto pDevice = enumerate<VkPhysicalDevice>([&](uint32_t* size, VkPhysicalDevice* pDevice){
             return vkEnumeratePhysicalDevices(instance, size, pDevice);
         }).front();
         device = VulkanDevice{ instance, pDevice, settings};
-        VkPhysicalDeviceVulkan12Features features2{};
-        features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-        features2.hostQueryReset = VK_TRUE;
+
         VkPhysicalDeviceFeatures enabledFeatures{};
         enabledFeatures.robustBufferAccess = VK_TRUE;
-        device.createLogicalDevice(enabledFeatures, deviceExtensions, validationLayers, VK_NULL_HANDLE, VK_QUEUE_COMPUTE_BIT, &features2);
+        device.createLogicalDevice(enabledFeatures, deviceExtensions, validationLayers, VK_NULL_HANDLE, VK_QUEUE_COMPUTE_BIT, &features12);
         vkDevice = device.logicalDevice;
     }
 

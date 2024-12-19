@@ -1,0 +1,7 @@
+#version 460
+
+#include "../../data/shaders/data_structure/cuckoo_hash_set.glsl"
+
+void main() {
+    remove_duplicate_entries(gl_GlobalInvocationID.x);
+}

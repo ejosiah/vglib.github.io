@@ -4,29 +4,10 @@
 * page 39
 */
 
-#ifndef HASH_TABLE_GLSL
-#define HASH_TABLE_GLSL
+#ifndef CUCKOO_HASH_TABLE_GLSL
+#define CUCKOO_HASH_TABLE_GLSL
 
-#define NULL_LOCATION 0xFFFFFFFFu
-#define KEY_EMPTY 0xFFFFFFFFu
-#define NOT_FOUND 0xFFFFFFFFu
-#define p 334214459u
-#define a1 100000u
-#define b1 200u
-#define a2 300000u
-#define b2 489902u
-#define a3 800000u
-#define b3 10248089u
-#define a4 9458373u
-#define b4 1234838u
-#define KEY 0
-#define VALUE 1
-#define TABLE_SIZE tableSize
-
-#define hash1(key) ((a1 ^ key + b1) % p % TABLE_SIZE)
-#define hash2(key) ((a2 ^ key + b2) % p % TABLE_SIZE)
-#define hash3(key) ((a3 ^ key + b3) % p % TABLE_SIZE)
-#define hash4(key) ((a4 ^ key + b4) % p % TABLE_SIZE)
+#include "cuckoo_hash_common.glsl"
 
 #define get_entry(loc) uvec2(table[KEY].data[loc], table[VALUE].data[loc])
 #define atmoic_exchage(loc, entry)  uvec2( \
@@ -67,7 +48,6 @@ layout(push_constant) uniform Constants {
     uint numItems;
 };
 
-
 bool hash_table_insert_internal(bool prevInsertSucceeded, inout uvec2 entry, inout uint location) {
     if(prevInsertSucceeded) return true;
     uint key = get_key(entry);
@@ -95,6 +75,7 @@ bool hash_table_insert_internal(bool prevInsertSucceeded, inout uvec2 entry, ino
 }
 
 void hash_table_insert(uint gid) {
+    if (gid >= numItems) return;
 
     uvec2 entry = uvec2(keys[gid], values[gid]);
     uint location = locations[gid];
@@ -143,4 +124,4 @@ uint hash_table_query(uint gid) {
 
     return get_value(entry);
 }
-#endif // HASH_TABLE_GLSL
+#endif // CUCKOO_HASH_TABLE_GLSL

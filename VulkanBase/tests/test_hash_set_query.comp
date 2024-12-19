@@ -1,9 +1,9 @@
 #version 460
 
-#include "../../data/shaders/data_structure/cuckoo_hash_table.glsl"
+#include "../../data/shaders/data_structure/cuckoo_hash_set.glsl"
 
 void main() {
     uint gid = gl_GlobalInvocationID.x;
-    uint value = hash_table_query(gid);
+    uint value = hash_set_find(gid);
     query_results[gl_GlobalInvocationID.x] = value;
 }

@@ -231,7 +231,7 @@ struct VulkanBuffer{
         return { reinterpret_cast<T*>(map()), aSize } ;
     }
 
-    BufferRegion region(VkDeviceSize start, VkDeviceSize end);
+    BufferRegion region(VkDeviceSize start, VkDeviceSize end = VK_WHOLE_SIZE);
 
     VmaAllocator allocator = VK_NULL_HANDLE;
     VkBuffer buffer = VK_NULL_HANDLE;
