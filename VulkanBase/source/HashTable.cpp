@@ -122,18 +122,18 @@ void gpu::HashTable::init() {
 
 void gpu::HashTable::createBuffers(uint32_t numItems) {
     constexpr VkBufferUsageFlags usage{ VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT};
-    keys_buffer = device->createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, numItems * sizeof(uint32_t), "hash_keys");
-    values_buffer = device->createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, numItems * sizeof(uint32_t), "hash_values");
-    insert_status = device->createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, numItems * sizeof(uint32_t), "insert_status");
-    insert_locations = device->createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, numItems * sizeof(uint32_t), "insert_locations");
-    query_results = device->createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, numItems * sizeof(uint32_t), "query_results");
+    keys_buffer = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "hash_keys");
+    values_buffer = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "hash_values");
+    insert_status = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "insert_status");
+    insert_locations = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "insert_locations");
+    query_results = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "query_results");
 
     const auto tableSize = constants.tableSize;
     std::vector<uint> nullEntries(tableSize);
     std::generate(nullEntries.begin(), nullEntries.end(), []{ return 0xFFFFFFFFu; });
 
     table_keys = device->createCpuVisibleBuffer(nullEntries.data(), BYTE_SIZE(nullEntries), usage);
-    table_values = device->createBuffer(usage, VMA_MEMORY_USAGE_CPU_TO_GPU, tableSize * sizeof(uint32_t), "table_values");
+    table_values = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, tableSize * sizeof(uint32_t), "table_values");
 }
 
 void gpu::HashTable::creatDescriptorSetLayout() {
