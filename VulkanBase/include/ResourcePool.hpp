@@ -12,6 +12,9 @@ public:
 
     ResourcePool() = default;
 
+    template<typename Factory>
+    explicit ResourcePool(Factory factory, size_t capacity);
+
     explicit ResourcePool(std::vector<T> data);
 
     Borrowed obtain();
@@ -24,6 +27,15 @@ private:
     std::vector<T> data_;
     std::vector<Borrowed> resources_;
 };
+
+template<typename T>
+template<typename Factory>
+ResourcePool<T>::ResourcePool(Factory factory, size_t capacity){
+    for(auto i = 0; i < capacity; ++i) {
+        data_.push_back(factory());
+    }
+    releaseAll();
+}
 
 template<typename T>
 void ResourcePool<T>::release(ResourcePool::Borrowed borrowed) {

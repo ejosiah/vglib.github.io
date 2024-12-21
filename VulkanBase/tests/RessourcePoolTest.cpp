@@ -1,6 +1,7 @@
 #include "ResourcePool.hpp"
 
 #include <gtest/gtest.h>
+#include <functional>
 #include <numeric>
 
 struct ResourcePoolSuit : public ::testing::Test {};
@@ -55,4 +56,12 @@ TEST(ResourcePoolSuit, releaseAllResources) {
     pool.releaseAll();
 
     ASSERT_TRUE(pool.obtain().has_value());
+}
+
+TEST(ResourcePoolSuit, factoryMethodResourceCreation) {
+    ResourcePool<int> pool([next=0]() mutable { return next++; }, 10);
+
+    for(auto i = 9; i >= 0; --i) {
+        ASSERT_EQ(i, pool.obtain()->get());
+    }
 }
