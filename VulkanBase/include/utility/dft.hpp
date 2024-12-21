@@ -6,6 +6,7 @@
 #include <tuple>
 #include <algorithm>
 #include <fmt/format.h>
+#include <ranges>
 
 #ifndef PI
 #define PI 3.1415926535897932384626433832795
@@ -168,15 +169,19 @@ inline std::tuple<std::vector<float>, std::vector<float>> fft(const std::vector<
     }
 
     auto result = fft(cp);
-    auto realPart = std::vector<float>(n);
-    auto imaginaryPart = std::vector<float>(n);
+    std::vector<float> realPart;
+    std::vector<float> imaginaryPart;
 
     for(const auto& c : result){
 //        spdlog::info("{:2f} + {:2f}i", std::real(c), std::imag(c));
     }
 
-    std::transform(begin(result), end(result), begin(realPart), [](const auto cp){ return std::real(cp); });
-    std::transform(begin(result), end(result), begin(imaginaryPart), [](const auto cp){ return std::imag(cp); });
+    auto realView = result | std::views::transform([](const auto cp){ return std::real(cp); });
+    auto imgView = result | std::views::transform([](const auto cp){ return std::imag(cp); });
+
+    realPart.insert(realPart.end(), realView.begin(), realView.end());
+    imaginaryPart.insert(imaginaryPart.end(), imgView.begin(), imgView.end());
+
 
     return std::make_tuple(realPart, imaginaryPart);
 }
