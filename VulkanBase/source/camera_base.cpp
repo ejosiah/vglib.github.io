@@ -480,37 +480,19 @@ bool Frustum::test(const glm::vec3 &point) const {
 bool Frustum::test(const glm::vec3 &bMin, const glm::vec3 &bMax) const {
     using namespace glm;
 
-//    for(int i = 0; i < 6; ++i) {
-//        float outside = 0;
-//        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMin.z, 1) ) , 0.f );
-//        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMin.z, 1) ) , 0.f );
-//        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMin.z, 1) ) , 0.f );
-//        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMin.z, 1) ) , 0.f );
-//        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMax.z, 1) ) , 0.f );
-//        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMax.z, 1) ) , 0.f );
-//        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMax.z, 1) ) , 0.f );
-//        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMax.z, 1) ) , 0.f );
-//
-//        if (outside == 8) return false;
-//    }
-//
-//return true;
+    for(int i = 0; i < 6; ++i) {
+        float outside = 0;
+        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMin.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMin.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMin.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMin.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMax.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMax.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMax.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMax.z, 1) ) , 0.f );
 
-      std::array<glm::vec4, 8> corners{
-              vec4(bMin.x, bMin.y, bMin.z, 1),
-              vec4(bMax.x, bMin.y, bMin.z, 1),
-              vec4(bMin.x, bMax.y, bMin.z, 1),
-              vec4(bMax.x, bMax.y, bMin.z, 1),
-              vec4(bMin.x, bMin.y, bMax.z, 1),
-              vec4(bMax.x, bMin.y, bMax.z, 1),
-              vec4(bMin.x, bMax.y, bMax.z, 1),
-              vec4(bMax.x, bMax.y, bMax.z, 1),
-      };
+        if (outside == 8) return false;
+    }
 
-      for(int i = 0; i < 8; ++i) {
-          auto point = corners[i];
-          if(test(point)) return true;
-      }
-
-    return false;
+    return true;
 }
