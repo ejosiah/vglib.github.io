@@ -37,3 +37,8 @@ inline glm::vec3 randomVec3(const glm::vec3& lower = glm::vec3(-1), const glm::v
 inline glm::vec4 randomColor(glm::uvec3 seed = randomVec3Seed()){
     return glm::vec4(randomVec3(glm::vec3(0), glm::vec3(1), seed), 1.0f);
 }
+
+inline bool coinFlip(uint32_t seed = randomSeed() ) {
+    static auto flip = rngFunc(0, 1, seed);
+    return static_cast<bool>(flip());
+}
