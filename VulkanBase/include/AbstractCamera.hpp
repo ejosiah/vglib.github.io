@@ -1,7 +1,9 @@
 #pragma once
 
-#include <glm/glm.hpp>
 #include "VulkanRAII.h"
+
+#include <glm/glm.hpp>
+#include <array>
 
 struct Camera{
     glm::mat4 model = glm::mat4(1);
@@ -14,7 +16,19 @@ struct Camera{
 
 };
 
-class AbstractCamera{
+enum PlaneType : int { LEFT_PLANE = 0, RIGHT_PLANE, BOTTOM_PLANE, TOP_PLANE, NEAR_PLANE, FAR_PLANE};
+
+using ClipPlane = glm::vec4;
+
+struct Frustum {
+    std::array<ClipPlane, 6> cp;
+
+    bool test(const glm::vec3& point) const;
+
+    bool test(const glm::vec3& boxMin, const glm::vec3& boxMax) const;
+};
+
+class AbstractCamera {
 public:
     virtual ~AbstractCamera() = default;
 
@@ -81,4 +95,8 @@ public:
     virtual bool moved() const = 0;
 
     virtual void jitter(float jx, float jy) = 0;
+
+    virtual void extract(Frustum& frustum) = 0;
+
+    static void extractFrustum(Frustum& frustum, const glm::mat4 M);
 };

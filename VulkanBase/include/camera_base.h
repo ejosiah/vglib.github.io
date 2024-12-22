@@ -41,7 +41,7 @@ struct BaseCameraSettings{
     bool horizontalFov = false;
 };
 
-struct BaseCameraController : public AbstractCamera{
+struct BaseCameraController : public AbstractCamera {
 public:
     BaseCameraController(InputManager& inputManager, const BaseCameraSettings& settings = {});
 
@@ -119,7 +119,9 @@ public:
 
     bool moved() const override;
 
-    void jitter(float jx, float jy) override;
+    void jitter(float jx, float jy) final;
+
+    void extract(Frustum &frustum) final;
 
 
     float fov;

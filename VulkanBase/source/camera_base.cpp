@@ -423,3 +423,94 @@ void BaseCameraController::jitter(float jx, float jy) {
     camera.proj = jMatrix * camera.proj;
 }
 
+void BaseCameraController::extract(Frustum &frustum) {
+    extractFrustum(frustum, camera.proj * camera.view);
+}
+
+void AbstractCamera::extractFrustum(Frustum &frustum, const glm::mat4 M) {
+    const auto m1 = glm::row(M, 0);
+    const auto m4 = glm::row(M, 3);
+
+    frustum.cp[LEFT_PLANE].x = m4[0] + m1[0];
+    frustum.cp[LEFT_PLANE].y = m4[1] + m1[1];
+    frustum.cp[LEFT_PLANE].z = m4[2] + m1[2];
+    frustum.cp[LEFT_PLANE].w = m4[3] + m1[3];
+
+    frustum.cp[RIGHT_PLANE].x = m4[0] - m1[0];
+    frustum.cp[RIGHT_PLANE].y = m4[1] - m1[1];
+    frustum.cp[RIGHT_PLANE].z = m4[2] - m1[2];
+    frustum.cp[RIGHT_PLANE].w = m4[3] - m1[3];
+
+    const auto m2 = glm::row(M, 1);
+
+    frustum.cp[BOTTOM_PLANE].x = m4[0] + m2[0];
+    frustum.cp[BOTTOM_PLANE].y = m4[1] + m2[1];
+    frustum.cp[BOTTOM_PLANE].z = m4[2] + m2[2];
+    frustum.cp[BOTTOM_PLANE].w = m4[3] + m2[3];
+
+    frustum.cp[TOP_PLANE].x = m4[0] - m2[0];
+    frustum.cp[TOP_PLANE].y = m4[1] - m2[1];
+    frustum.cp[TOP_PLANE].z = m4[2] - m2[2];
+    frustum.cp[TOP_PLANE].w = m4[3] - m2[3];
+
+    const auto m3 = glm::row(M, 2);
+
+    frustum.cp[NEAR_PLANE].x = m3[0];
+    frustum.cp[NEAR_PLANE].y = m3[1];
+    frustum.cp[NEAR_PLANE].z = m3[2];
+    frustum.cp[NEAR_PLANE].w = m3[3];
+
+    frustum.cp[FAR_PLANE].x = m4[0] - m3[0];
+    frustum.cp[FAR_PLANE].y = m4[1] - m3[1];
+    frustum.cp[FAR_PLANE].z = m4[2] - m3[2];
+    frustum.cp[FAR_PLANE].w = m4[3] - m3[3];
+}
+
+bool Frustum::test(const glm::vec3 &point) const {
+    using namespace glm;
+    const vec4 v = vec4(point, 1);
+    float outside = 0;
+    outside += step(dot(cp[LEFT_PLANE], v), 0.f) + step(dot(cp[RIGHT_PLANE], v), 0.f);
+    outside += step(dot(cp[BOTTOM_PLANE], v), 0.f) + step(dot(cp[TOP_PLANE], v), 0.f);
+    outside += step(dot(cp[NEAR_PLANE], v), 0.f) + step(dot(cp[FAR_PLANE], v), 0.f);
+
+    return outside == 0;
+}
+
+bool Frustum::test(const glm::vec3 &bMin, const glm::vec3 &bMax) const {
+    using namespace glm;
+
+//    for(int i = 0; i < 6; ++i) {
+//        float outside = 0;
+//        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMin.z, 1) ) , 0.f );
+//        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMin.z, 1) ) , 0.f );
+//        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMin.z, 1) ) , 0.f );
+//        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMin.z, 1) ) , 0.f );
+//        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMax.z, 1) ) , 0.f );
+//        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMax.z, 1) ) , 0.f );
+//        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMax.z, 1) ) , 0.f );
+//        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMax.z, 1) ) , 0.f );
+//
+//        if (outside == 8) return false;
+//    }
+//
+//return true;
+
+      std::array<glm::vec4, 8> corners{
+              vec4(bMin.x, bMin.y, bMin.z, 1),
+              vec4(bMax.x, bMin.y, bMin.z, 1),
+              vec4(bMin.x, bMax.y, bMin.z, 1),
+              vec4(bMax.x, bMax.y, bMin.z, 1),
+              vec4(bMin.x, bMin.y, bMax.z, 1),
+              vec4(bMax.x, bMin.y, bMax.z, 1),
+              vec4(bMin.x, bMax.y, bMax.z, 1),
+              vec4(bMax.x, bMax.y, bMax.z, 1),
+      };
+
+      for(int i = 0; i < 8; ++i) {
+          auto point = corners[i];
+          if(test(point)) return true;
+      }
+
+    return false;
+}
