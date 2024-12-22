@@ -9,7 +9,7 @@ struct Surface {
     glm::vec3 bitangent{0, 0, 1};
 };
 
-Vertices primitives::cube(const glm::vec4& color){
+Vertices primitives::cube(const glm::vec4& color, const glm::mat4& transform){
     Vertices mesh;
 
     mesh.vertices = {
@@ -51,6 +51,11 @@ Vertices primitives::cube(const glm::vec4& color){
             {{-1.0, 1.0, -1.0, 1}, color,  {0.0f, 1.0f, 0.0f}, {1, 0, 0}, {0, 0, -1},  {0, 1}},
     };
 
+    for(auto& vertex : mesh.vertices) {
+        auto pos = transform * vertex.position;
+        vertex.position = glm::vec4(pos.xyz(), 1);
+    }
+
     mesh.indices = {
             0,1,2,0,2,3,
             4,5,6,4,6,7,
@@ -62,7 +67,7 @@ Vertices primitives::cube(const glm::vec4& color){
     return mesh;
 }
 
-Vertices primitives::cubeOutline(const glm::vec4& color) {
+Vertices primitives::cubeOutline(const glm::vec4& color, const glm::mat4& transform) {
     Vertices vertices{
         .vertices = {
 // FRONT
@@ -106,6 +111,11 @@ Vertices primitives::cubeOutline(const glm::vec4& color) {
                 { .position = glm::vec4(1, -1, 1, 1), .color = color},
         }
     };
+
+    for(auto& vertex : vertices.vertices) {
+        auto pos = transform * vertex.position;
+        vertex.position = glm::vec4(pos.xyz(), 1);
+    }
 
     return vertices;
 
