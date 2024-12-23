@@ -28,6 +28,8 @@ struct Frustum {
     bool test(const glm::vec3& boxMin, const glm::vec3& boxMax) const;
 
     bool test(const glm::vec3& boxCenter, float scale);
+
+    static void extractFrustum(Frustum& frustum, const glm::mat4 M);
 };
 
 class AbstractCamera {
@@ -100,5 +102,6 @@ public:
 
     virtual void extract(Frustum& frustum) = 0;
 
-    static void extractFrustum(Frustum& frustum, const glm::mat4 M);
+    virtual void extractAABB(glm::vec3& bMin, glm::vec3& bMax) = 0;
+
 };

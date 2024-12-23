@@ -426,46 +426,43 @@ void BaseCameraController::jitter(float jx, float jy) {
 }
 
 void BaseCameraController::extract(Frustum &frustum) {
-    extractFrustum(frustum, camera.proj * camera.view);
+    Frustum::extractFrustum(frustum, camera.proj * camera.view);
 }
 
-void AbstractCamera::extractFrustum(Frustum &frustum, const glm::mat4 M) {
-    const auto m1 = glm::row(M, 0);
-    const auto m4 = glm::row(M, 3);
+void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) {
+    bMin = glm::vec3(MAX_FLOAT);
+    bMax = glm::vec3(MIN_FLOAT);
 
-    frustum.cp[LEFT_PLANE].x = m4[0] + m1[0];
-    frustum.cp[LEFT_PLANE].y = m4[1] + m1[1];
-    frustum.cp[LEFT_PLANE].z = m4[2] + m1[2];
-    frustum.cp[LEFT_PLANE].w = m4[3] + m1[3];
+    const auto near = znear;
+    const auto far = zfar;
+    const auto aspect = aspectRatio;
 
-    frustum.cp[RIGHT_PLANE].x = m4[0] - m1[0];
-    frustum.cp[RIGHT_PLANE].y = m4[1] - m1[1];
-    frustum.cp[RIGHT_PLANE].z = m4[2] - m1[2];
-    frustum.cp[RIGHT_PLANE].w = m4[3] - m1[3];
+    glm::vec2 nearCorner{0, 0};
+    nearCorner.y = glm::tan(fov / 2) * -near; // TODO check if horizontal or vertical fov
+    nearCorner.x = nearCorner.y * aspect;
 
-    const auto m2 = glm::row(M, 1);
+    corners[0] = glm::vec4(nearCorner, -near, 1);
+    corners[1] = glm::vec4(-nearCorner, -near, 1);
 
-    frustum.cp[BOTTOM_PLANE].x = m4[0] + m2[0];
-    frustum.cp[BOTTOM_PLANE].y = m4[1] + m2[1];
-    frustum.cp[BOTTOM_PLANE].z = m4[2] + m2[2];
-    frustum.cp[BOTTOM_PLANE].w = m4[3] + m2[3];
+    nearCorner.y *= -1;
+    corners[2] = glm::vec4(nearCorner, -near, 1);
+    corners[3] = glm::vec4(-nearCorner, -near, 1);
 
-    frustum.cp[TOP_PLANE].x = m4[0] - m2[0];
-    frustum.cp[TOP_PLANE].y = m4[1] - m2[1];
-    frustum.cp[TOP_PLANE].z = m4[2] - m2[2];
-    frustum.cp[TOP_PLANE].w = m4[3] - m2[3];
+    glm::vec2 farCorner{0, 0,};
+    farCorner.y = glm::tan(fov / 2) * -far; // TODO check if horizontal or vertical fov
+    farCorner.x = farCorner.y * aspect;
 
-    const auto m3 = glm::row(M, 2);
+    corners[4] = glm::vec4(farCorner, -far, 1);
+    corners[5] = glm::vec4(-farCorner, -far, 1);
 
-    frustum.cp[NEAR_PLANE].x = m3[0];
-    frustum.cp[NEAR_PLANE].y = m3[1];
-    frustum.cp[NEAR_PLANE].z = m3[2];
-    frustum.cp[NEAR_PLANE].w = m3[3];
+    farCorner.y *= -1;
+    corners[6] = glm::vec4(farCorner, -far, 1);
+    corners[7] = glm::vec4(-farCorner, -far, 1);
 
-    frustum.cp[FAR_PLANE].x = m4[0] - m3[0];
-    frustum.cp[FAR_PLANE].y = m4[1] - m3[1];
-    frustum.cp[FAR_PLANE].z = m4[2] - m3[2];
-    frustum.cp[FAR_PLANE].w = m4[3] - m3[3];
+    for(auto& corner : corners) {
+        bMin = glm::min(corner.xyz(), bMin);
+        bMax = glm::max(corner.xyz(), bMax);
+    }
 }
 
 bool Frustum::test(const glm::vec3 &point) const {
@@ -530,4 +527,43 @@ bool Frustum::test(const glm::vec3 &boxCenter, float scale) {
     }
 
     return true;
+}
+
+void Frustum::extractFrustum(Frustum &frustum, const glm::mat4 M) {
+    const auto m1 = glm::row(M, 0);
+    const auto m4 = glm::row(M, 3);
+
+    frustum.cp[LEFT_PLANE].x = m4[0] + m1[0];
+    frustum.cp[LEFT_PLANE].y = m4[1] + m1[1];
+    frustum.cp[LEFT_PLANE].z = m4[2] + m1[2];
+    frustum.cp[LEFT_PLANE].w = m4[3] + m1[3];
+
+    frustum.cp[RIGHT_PLANE].x = m4[0] - m1[0];
+    frustum.cp[RIGHT_PLANE].y = m4[1] - m1[1];
+    frustum.cp[RIGHT_PLANE].z = m4[2] - m1[2];
+    frustum.cp[RIGHT_PLANE].w = m4[3] - m1[3];
+
+    const auto m2 = glm::row(M, 1);
+
+    frustum.cp[BOTTOM_PLANE].x = m4[0] + m2[0];
+    frustum.cp[BOTTOM_PLANE].y = m4[1] + m2[1];
+    frustum.cp[BOTTOM_PLANE].z = m4[2] + m2[2];
+    frustum.cp[BOTTOM_PLANE].w = m4[3] + m2[3];
+
+    frustum.cp[TOP_PLANE].x = m4[0] - m2[0];
+    frustum.cp[TOP_PLANE].y = m4[1] - m2[1];
+    frustum.cp[TOP_PLANE].z = m4[2] - m2[2];
+    frustum.cp[TOP_PLANE].w = m4[3] - m2[3];
+
+    const auto m3 = glm::row(M, 2);
+
+    frustum.cp[NEAR_PLANE].x = m3[0];
+    frustum.cp[NEAR_PLANE].y = m3[1];
+    frustum.cp[NEAR_PLANE].z = m3[2];
+    frustum.cp[NEAR_PLANE].w = m3[3];
+
+    frustum.cp[FAR_PLANE].x = m4[0] - m3[0];
+    frustum.cp[FAR_PLANE].y = m4[1] - m3[1];
+    frustum.cp[FAR_PLANE].z = m4[2] - m3[2];
+    frustum.cp[FAR_PLANE].w = m4[3] - m3[3];
 }
