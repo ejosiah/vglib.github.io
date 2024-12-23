@@ -1,4 +1,6 @@
 #include "camera_base.h"
+#include "AbstractCamera.hpp"
+
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_access.hpp>
 
@@ -480,16 +482,49 @@ bool Frustum::test(const glm::vec3 &point) const {
 bool Frustum::test(const glm::vec3 &bMin, const glm::vec3 &bMax) const {
     using namespace glm;
 
+    auto corners = std::array<vec4, 8> {{
+        vec4(bMin.x, bMin.y, bMin.z, 1), vec4(bMax.x, bMin.y, bMin.z, 1), vec4(bMin.x, bMax.y, bMin.z, 1),
+        vec4(bMax.x, bMax.y, bMin.z, 1), vec4(bMin.x, bMin.y, bMax.z, 1), vec4(bMax.x, bMin.y, bMax.z, 1),
+        vec4(bMin.x, bMax.y, bMax.z, 1), vec4(bMax.x, bMax.y, bMax.z, 1)
+    }};
+
     for(int i = 0; i < 6; ++i) {
         float outside = 0;
-        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMin.z, 1) ) , 0.f );
-        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMin.z, 1) ) , 0.f );
-        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMin.z, 1) ) , 0.f );
-        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMin.z, 1) ) , 0.f );
-        outside += step(dot( cp[i], vec4(bMin.x, bMin.y, bMax.z, 1) ) , 0.f );
-        outside += step(dot( cp[i], vec4(bMax.x, bMin.y, bMax.z, 1) ) , 0.f );
-        outside += step(dot( cp[i], vec4(bMin.x, bMax.y, bMax.z, 1) ) , 0.f );
-        outside += step(dot( cp[i], vec4(bMax.x, bMax.y, bMax.z, 1) ) , 0.f );
+        outside += step(dot( cp[i], corners[0] ) , 0.f );
+        outside += step(dot( cp[i], corners[1] ) , 0.f );
+        outside += step(dot( cp[i], corners[2] ) , 0.f );
+        outside += step(dot( cp[i], corners[3] ) , 0.f );
+        outside += step(dot( cp[i], corners[4] ) , 0.f );
+        outside += step(dot( cp[i], corners[5] ) , 0.f );
+        outside += step(dot( cp[i], corners[6] ) , 0.f );
+        outside += step(dot( cp[i], corners[7] ) , 0.f );
+
+        if (outside == 8) return false;
+    }
+
+    return true;
+}
+
+bool Frustum::test(const glm::vec3 &boxCenter, float scale) {
+    using namespace glm;
+    static auto corners = std::array<glm::vec4, 8> {{
+        vec4( -0.5, -0.5, -0.5, 0.5 ), vec4(0.5, -0.5, -0.5, 0.5 ), vec4(0.5, -0.5, 0.5, 0.5 ), vec4(-0.5, -0.5, 0.5, 0.5 ),
+        vec4( -0.5, 0.5, -0.5, 0.5 ), vec4(0.5, 0.5, -0.5, 0.5 ), vec4(0.5, 0.5, 0.5, 0.5 ), vec4(-0.5, 0.5, 0.5, 0.5 ),
+    }};
+
+
+    const auto bc = glm::vec4(boxCenter, 0.5);
+    const auto s = glm::vec4(scale, scale, scale, 1);
+    for(int i = 0; i < 6; ++i) {
+        float outside = 0;
+        outside += step(dot( cp[i], bc + corners[0] * s), 0.f);
+        outside += step(dot( cp[i], bc + corners[1] * s), 0.f);
+        outside += step(dot( cp[i], bc + corners[2] * s), 0.f);
+        outside += step(dot( cp[i], bc + corners[3] * s), 0.f);
+        outside += step(dot( cp[i], bc + corners[4] * s), 0.f);
+        outside += step(dot( cp[i], bc + corners[5] * s), 0.f);
+        outside += step(dot( cp[i], bc + corners[6] * s), 0.f);
+        outside += step(dot( cp[i], bc + corners[7] * s), 0.f);
 
         if (outside == 8) return false;
     }

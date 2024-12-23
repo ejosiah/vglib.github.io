@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 
+#define NYI FAIL() << "Not yet implemented!";
 
 static struct Clip{
     glm::vec3 min{-1, -1, 0};
@@ -11,8 +12,14 @@ static struct Clip{
 } clip;
 
 struct FrustumTestFixture : public testing::Test {
-
+protected:
     using Box = std::tuple<glm::vec3, glm::vec3>;
+
+    void SetUp() override {
+        view = glm::lookAt({0, 1, 10}, glm::vec3(0), {0, 1, 0});
+        projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
+        VP = projection * view;
+    }
 
     static void pointsInFrustumCheck(const glm::mat4& M, const std::vector<glm::vec3>& points) {
         Frustum frustum{};
@@ -30,6 +37,24 @@ struct FrustumTestFixture : public testing::Test {
         for(const auto& box : boxs) {
             const auto [bMin, bMax] = box;
             ASSERT_TRUE(frustum.test(bMin, bMax));
+        }
+    }
+
+    static void boxInFrustumCheck(const glm::mat4& M, const std::vector<glm::vec3>& boxs) {
+        Frustum frustum{};
+        AbstractCamera::extractFrustum(frustum, M);
+
+        for(const auto& box : boxs) {
+            ASSERT_TRUE(frustum.test(box, 1));
+        }
+    }
+
+    static void boxOutsideFrustumCheck(const glm::mat4& M, const std::vector<glm::vec3>& boxs) {
+        Frustum frustum{};
+        AbstractCamera::extractFrustum(frustum, M);
+
+        for(const auto& box : boxs) {
+            ASSERT_FALSE(frustum.test(box, 1));
         }
     }
 
@@ -151,27 +176,26 @@ struct FrustumTestFixture : public testing::Test {
 
         return points;
     }
+
+    glm::mat4 projection{1};
+    glm::mat4 view{1};
+    glm::mat4 VP{1};
 };
 
 TEST_F(FrustumTestFixture, pointInProjectionFrustum) {
-    auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
     auto points = generateRandomPoints(projection, 100);
 
     pointsInFrustumCheck(projection, points);
 }
 
 TEST_F(FrustumTestFixture, pointInViewProjectionFrustum) {
-    auto view = glm::lookAt({0, 1, 10}, glm::vec3(0), {0, 1, 0});
-    auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
-    auto M = projection * view;
-    auto points = generateRandomPoints(M, 100);
+    auto points = generateRandomPoints(VP, 100);
 
-    pointsInFrustumCheck(M, points);
+    pointsInFrustumCheck(VP, points);
 
 }
 
 TEST_F(FrustumTestFixture, pointsOutsizeProjectionFrustum) {
-    auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
     auto points = generateRandomPointsOutSide(projection, 100);
     points.emplace_back(glm::vec4(-0.19485605f, 0.19485605f, -0.6962495f, 1.f));
 
@@ -179,42 +203,53 @@ TEST_F(FrustumTestFixture, pointsOutsizeProjectionFrustum) {
 }
 
 TEST_F(FrustumTestFixture, pointsOutsizeViewProjectionFrustum) {
-    auto view = glm::lookAt({0, 1, 10}, glm::vec3(0), {0, 1, 0});
-    auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
-    auto M = projection * view;
-    auto points = generateRandomPointsOutSide(M, 100);
+    auto points = generateRandomPointsOutSide(VP, 100);
 
-    pointsOutsideFrustumCheck(M, points);
+    pointsOutsideFrustumCheck(VP, points);
 }
 
 TEST_F(FrustumTestFixture, BoxinProjectionFrustum) {
-    auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
     auto boxes = generateRandomBox_InsideClipSpace(projection, 100, 0.5, 2.5);
 
     boxInFrustumCheck(projection, boxes);
 }
 
 TEST_F(FrustumTestFixture, BoxInViewProjectionFrustum) {
-    auto view = glm::lookAt({0, 1, 10}, glm::vec3(0), {0, 1, 0});
-    auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
-    auto M = projection * view;
-    auto boxes = generateRandomBox_InsideClipSpace(M, 100, 0.5, 2.5);
+    auto boxes = generateRandomBox_InsideClipSpace(VP, 100, 0.5, 2.5);
 
-    boxInFrustumCheck(M, boxes);
+    boxInFrustumCheck(VP, boxes);
 }
 
 TEST_F(FrustumTestFixture, BoxOutsideProjectionFrustum) {
-    const auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
     const auto boxes = generateRandomBoxs_outsideClipSpace(projection, 100, 0.5, 2.5);
 
     boxOutsideFrustumCheck(projection, boxes);
 }
 
 TEST_F(FrustumTestFixture, BoxOutsideViewProjectionFrustum) {
-    const auto view = glm::lookAt({0, 1, 10}, glm::vec3(0), {0, 1, 0});
-    const auto projection = vkn::perspective(glm::radians(60.f), 1.f, 1.f, 10.f);
-    const auto M = projection * view;
-    const auto boxes = generateRandomBoxs_outsideClipSpace(M, 100, 0.5, 2.5);
+    const auto boxes = generateRandomBoxs_outsideClipSpace(VP, 100, 0.5, 2.5);
 
-    boxOutsideFrustumCheck(M, boxes);
+    boxOutsideFrustumCheck(VP, boxes);
+}
+
+TEST_F(FrustumTestFixture, BoxInProjectionFrustumGivenCenter) {
+    const auto boxes = generateRandomPoints(projection, 100);
+
+    boxInFrustumCheck(projection, boxes);
+}
+
+TEST_F(FrustumTestFixture, BoxInViewProjectionFrustumGivenCenter) {
+    const auto boxes = generateRandomPoints(VP, 100);
+
+    boxInFrustumCheck(VP, boxes);
+}
+
+TEST_F(FrustumTestFixture, BoxOutsideProjectionFrustumGivenCenter) {
+    const auto boxes = generateRandomPointsOutSide(projection, 100, 1.0, 5.0);
+    boxOutsideFrustumCheck(projection, boxes);
+}
+
+TEST_F(FrustumTestFixture, BoxOutsideViewProjectionFrustumGivenCenter) {
+    const auto boxes = generateRandomPointsOutSide(VP, 100, 1.0, 5.0);
+    boxOutsideFrustumCheck(VP, boxes);
 }

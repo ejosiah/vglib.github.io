@@ -26,6 +26,8 @@ struct Frustum {
     bool test(const glm::vec3& point) const;
 
     bool test(const glm::vec3& boxMin, const glm::vec3& boxMax) const;
+
+    bool test(const glm::vec3& boxCenter, float scale);
 };
 
 class AbstractCamera {
