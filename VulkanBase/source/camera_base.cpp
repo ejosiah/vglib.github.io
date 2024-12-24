@@ -436,9 +436,10 @@ void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) {
     const auto near = znear;
     const auto far = zfar;
     const auto aspect = aspectRatio;
+    const auto fovRad = glm::radians(fov);
 
     glm::vec2 nearCorner{0, 0};
-    nearCorner.y = glm::tan(fov / 2) * -near; // TODO check if horizontal or vertical fov
+    nearCorner.y = glm::tan(fovRad / 2) * -near; // TODO check if horizontal or vertical fov
     nearCorner.x = nearCorner.y * aspect;
 
     corners[0] = glm::vec4(nearCorner, -near, 1);
@@ -449,7 +450,7 @@ void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) {
     corners[3] = glm::vec4(-nearCorner, -near, 1);
 
     glm::vec2 farCorner{0, 0,};
-    farCorner.y = glm::tan(fov / 2) * -far; // TODO check if horizontal or vertical fov
+    farCorner.y = glm::tan(fovRad / 2) * -far; // TODO check if horizontal or vertical fov
     farCorner.x = farCorner.y * aspect;
 
     corners[4] = glm::vec4(farCorner, -far, 1);
