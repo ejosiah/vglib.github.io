@@ -38,6 +38,7 @@ add_subdirectory(VulkanBase)
 add_subdirectory(ImGuiPlugin)
 add_subdirectory(BulletPhysicsPlugin)
 add_subdirectory(profiling)
+add_subdirectory(scripts)
 #add_subdirectory(camera)
 
 install(TARGETS VulkanBase

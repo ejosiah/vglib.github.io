@@ -217,18 +217,18 @@ namespace gpu {
             return {
                     {
                             "prefix_scan",
-                            __glsl_scan_comp_spv,
+                            data_shaders_algorithm_scan_comp,
                             { &inoutSetLayout, &inoutSetLayout }
                     },
                     {
                             "add",
-                            __glsl_add_comp_spv,
+                            data_shaders_algorithm_add_comp,
                             { &inoutSetLayout, &inoutSetLayout },
                             { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
                     },
                     {
-                        "reduce",
-                            __glsl_reduce_output_comp_spv,
+                            "reduce",
+                            data_shaders_algorithm_reduce_output_comp,
                             {&inoutSetLayout, &inoutSetLayout},
                             { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(reduceConstants)}}
                     }

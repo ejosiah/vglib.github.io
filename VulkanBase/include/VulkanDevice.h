@@ -799,7 +799,8 @@ struct VulkanDevice{
         createInfo.pCode = data.data();
 
         VkShaderModule handle;
-        REPORT_ERROR(vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &handle), "Failed to create shader module");
+        auto status = vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &handle);
+        REPORT_ERROR(status, "Failed to create shader module");
 
         return VulkanShaderModule{ logicalDevice, handle };
     }

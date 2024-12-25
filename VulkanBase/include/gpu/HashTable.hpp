@@ -13,6 +13,8 @@ namespace gpu {
 
         HashTable(VulkanDevice &device, VulkanDescriptorPool& descriptorPool, uint32_t capacity, bool keysOnly = false);
 
+        virtual ~HashTable() = default;
+
         void init();
 
         void insert(VkCommandBuffer commandBuffer, BufferRegion keys, std::optional<BufferRegion> values = {});
@@ -35,6 +37,9 @@ namespace gpu {
     protected:
         virtual std::string insertShaderPath()  = 0;
         virtual std::string findShaderPath()  = 0;
+
+        virtual std::vector<uint32_t> insert_shader_source() = 0;
+        virtual std::vector<uint32_t> find_shader_source() = 0;
 
     private:
         void createBuffers(uint32_t numItems);

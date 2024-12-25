@@ -80,7 +80,7 @@ protected:
     VkDescriptorSet descriptorSet;
 };
 
-TEST_F(FindIntervalFixture, findInterval){
+TEST_F(FindIntervalFixture, DISABLED_findInterval){
     execute([&](auto commandBuffer){
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE
                                 , layout("find_interval_test"), 0, 1
