@@ -1,6 +1,7 @@
 #include "OrderChecker.hpp"
 #include "VulkanInitializers.h"
 #include "Barrier.hpp"
+#include "glsl_shaders.h"
 
 #include <stdexcept>
 
@@ -22,19 +23,19 @@ std::vector<PipelineMetaData> OrderChecker::pipelineMetaData() {
     return {
             {
                     "order_checker_scan",
-                    R"(.\data\shaders\order_checking.comp.spv)",
+                    data_shaders_order_checking_comp,
                     { &_descriptorSetLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants)} }
             },
             {
                     "order_checker_sum_scan",
-                    R"(.\data\shaders\prefix_scan\scan.comp.spv)",
+                    data_shaders_prefix_scan_scan_comp,
                     { &_descriptorSetLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants)} }
             },
             {
                     "add",
-                    R"(.\data\shaders\order_checking_add.comp.spv)",
+                    data_shaders_order_checking_add_comp,
                     { &_descriptorSetLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_constants)} }
             }

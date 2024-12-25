@@ -1,5 +1,8 @@
 #include "gpu/HashTable.hpp"
+#include "gpu/HashMap.hpp"
+#include "gpu/HashSet.hpp"
 #include "DescriptorSetBuilder.hpp"
+#include "glsl_shaders.h"
 
 gpu::HashTable::HashTable(VulkanDevice &device, VulkanDescriptorPool& descriptorPool_, uint32_t capacity, bool keysOnly_)
 : ComputePipelines(&device)
@@ -101,13 +104,13 @@ std::vector<PipelineMetaData> gpu::HashTable::pipelineMetaData() {
     return {
             {
                     .name = "hash_table_insert",
-                    .shadePath{ insertShaderPath() },
+                    .shadePath{ insert_shader_source() },
                     .layouts{  &setLayout },
                     .ranges{ { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)  }}
             },
             {
                     .name = "hash_table_query",
-                    .shadePath{ findShaderPath() },
+                    .shadePath{ find_shader_source() },
                     .layouts{  &setLayout },
                     .ranges{ { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)  }}
             },
@@ -302,4 +305,20 @@ void gpu::HashTable::prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numI
 
     vkCmdFillBuffer(commandBuffer, insert_status, 0, numItems * sizeof(uint32_t), 0);
     vkCmdFillBuffer(commandBuffer, insert_locations, 0, numItems * sizeof(uint32_t), 0xFFFFFFFFu);
+}
+
+std::vector<uint32_t> gpu::HashMap::insert_shader_source() {
+    return data_shaders_data_structure_cuckoo_hash_map_insert_comp;
+}
+
+std::vector<uint32_t> gpu::HashMap::find_shader_source() {
+    return data_shaders_data_structure_cuckoo_hash_map_query_comp;
+}
+
+std::vector<uint32_t> gpu::HashSet::insert_shader_source() {
+    return data_shaders_data_structure_cuckoo_hash_set_insert_comp;
+}
+
+std::vector<uint32_t> gpu::HashSet::find_shader_source() {
+    return data_shaders_data_structure_cuckoo_hash_set_query_comp;
 }

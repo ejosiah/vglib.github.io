@@ -114,43 +114,43 @@ std::vector<PipelineMetaData> RadixSort::pipelineMetaData() {
     return {
             {
                 "radix_sort_count_radices",
-                R"(.\data\shaders\radix_sort_li_grand\count_radices.comp.spv)",
+                data_shaders_radix_sort_li_grand_count_radices_comp,
                 {&dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_prefix_sum",
-                R"(.\data\shaders\radix_sort_li_grand\prefix_sum.comp.spv)",
+                data_shaders_radix_sort_li_grand_prefix_sum_comp,
                 { &countsSetLayout },
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder",
-                R"(.\data\shaders\radix_sort_li_grand\reorder.comp.spv)",
+                data_shaders_radix_sort_li_grand_reorder_comp,
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_indices",
-                R"(.\data\shaders\radix_sort_li_grand\reorder_indices.comp.spv)",
+                data_shaders_radix_sort_li_grand_reorder_indices_comp,
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_reorder_records",
-                R"(.\data\shaders\radix_sort_li_grand\reorder_records.comp.spv)",
+                data_shaders_radix_sort_li_grand_reorder_records_comp,
                 {&dataSetLayout, &dataSetLayout, &countsSetLayout},
                 { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                 "radix_sort_bit_flip",
-                __glsl_bit_flip,
+                data_shaders_bit_flip_comp,
                 { &bitFlipSetLayout},
                 { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bitFlipConstants)}}
             },
             {
                 "radix_sort_sequence",
-                __glsl_sequence,
+                data_shaders_sequence_comp,
                 { &sequenceSetLayout },
                 { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(seqConstants)}}
             }

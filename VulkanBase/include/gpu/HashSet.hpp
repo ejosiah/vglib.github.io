@@ -21,5 +21,9 @@ namespace gpu {
             return "data/shaders/data_structure/cuckoo_hash_set_query.comp.spv";
         }
 
+        std::vector<uint32_t> insert_shader_source() final;
+
+        std::vector<uint32_t> find_shader_source() final;
+
     };
 }

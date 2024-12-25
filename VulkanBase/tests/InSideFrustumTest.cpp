@@ -23,7 +23,7 @@ protected:
 
     static void pointsInFrustumCheck(const glm::mat4& M, const std::vector<glm::vec3>& points) {
         Frustum frustum{};
-        AbstractCamera::extractFrustum(frustum, M);
+        Frustum::extractFrustum(frustum, M);
 
         for(const auto& p : points) {
             ASSERT_TRUE(frustum.test(p));
@@ -32,7 +32,7 @@ protected:
     
     static void boxInFrustumCheck(const glm::mat4& M, const std::vector<Box>& boxs) {
         Frustum frustum{};
-        AbstractCamera::extractFrustum(frustum, M);
+        Frustum::extractFrustum(frustum, M);
         
         for(const auto& box : boxs) {
             const auto [bMin, bMax] = box;
@@ -42,7 +42,7 @@ protected:
 
     static void boxInFrustumCheck(const glm::mat4& M, const std::vector<glm::vec3>& boxs) {
         Frustum frustum{};
-        AbstractCamera::extractFrustum(frustum, M);
+        Frustum::extractFrustum(frustum, M);
 
         for(const auto& box : boxs) {
             ASSERT_TRUE(frustum.test(box, 1));
@@ -51,7 +51,7 @@ protected:
 
     static void boxOutsideFrustumCheck(const glm::mat4& M, const std::vector<glm::vec3>& boxs) {
         Frustum frustum{};
-        AbstractCamera::extractFrustum(frustum, M);
+        Frustum::extractFrustum(frustum, M);
 
         for(const auto& box : boxs) {
             ASSERT_FALSE(frustum.test(box, 1));
@@ -60,7 +60,7 @@ protected:
 
     static void boxOutsideFrustumCheck(const glm::mat4& M, const std::vector<Box>& boxes) {
         Frustum frustum{};
-        AbstractCamera::extractFrustum(frustum, M);
+        Frustum::extractFrustum(frustum, M);
 
         for(const auto & box : boxes) {
             const auto [bMin, bMax] = box;
@@ -71,7 +71,7 @@ protected:
 
     static void pointsOutsideFrustumCheck(const glm::mat4& M, const std::vector<glm::vec3>& points) {
         Frustum frustum{};
-        AbstractCamera::extractFrustum(frustum, M);
+        Frustum::extractFrustum(frustum, M);
 
         for(const auto& p : points) {
             ASSERT_FALSE(frustum.test(p));

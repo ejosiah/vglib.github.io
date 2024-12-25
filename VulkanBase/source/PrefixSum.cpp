@@ -3,6 +3,7 @@
 #include <utility>
 #include "prefix_sum_glsl_shaders.h"
 #include "Barrier.hpp"
+#include "glsl_shaders.h"
 
 PrefixSum::PrefixSum(VulkanDevice *device, VulkanCommandPool* commandPool)
 : ComputePipelines(device)
@@ -40,14 +41,14 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
     return {
             {
                     "prefix_scan",
-                    R"(.\data\shaders\prefix_scan\scan.comp.spv)",
+                    data_shaders_prefix_scan_scan_comp,
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
 
             },
             {
                     "add",
-                    R"(.\data\shaders\prefix_scan\add.comp.spv)",
+                    data_shaders_prefix_scan_add_comp,
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
             }
