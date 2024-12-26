@@ -143,7 +143,9 @@ void gpu::HashTable::createBuffers(uint32_t numItems) {
     insert_status = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "insert_status");
     insert_locations = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "insert_locations");
     query_results = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "query_results");
-    hash_table_info = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, sizeof(constants), "hash_table_info");
+
+    hash_table_info = device->createDeviceLocalBuffer(&constants, sizeof(constants), usage);
+    device->setName<VK_OBJECT_TYPE_BUFFER>("hash_table_info", hash_table_info.buffer);
 
     const auto tableSize = constants.tableSize;
     std::vector<uint> nullEntries(tableSize);
