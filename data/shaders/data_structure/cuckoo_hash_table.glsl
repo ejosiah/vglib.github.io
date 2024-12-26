@@ -78,7 +78,10 @@ bool hash_table_insert_internal(bool prevInsertSucceeded, inout uvec2 entry, ino
 void hash_table_insert(uint gid) {
     if (gid >= numItems) return;
 
-    uvec2 entry = uvec2(keys[gid], values[gid]);
+    uint key = keys[gid];
+    if(key == KEY_EMPTY) return;
+
+    uvec2 entry = uvec2(key, values[gid]);
     uint location = locations[gid];
     bool prevInsertStatus = bool(state[gid]);
     bool inserted = hash_table_insert_internal(prevInsertStatus, entry, location);

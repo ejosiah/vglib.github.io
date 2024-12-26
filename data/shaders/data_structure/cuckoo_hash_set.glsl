@@ -64,6 +64,9 @@ void hash_set_insert(uint gid) {
     if (gid >= numItems) return;
 
     uint key = keys[gid];
+
+    if(key == KEY_EMPTY) return;
+
     uint location = locations[gid];
     bool prevInsertStatus = bool(state[gid]);
     bool inserted = hash_table_set_internal(prevInsertStatus, key, location);
