@@ -44,7 +44,7 @@ layout(set = 0, binding = 5) buffer QueryResultSSbo {
     uint query_results[];
 };
 
-layout(push_constant) uniform Constants {
+layout(set = 0, binding = 6) buffer HashMapInfoSsbo {
     uint tableSize;
     uint numItems;
 };

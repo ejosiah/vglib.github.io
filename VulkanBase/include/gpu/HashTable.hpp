@@ -63,7 +63,7 @@ namespace gpu {
 
         void copyTo(VkCommandBuffer commandBuffer, BufferRegion values);
 
-        void prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numItems);
+        void prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numItems, bool isQuery = false);
 
         uint32_t computeWorkGroupSize(int numItems);
 
@@ -76,6 +76,7 @@ namespace gpu {
         VulkanBuffer insert_status;
         VulkanBuffer insert_locations;
         VulkanBuffer query_results;
+        VulkanBuffer hash_table_info;
         VulkanDescriptorPool* descriptorPool{};
         uint32_t maxIterations{5};
         VulkanDescriptorSetLayout setLayout;
