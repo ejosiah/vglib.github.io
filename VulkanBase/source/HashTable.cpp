@@ -28,7 +28,6 @@ void gpu::HashTable::insert(VkCommandBuffer commandBuffer, BufferRegion keys, st
     for(auto i = 0; i < maxIterations; ++i) {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("hash_table_insert"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("hash_table_insert"), 0, 1,&descriptorSet_, 0, 0);
-        vkCmdPushConstants(commandBuffer, layout("hash_table_insert"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
         vkCmdDispatch(commandBuffer, groupCount, 1, 1);
 
         if(i < maxIterations - 1) {
@@ -56,6 +55,7 @@ void gpu::HashTable::query(VkCommandBuffer commandBuffer, BufferRegion keys, con
 
     constants.numItems = numItems;
     const auto groupCount = computeWorkGroupSize(numItems);
+    prepareBuffers(commandBuffer, numItems, true);
 
     barrier =  { // TODO do we need this barrier
             .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
@@ -84,7 +84,6 @@ void gpu::HashTable::query(VkCommandBuffer commandBuffer, BufferRegion keys, con
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline(shader));
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout(shader), 0, 1,&descriptorSet_, 0, 0);
-    vkCmdPushConstants(commandBuffer, layout(shader), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
     vkCmdDispatch(commandBuffer, groupCount, 1, 1);
 
     barrier.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
@@ -117,19 +116,16 @@ std::vector<PipelineMetaData> gpu::HashTable::pipelineMetaData() {
                     .name = "hash_table_insert",
                     .shadePath{ insert_shader_source() },
                     .layouts{  &setLayout },
-                    .ranges{ { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)  }}
             },
             {
                     .name = "hash_table_query",
                     .shadePath{ find_shader_source() },
                     .layouts{  &setLayout },
-                    .ranges{ { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)  }}
             },
             {
                     .name = "hash_table_remove",
                     .shadePath{ remove_shader_source() },
                     .layouts{  &setLayout },
-                    .ranges{ { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)  }}
             },
     };}
 
@@ -147,6 +143,7 @@ void gpu::HashTable::createBuffers(uint32_t numItems) {
     insert_status = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "insert_status");
     insert_locations = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "insert_locations");
     query_results = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, numItems * sizeof(uint32_t), "query_results");
+    hash_table_info = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, sizeof(constants), "hash_table_info");
 
     const auto tableSize = constants.tableSize;
     std::vector<uint> nullEntries(tableSize);
@@ -184,6 +181,10 @@ void gpu::HashTable::creatDescriptorSetLayout() {
                         .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                         .descriptorCount(1)
                         .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(6)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
                 .createLayout();
     } else {
         setLayout =
@@ -208,6 +209,10 @@ void gpu::HashTable::creatDescriptorSetLayout() {
                     .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                     .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .binding(5)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
 
     }
@@ -216,10 +221,10 @@ void gpu::HashTable::creatDescriptorSetLayout() {
 void gpu::HashTable::createDescriptorSet() {
 
     descriptorSet_ = descriptorPool->allocate({ setLayout }).front();
-    auto writes = initializers::writeDescriptorSets<6>();
+    auto writes = initializers::writeDescriptorSets<7>();
 
     if(keysOnly) {
-        writes.resize(5);
+        writes.resize(6);
     }
 
     writes[0].dstSet = descriptorSet_;
@@ -269,6 +274,13 @@ void gpu::HashTable::createDescriptorSet() {
         writes[5].descriptorCount = 1;
         VkDescriptorBufferInfo queryInfo{query_results, 0, VK_WHOLE_SIZE};
         writes[5].pBufferInfo = &queryInfo;
+
+        writes[6].dstSet = descriptorSet_;
+        writes[6].dstBinding = 6;
+        writes[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[6].descriptorCount = 1;
+        VkDescriptorBufferInfo hashTableInfo{hash_table_info, 0, VK_WHOLE_SIZE};
+        writes[6].pBufferInfo = &hashTableInfo;
     } else {
         writes[4].dstSet = descriptorSet_;
         writes[4].dstBinding = 4;
@@ -276,6 +288,13 @@ void gpu::HashTable::createDescriptorSet() {
         writes[4].descriptorCount = 1;
         VkDescriptorBufferInfo queryInfo{query_results, 0, VK_WHOLE_SIZE};
         writes[4].pBufferInfo = &queryInfo;
+
+        writes[5].dstSet = descriptorSet_;
+        writes[5].dstBinding = 5;
+        writes[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[5].descriptorCount = 1;
+        VkDescriptorBufferInfo hashTableInfo{hash_table_info, 0, VK_WHOLE_SIZE};
+        writes[5].pBufferInfo = &hashTableInfo;
     }
 
     device->updateDescriptorSets(writes);
@@ -305,7 +324,7 @@ void gpu::HashTable::getInsertStatus(VkCommandBuffer commandBuffer, VulkanBuffer
     copy(commandBuffer, insert_status.region(0), dst.region(0));
 }
 
-void gpu::HashTable::prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numItems) {
+void gpu::HashTable::prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numItems, bool isQuery) {
     barrier =  {
             .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_NONE,
@@ -320,8 +339,11 @@ void gpu::HashTable::prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numI
             .pMemoryBarriers = &barrier
     };
 
-    vkCmdFillBuffer(commandBuffer, insert_status, 0, numItems * sizeof(uint32_t), 0);
-    vkCmdFillBuffer(commandBuffer, insert_locations, 0, numItems * sizeof(uint32_t), 0xFFFFFFFFu);
+    if(!isQuery) {
+        vkCmdFillBuffer(commandBuffer, insert_status, 0, numItems * sizeof(uint32_t), 0);
+        vkCmdFillBuffer(commandBuffer, insert_locations, 0, numItems * sizeof(uint32_t), 0xFFFFFFFFu);
+    }
+    vkCmdUpdateBuffer(commandBuffer, hash_table_info, 0, sizeof(constants), &constants);
 }
 
 VulkanDescriptorSetLayout &gpu::HashTable::descriptorSetLayout() {
