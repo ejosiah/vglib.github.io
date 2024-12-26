@@ -318,7 +318,7 @@ void gpu::HashTable::copyTo(VkCommandBuffer commandBuffer, BufferRegion values) 
 }
 
 void gpu::HashTable::copy(VkCommandBuffer commandBuffer, BufferRegion src, BufferRegion dst) {
-    VkBufferCopy copyRegion{0, 0, dst.size()};
+    VkBufferCopy copyRegion{0, 0, src.size()};
     vkCmdCopyBuffer(commandBuffer, *src.buffer, *dst.buffer, 1, &copyRegion);
 }
 
