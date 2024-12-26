@@ -19,6 +19,10 @@ namespace gpu {
 
         void insert(VkCommandBuffer commandBuffer, BufferRegion keys, std::optional<BufferRegion> values = {});
 
+        void remove(VkCommandBuffer commandBuffer, BufferRegion region,
+                    VkPipelineStageFlags2 srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                    VkAccessFlags2 srcAccessMask = VK_ACCESS_2_NONE);
+
     void find(VkCommandBuffer commandBuffer, BufferRegion keys, BufferRegion result,
               VkPipelineStageFlags2 srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
               VkAccessFlags2 srcAccessMask = VK_ACCESS_2_NONE);
@@ -35,13 +39,14 @@ namespace gpu {
         std::vector<PipelineMetaData> pipelineMetaData() final;
 
     protected:
-        virtual std::string insertShaderPath()  = 0;
-        virtual std::string findShaderPath()  = 0;
-
         virtual std::vector<uint32_t> insert_shader_source() = 0;
         virtual std::vector<uint32_t> find_shader_source() = 0;
+        virtual std::vector<uint32_t> remove_shader_source() = 0;
 
     private:
+        void query(VkCommandBuffer commandBuffer, BufferRegion keys, const std::string& shader,
+                   VkPipelineStageFlags2 srcStageMask , VkAccessFlags2 srcAccessMask);
+
         void createBuffers(uint32_t numItems);
 
         void creatDescriptorSetLayout();
@@ -56,7 +61,14 @@ namespace gpu {
 
         void prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numItems);
 
-    public:
+        VulkanDescriptorSetLayout& descriptorSetLayout();
+
+        VkDescriptorSet descriptorSet();
+
+        uint32_t computeWorkGroupSize(int numItems);
+
+    private:
+        static constexpr int wgSize = 1024;
         VulkanBuffer keys_buffer;
         VulkanBuffer values_buffer;
         VulkanBuffer table_keys;
@@ -67,7 +79,7 @@ namespace gpu {
         VulkanDescriptorPool* descriptorPool{};
         uint32_t maxIterations{5};
         VulkanDescriptorSetLayout setLayout;
-        VkDescriptorSet descriptorSet{};
+        VkDescriptorSet descriptorSet_{};
         bool keysOnly{};
         VkMemoryBarrier2 barrier{};
         VkDependencyInfo depInfo{};

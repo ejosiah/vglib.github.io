@@ -58,9 +58,16 @@ protected:
         });
     }
 
-    void hash_set_query() {
+    void hash_set_query(std::optional<VulkanBuffer> opt_keys = {}) {
         execute([&](auto commandBuffer){
-            set.find(commandBuffer, keys_buffer.region(0), query_results.region(0));
+            auto keys_to_query = opt_keys.has_value() ? opt_keys->region(0) : keys_buffer.region(0);
+            set.find(commandBuffer, keys_to_query, query_results.region(0));
+        });
+    }
+
+    void remove_items(VulkanBuffer buffer) {
+        execute([&](auto commandBuffer){
+            set.remove(commandBuffer, buffer.region(0));
         });
     }
 
@@ -130,4 +137,27 @@ TEST_F(HashSetFixture, find_value) {
 
     for(auto i = 0; i < NUM_ITEMS; ++i) {
         ASSERT_EQ(q_values[i], keys[i]) << fmt::format("result was not equal to expected: {} != {}", q_values[i], keys[i]);
-    }}
+    }
+}
+
+TEST_F(HashSetFixture, remove_value_from_set) {
+    hash_set_insert();
+
+    std::vector<int> indexes(keys.size());
+    std::iota(indexes.begin(), indexes.end(), 0);
+    std::shuffle(indexes.begin(), indexes.end(), std::default_random_engine{1 << 20});
+
+    const auto N = NUM_ITEMS/4;
+    std::vector<uint32_t> items{};
+    items.reserve(N);
+    for(auto i = 0; i < N; ++i) items.push_back(keys[indexes[i]]);
+
+    VulkanBuffer buffer = device.createCpuVisibleBuffer(items.data(), BYTE_SIZE(items), usage);
+    remove_items(buffer);
+
+    hash_set_query(buffer);
+    auto q_values = query_results.span<uint32_t>(N);
+    for(auto i = 0; i < N; ++i) {
+        ASSERT_EQ(q_values[i], NOT_FOUND) << fmt::format("item: {} was not removed from set as expected", q_values[i]);
+    }
+}

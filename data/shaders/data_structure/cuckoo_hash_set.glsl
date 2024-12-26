@@ -143,6 +143,32 @@ uint hash_set_find(uint gid) {
     return find(key);
 }
 
+void remove(uint key) {
+    uint location = hash1(key);
+
+    if(get_entry(location) != key) {
+        location = hash2(key);
+
+        if(get_entry(location) != key) {
+            location = hash3(key);
+
+            if(get_entry(location) != key) {
+                location = hash4(key);
+
+                if(get_entry(location) != key) {
+                    return;
+                }
+            }
+        }
+    }
+    table[location] = KEY_EMPTY;
+}
+
+void hash_set_remove(uint gid) {
+    if (gid >= numItems) return;
+    uint key = keys[gid];
+    remove(key);
+}
 
 
 #endif // CUCK_KOO_HASH_SET

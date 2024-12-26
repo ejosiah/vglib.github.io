@@ -16,6 +16,7 @@
 
 #define get_key(entry) entry.x
 #define get_value(entry) entry.y
+#define get_entry_key(location) get_key(get_entry(location))
 
 layout(local_size_x = 1024) in;
 
@@ -124,4 +125,32 @@ uint hash_table_query(uint gid) {
 
     return get_value(entry);
 }
+
+void remove(uint key) {
+    uint location = hash1(key);
+
+    if(get_entry_key(location) != key) {
+        location = hash2(key);
+
+        if(get_entry_key(location) != key) {
+            location = hash3(key);
+
+            if(get_entry_key(location) != key) {
+                location = hash4(key);
+
+                if(get_entry_key(location) != key) {
+                    return;
+                }
+            }
+        }
+    }
+    table[KEY].data[location] = KEY_EMPTY;
+}
+
+void hash_table_remove(uint gid) {
+    if (gid >= numItems) return;
+    uint key = keys[gid];
+    remove(key);
+}
+
 #endif // CUCKOO_HASH_TABLE_GLSL

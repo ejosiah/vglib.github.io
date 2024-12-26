@@ -13,17 +13,11 @@ namespace gpu {
         :HashTable(device, descriptorPool, capacity){}
 
     protected:
-        std::string insertShaderPath() override {
-            return "data/shaders/data_structure/cuckoo_hash_map_insert.comp.spv";
-        }
-
-        std::string findShaderPath() override {
-            return "data/shaders/data_structure/cuckoo_hash_map_query.comp.spv";
-        }
-
         std::vector<uint32_t> insert_shader_source() override;
 
         std::vector<uint32_t> find_shader_source() override;
+
+        std::vector<uint32_t> remove_shader_source() override;
 
     };
 }
