@@ -35,6 +35,10 @@ namespace gpu {
 
         void getInsertStatus(VkCommandBuffer commandBuffer, VulkanBuffer dst);
 
+        VulkanDescriptorSetLayout& descriptorSetLayout();
+
+        VkDescriptorSet descriptorSet();
+
     protected:
         std::vector<PipelineMetaData> pipelineMetaData() final;
 
@@ -60,10 +64,6 @@ namespace gpu {
         void copyTo(VkCommandBuffer commandBuffer, BufferRegion values);
 
         void prepareBuffers(VkCommandBuffer commandBuffer, uint32_t numItems);
-
-        VulkanDescriptorSetLayout& descriptorSetLayout();
-
-        VkDescriptorSet descriptorSet();
 
         uint32_t computeWorkGroupSize(int numItems);
 
