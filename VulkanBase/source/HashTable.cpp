@@ -361,6 +361,10 @@ uint32_t gpu::HashTable::computeWorkGroupSize(int numItems) {
     return groupCount += glm::sign(numItems - groupCount * wgSize);
 }
 
+uint32_t gpu::HashTable::capacity() const {
+    return table_keys.sizeAs<uint32_t>();
+}
+
 std::vector<uint32_t> gpu::HashMap::insert_shader_source() {
     return data_shaders_data_structure_cuckoo_hash_map_insert_comp;
 }
