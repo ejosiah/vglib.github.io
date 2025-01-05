@@ -1,6 +1,7 @@
 #include "VulkanFixture.hpp"
 #include "DescriptorSetBuilder.hpp"
 #include "FourWayRadixSort.hpp"
+#include "glsl_shaders.hpp"
 
 class FourWayRadixLocalSortFixture : public VulkanFixture{
 protected:
@@ -8,14 +9,14 @@ protected:
         return {
                 {
                     "local_sort",
-                    "../../data/shaders/radix_sort_4_way/local_sort.comp.spv",
-                        { &dataLayoutSet, &dataLayoutSet, &scanLayoutSet },
-                        { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} },
-                        {
-                            {{0, 0, sizeof(uint)}, {1, sizeof(uint), sizeof(uint)}},
-                            constData.data(),
-                            BYTE_SIZE(constData)
-                        }
+                    data_shaders_radix_sort_4_way_local_sort_comp,
+                    { &dataLayoutSet, &dataLayoutSet, &scanLayoutSet },
+                    { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} },
+                    {
+                        {{0, 0, sizeof(uint)}, {1, sizeof(uint), sizeof(uint)}},
+                        constData.data(),
+                        BYTE_SIZE(constData)
+                    }
                 }
         };
     }

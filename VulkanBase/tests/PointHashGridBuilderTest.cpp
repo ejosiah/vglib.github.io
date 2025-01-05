@@ -1,6 +1,7 @@
 #include "VulkanFixture.hpp"
 #include "PointHashGrid.hpp"
 #include "sampling.hpp"
+#include "glsl_shaders.hpp"
 
 inline bool similar(const glm::vec4& a, const glm::vec4& b, float epsilon = 1E-7){
     return closeEnough(a.x, b.x, epsilon)
@@ -43,7 +44,7 @@ protected:
         {
                 {
                         "point_hash_grid_unit_test",
-                        "../../data/shaders/test/point_hash_grid_test.comp.spv",
+                        data_shaders_test_point_hash_grid_test_comp,
                         { &unitTestDescriptorSetLayout},
                         {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(grid.constants)}}
                 }

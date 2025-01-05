@@ -71,10 +71,6 @@ void hash_set_insert(uint gid) {
     bool prevInsertStatus = bool(state[gid]);
     bool inserted = hash_table_set_internal(prevInsertStatus, key, location);
 
-    if(!inserted) {
-        keys[gid] = key;
-    }
-
     state[gid] = uint(inserted);
     locations[gid] = location;
 

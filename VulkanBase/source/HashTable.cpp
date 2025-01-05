@@ -2,7 +2,7 @@
 #include "gpu/HashMap.hpp"
 #include "gpu/HashSet.hpp"
 #include "DescriptorSetBuilder.hpp"
-#include "glsl_shaders.h"
+#include "glsl_shaders.hpp"
 
 gpu::HashTable::HashTable(VulkanDevice &device, VulkanDescriptorPool& descriptorPool_, uint32_t capacity, bool keysOnly_)
 : ComputePipelines(&device)

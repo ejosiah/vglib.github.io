@@ -3,7 +3,7 @@
 #include <utility>
 #include "prefix_sum_glsl_shaders.h"
 #include "Barrier.hpp"
-#include "glsl_shaders.h"
+#include "glsl_shaders.hpp"
 
 PrefixSum::PrefixSum(VulkanDevice *device, VulkanCommandPool* commandPool)
 : ComputePipelines(device)

@@ -12,6 +12,15 @@
 #include <optional>
 #include <sstream>
 #include <tuple>
+#include <utility>
+
+struct compile_shader_params {
+    std::filesystem::path src_folder;
+    std::filesystem::path output_header_path;
+    std::filesystem::path output_src_path;
+    std::optional<std::filesystem::path> prefix_to_strip{};
+    std::string_view output_filename;
+};
 
 namespace compile_shaders_internal {
     namespace fs = std::filesystem;
@@ -94,31 +103,31 @@ namespace compile_shaders_internal {
         return std::make_tuple(header_output.str(), source_output.str());
     }
 
-    void write_to_disk(const std::string& source, std::string_view path) {
-        auto fout = std::ofstream { std::string{path} };
+    void write_to_disk(const std::string& source, const std::filesystem::path& path) {
+        auto fout = std::ofstream { path.string() };
         if(!fout.good()) {
-            std::cout << std::format("unable to write {} to disk", path);
+            std::cout << std::format("unable to write {} to disk", path.string());
         }
 
         fout.write(source.data(), source.size());
         std::cout << path << " successfully written to disk\n";
     }
 
-    void write_output(std::tuple<std::string, std::string> output_files, std::string_view filename) {
-        auto [header, source] = output_files;
-        write_to_disk(header, std::format("{}.hpp", filename));
-        write_to_disk(source, std::format("{}.cpp", filename));
+    void write_output(const compile_shader_params& params, std::tuple<std::string, std::string> output_files) {
+        auto [header, source] = std::move(output_files);
+        auto header_output = params.output_header_path / std::format("{}.hpp", params.output_filename);
+        auto source_output = params.output_src_path / std::format("{}.cpp", params.output_filename);
+        write_to_disk(header, header_output);
+        write_to_disk(source, source_output);
     }
 }
 
 inline std::string compile_shader_usage();
 
-inline void compile_shaders(const std::filesystem::path& src_folder,
-                            std::string_view output_filename,
-                            std::optional<std::filesystem::path> prefix_to_strip = {}) {
+inline void compile_shaders(const compile_shader_params& params) {
     using namespace compile_shaders_internal;
 
     std::map<std::string, std::vector<std::string>> shader_map;
-    process(src_folder, shader_map, prefix_to_strip);
-    write_output(generate_output(shader_map, output_filename), output_filename);
+    process(params.src_folder, shader_map, params.prefix_to_strip);
+    write_output(params, generate_output(shader_map, params.output_filename));
 }

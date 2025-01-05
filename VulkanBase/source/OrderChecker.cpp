@@ -1,7 +1,7 @@
 #include "OrderChecker.hpp"
 #include "VulkanInitializers.h"
 #include "Barrier.hpp"
-#include "glsl_shaders.h"
+#include "glsl_shaders.hpp"
 
 #include <stdexcept>
 

@@ -1,4 +1,5 @@
 #include "PointHashGrid.hpp"
+#include "glsl_shaders.hpp"
 
 PointHashGrid::PointHashGrid(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, VulkanDescriptorSetLayout* particleDescriptorSetLayout, glm::vec3 resolution, float gridSpacing)
         :
@@ -190,7 +191,7 @@ void PointHashGrid::updateDescriptorSet() {
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     writes[0].pBufferInfo = &nextBucketIndexInfo;
 
-    // bucket size / offset
+    // bucket size _ offset
     VkDescriptorBufferInfo  bucketSizeInfo{bucketSizeBuffer, 0, VK_WHOLE_SIZE };
     writes[1].dstSet = bucketSizeDescriptorSet;
     writes[1].dstBinding = 0;
@@ -396,24 +397,24 @@ std::vector<PipelineMetaData> PointHashGrid::pipelineMetaData() {
     return {
             {
                     "point_hash_grid_builder",
-                    "../../data/shaders/sph/point_hash_grid_builder.comp.spv",
+                    data_shaders_sph_point_hash_grid_builder_comp,
                     { particleDescriptorSetLayout, &gridDescriptorSetLayout, &bucketSizeSetLayout},
                     {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             },
             {
                     "prefix_scan",
-                    "../../data/shaders/sph/scan.comp.spv",
+                    data_shaders_sph_scan_comp,
                     { &prefixScan.setLayout }
             },
             {
                     "add",
-                    "../../data/shaders/sph/add.comp.spv",
+                    data_shaders_sph_add_comp,
                     { &prefixScan.setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(prefixScan.constants)} }
             },
             {
                 "neighbour_list",
-                "../../data/shaders/sph/neighbour_list.comp.spv",
+                data_shaders_sph_neighbour_list_comp,
                     { particleDescriptorSetLayout, &gridDescriptorSetLayout, &bucket.setLayout, &neighbourList.setLayout, &neighbourList.neighbourSizeSetLayout},
                     {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)}}
             }

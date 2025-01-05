@@ -5,7 +5,7 @@
 #include "fmt/format.h"
 #include <array>
 #include <spdlog/spdlog.h>
-#include "glsl_shaders.h"
+#include "glsl_shaders.hpp"
 
 namespace gpu {
 
@@ -59,7 +59,7 @@ namespace gpu {
             return {
                     {
                             "average",
-                            __glsl_average_comp,
+                            data_shaders_algorithm_average_comp,
                             {&inoutSetLayout, &inoutSetLayout},
                             { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float) * 2}}
                     }

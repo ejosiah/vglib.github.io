@@ -9,7 +9,9 @@
 #include "ComputePipelins.hpp"
 #include "VulkanExtensions.h"
 #include "TestUtils.hpp"
+#include "glsl_shaders.hpp"
 
+#define NYI FAIL() << "Not yet implemented";
 
 static std::vector<const char*> instanceExtensions{VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 static std::vector<const char*> validationLayers{};

@@ -5,8 +5,11 @@ int main(int argc, char** argv) {
         std::cout << "script to run required\n";
         std::exit(3);
     }
-    auto shader_path = argv[1];
-    auto output_filename = argv[2];
-    std::optional<std::string> prefix_to_strip = argc >= 4 ? std::optional<std::string>{argv[3]} : std::nullopt;
-    compile_shaders(shader_path, output_filename, prefix_to_strip);
+    compile_shader_params cParams{};
+    cParams.src_folder = argv[1];
+    cParams.output_header_path = argv[2];
+    cParams.output_src_path = argv[3];
+    cParams.output_filename = argv[4];
+    cParams.prefix_to_strip = argc >= 6 ? std::optional<std::string>{argv[5]} : std::nullopt;
+    compile_shaders(cParams);
 }

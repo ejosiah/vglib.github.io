@@ -86,11 +86,6 @@ void hash_table_insert(uint gid) {
     bool prevInsertStatus = bool(state[gid]);
     bool inserted = hash_table_insert_internal(prevInsertStatus, entry, location);
 
-    if(!inserted) {
-        keys[gid] = entry.x;
-        values[gid] = entry.y;
-    }
-
     state[gid] = uint(inserted);
     locations[gid] = location;
 }

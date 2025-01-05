@@ -1,0 +1,15 @@
+#version 460
+
+#define INPUT 0
+#define OUTPUT 1
+
+layout(local_size_x = 1024) in;
+
+layout(set = 0, binding = 0) buffer testSsob {
+    uint data[];
+} test[2];
+
+
+void main() {
+    test[OUTPUT].data[gl_GlobalInvocationID.x] = gl_GlobalInvocationID.x;
+}

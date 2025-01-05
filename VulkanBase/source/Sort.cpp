@@ -1,7 +1,7 @@
 #include "Sort.hpp"
 #include "vulkan_util.h"
 #include "VulkanInitializers.h"
-#include "glsl_shaders.h"
+#include "glsl_shaders.hpp"
 #include "Barrier.hpp"
 
 RadixSort::RadixSort(VulkanDevice *device, bool debug)
