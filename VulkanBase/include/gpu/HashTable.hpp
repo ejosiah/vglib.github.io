@@ -39,6 +39,8 @@ namespace gpu {
 
         VkDescriptorSet descriptorSet();
 
+        uint32_t capacity() const;
+
     protected:
         std::vector<PipelineMetaData> pipelineMetaData() final;
 

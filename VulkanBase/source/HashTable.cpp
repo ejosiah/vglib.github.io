@@ -318,7 +318,7 @@ void gpu::HashTable::copyTo(VkCommandBuffer commandBuffer, BufferRegion values) 
 }
 
 void gpu::HashTable::copy(VkCommandBuffer commandBuffer, BufferRegion src, BufferRegion dst) {
-    VkBufferCopy copyRegion{0, 0, dst.size()};
+    VkBufferCopy copyRegion{0, 0, src.size()};
     vkCmdCopyBuffer(commandBuffer, *src.buffer, *dst.buffer, 1, &copyRegion);
 }
 
@@ -359,6 +359,10 @@ VkDescriptorSet gpu::HashTable::descriptorSet() {
 uint32_t gpu::HashTable::computeWorkGroupSize(int numItems) {
     int groupCount = numItems / wgSize;
     return groupCount += glm::sign(numItems - groupCount * wgSize);
+}
+
+uint32_t gpu::HashTable::capacity() const {
+    return table_keys.sizeAs<uint32_t>();
 }
 
 std::vector<uint32_t> gpu::HashMap::insert_shader_source() {
