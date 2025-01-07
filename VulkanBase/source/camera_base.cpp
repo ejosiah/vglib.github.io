@@ -438,29 +438,32 @@ void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) {
     const auto aspect = aspectRatio;
     const auto fovRad = glm::radians(fov);
 
+    const auto inv_view = glm::inverse(camera.view);
+
     glm::vec2 nearCorner{0, 0};
     nearCorner.y = glm::tan(fovRad / 2) * -near; // TODO check if horizontal or vertical fov
     nearCorner.x = nearCorner.y * aspect;
 
-    corners[0] = glm::vec4(nearCorner, -near, 1);
-    corners[1] = glm::vec4(-nearCorner, -near, 1);
+    corners[0] = inv_view * glm::vec4(nearCorner, -near, 1);
+    corners[1] = inv_view * glm::vec4(-nearCorner, -near, 1);
 
     nearCorner.y *= -1;
-    corners[2] = glm::vec4(nearCorner, -near, 1);
-    corners[3] = glm::vec4(-nearCorner, -near, 1);
+    corners[2] = inv_view * glm::vec4(nearCorner, -near, 1);
+    corners[3] = inv_view * glm::vec4(-nearCorner, -near, 1);
 
     glm::vec2 farCorner{0, 0,};
     farCorner.y = glm::tan(fovRad / 2) * -far; // TODO check if horizontal or vertical fov
     farCorner.x = farCorner.y * aspect;
 
-    corners[4] = glm::vec4(farCorner, -far, 1);
-    corners[5] = glm::vec4(-farCorner, -far, 1);
+    corners[4] = inv_view * glm::vec4(farCorner, -far, 1);
+    corners[5] = inv_view * glm::vec4(-farCorner, -far, 1);
 
     farCorner.y *= -1;
-    corners[6] = glm::vec4(farCorner, -far, 1);
-    corners[7] = glm::vec4(-farCorner, -far, 1);
+    corners[6] = inv_view * glm::vec4(farCorner, -far, 1);
+    corners[7] = inv_view * glm::vec4(-farCorner, -far, 1);
 
     for(auto& corner : corners) {
+        corner /= corner.w;
         bMin = glm::min(corner.xyz(), bMin);
         bMax = glm::max(corner.xyz(), bMax);
     }
