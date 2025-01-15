@@ -2,6 +2,7 @@
 
 #include <utility>
 #include "Canvas.hpp"
+#include "glsl_shaders.hpp"
 
 Canvas::Canvas(const VulkanBaseApp* application,
                VkImageUsageFlags usage,
@@ -119,8 +120,8 @@ void Canvas::createDescriptorSet() {
 }
 
 void Canvas::createPipeline() {
-    auto vertexShaderModule = app->device.createShaderModule(vertexShaderPath.value_or("../../data/shaders/quad.vert.spv"));
-    auto fragmentShaderModule = app->device.createShaderModule( fragmentShaderPath.value_or("../../data/shaders/quad.frag.spv"));
+    auto vertexShaderModule = app->device.createShaderModule(vertexShaderPath.value_or("data/shaders/quad.vert.spv"));
+    auto fragmentShaderModule = app->device.createShaderModule( fragmentShaderPath.value_or("data/shaders/quad.frag.spv"));
 
     auto stages = initializers::vertexShaderStages({
                                                              { vertexShaderModule, VK_SHADER_STAGE_VERTEX_BIT}

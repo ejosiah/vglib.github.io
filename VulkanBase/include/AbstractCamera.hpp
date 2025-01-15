@@ -100,8 +100,8 @@ public:
 
     virtual void jitter(float jx, float jy) = 0;
 
-    virtual void extract(Frustum& frustum) = 0;
+    virtual void extract(Frustum& frustum) const = 0;
 
-    virtual void extractAABB(glm::vec3& bMin, glm::vec3& bMax) = 0;
+    virtual void extractAABB(glm::vec3& bMin, glm::vec3& bMax) const = 0;
 
 };

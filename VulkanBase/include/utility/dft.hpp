@@ -179,8 +179,8 @@ inline std::tuple<std::vector<float>, std::vector<float>> fft(const std::vector<
     auto realView = result | std::views::transform([](const auto cp){ return std::real(cp); });
     auto imgView = result | std::views::transform([](const auto cp){ return std::imag(cp); });
 
-    realPart.insert(realPart.end(), realView.begin(), realView.end());
-    imaginaryPart.insert(imaginaryPart.end(), imgView.begin(), imgView.end());
+    std::ranges::copy(realView, std::back_inserter(realPart));
+    std::ranges::copy(imgView, std::back_inserter(imaginaryPart));
 
 
     return std::make_tuple(realPart, imaginaryPart);

@@ -11,7 +11,7 @@ FluidSolver2D::FluidSolver2D(VulkanDevice* device, VulkanDescriptorPool* descrip
 {
     globalConstants.dx.x = delta.x;
     globalConstants.dy.y = delta.y;
-    fileManager->addSearchPath("../../data/shaders/fluid_2d");
+    fileManager->addSearchPath("data/shaders/fluid_2d");
 }
 
 void FluidSolver2D::init() {

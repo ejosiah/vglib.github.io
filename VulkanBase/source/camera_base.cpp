@@ -425,11 +425,11 @@ void BaseCameraController::jitter(float jx, float jy) {
     camera.proj = jMatrix * camera.proj;
 }
 
-void BaseCameraController::extract(Frustum &frustum) {
+void BaseCameraController::extract(Frustum &frustum) const {
     Frustum::extractFrustum(frustum, camera.proj * camera.view);
 }
 
-void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) {
+void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const {
     bMin = glm::vec3(MAX_FLOAT);
     bMax = glm::vec3(MIN_FLOAT);
 

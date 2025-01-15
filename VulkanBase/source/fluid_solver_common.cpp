@@ -1,16 +1,17 @@
 #include "fluid_solver_common.h"
 #include "GraphicsPipelineBuilder.hpp"
 #include "Vertex.h"
+#include "glsl_shaders.hpp"
 
 FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool *descriptorPool,
                          VulkanRenderPass *displayRenderPass, FileManager *fileManager, glm::uvec3 gridSize)
-: device(device)
-, descriptorPool(descriptorPool)
-, displayRenderPass(displayRenderPass)
-, fileManager(fileManager)
-, width(gridSize.x)
-, height(gridSize.y)
-, depth(gridSize.z)
+        : device(device)
+        , descriptorPool(descriptorPool)
+        , displayRenderPass(displayRenderPass)
+        , fileManager(fileManager)
+        , width(gridSize.x)
+        , height(gridSize.y)
+        , depth(gridSize.z)
 {
 
 }
@@ -79,140 +80,140 @@ void FluidSolver::createPipelines() {
 //    @formatter:off
     auto builder = device->graphicsPipelineBuilder();
     arrows.pipeline =
-        builder
-            .allowDerivatives()
-            .shaderStage()
-                .vertexShader(resource("vectorField.vert.spv"))
-                .fragmentShader(resource("vectorField.frag.spv"))
-            .vertexInputState()
-                .addVertexBindingDescription(0, sizeof(Vector), VK_VERTEX_INPUT_RATE_VERTEX)
-                .addVertexAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(Vector, vertex))
-                .addVertexAttributeDescription(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(Vector, position))
-            .inputAssemblyState()
-                .triangles()
-            .viewportState()
-                .viewport()
+            builder
+                    .allowDerivatives()
+                    .shaderStage()
+                    .vertexShader(data_shaders_fluid_2d_vectorField_vert)
+                    .fragmentShader(data_shaders_fluid_2d_vectorField_frag)
+                    .vertexInputState()
+                    .addVertexBindingDescription(0, sizeof(Vector), VK_VERTEX_INPUT_RATE_VERTEX)
+                    .addVertexAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(Vector, vertex))
+                    .addVertexAttributeDescription(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(Vector, position))
+                    .inputAssemblyState()
+                    .triangles()
+                    .viewportState()
+                    .viewport()
                     .origin(0, 0)
                     .dimension(width, height)
                     .minDepth(0)
                     .maxDepth(1)
-                .scissor()
+                    .scissor()
                     .offset(0, 0)
                     .extent(width, height)
-                .add()
-            .rasterizationState()
-                .cullBackFace()
-                .frontFaceCounterClockwise()
-                .polygonModeFill()
-                .multisampleState()
-            .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
-            .depthStencilState()
-                .enableDepthWrite()
-                .enableDepthTest()
-                .compareOpLess()
-                .minDepthBounds(0)
-                .maxDepthBounds(1)
-            .colorBlendState()
-                .attachment()
-            .add()
-            .layout()
-                .addDescriptorSetLayout(textureSetLayout)
-            .renderPass(*displayRenderPass)
-            .subpass(0)
-            .name("vector_field")
-        .build(arrows.layout);
+                    .add()
+                    .rasterizationState()
+                    .cullBackFace()
+                    .frontFaceCounterClockwise()
+                    .polygonModeFill()
+                    .multisampleState()
+                    .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
+                    .depthStencilState()
+                    .enableDepthWrite()
+                    .enableDepthTest()
+                    .compareOpLess()
+                    .minDepthBounds(0)
+                    .maxDepthBounds(1)
+                    .colorBlendState()
+                    .attachment()
+                    .add()
+                    .layout()
+                    .addDescriptorSetLayout(textureSetLayout)
+                    .renderPass(*displayRenderPass)
+                    .subpass(0)
+                    .name("vector_field")
+                    .build(arrows.layout);
 
     screenQuad.pipeline =
-        builder
-            .basePipeline(arrows.pipeline)
-            .shaderStage()
-                .vertexShader(resource("quad.vert.spv"))
-                .fragmentShader(resource("quad.frag.spv"))
-            .vertexInputState().clear()
-                .addVertexBindingDescriptions(ClipSpace::bindingDescription())
-                .addVertexAttributeDescriptions(ClipSpace::attributeDescriptions())
-            .inputAssemblyState()
-                .triangleStrip()
-            .layout().clear()
-                .addDescriptorSetLayout(textureSetLayout)
-            .renderPass(renderPass)
-            .name("fullscreen_quad")
-        .build(screenQuad.layout);
+            builder
+                    .basePipeline(arrows.pipeline)
+                    .shaderStage()
+                    .vertexShader(data_shaders_quad_vert)
+                    .fragmentShader(data_shaders_quad_frag)
+                    .vertexInputState().clear()
+                    .addVertexBindingDescriptions(ClipSpace::bindingDescription())
+                    .addVertexAttributeDescriptions(ClipSpace::attributeDescriptions())
+                    .inputAssemblyState()
+                    .triangleStrip()
+                    .layout().clear()
+                    .addDescriptorSetLayout(textureSetLayout)
+                    .renderPass(renderPass)
+                    .name("fullscreen_quad")
+                    .build(screenQuad.layout);
 
     advectPipeline.pipeline =
-        builder
-            .basePipeline(arrows.pipeline)
-            .shaderStage()
-                .vertexShader(resource("quad.vert.spv"))
-                .fragmentShader(resource("advect.frag.spv"))
-            .layout().clear()
-                .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, advectTextureSet, samplerSet})
-            .renderPass(renderPass)
-            .name("advect")
-        .build(advectPipeline.layout);
+            builder
+                    .basePipeline(arrows.pipeline)
+                    .shaderStage()
+                    .vertexShader(data_shaders_quad_vert)
+                    .fragmentShader(data_shaders_fluid_2d_advect_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, advectTextureSet, samplerSet})
+                    .renderPass(renderPass)
+                    .name("advect")
+                    .build(advectPipeline.layout);
 
     divergence.pipeline =
-        builder
-            .shaderStage()
-                .fragmentShader(resource("divergence.frag.spv"))
-            .layout().clear()
-                .addDescriptorSetLayouts( { globalConstantsSet, textureSetLayout})
-            .renderPass(renderPass)
-            .name("divergence")
-        .build(divergence.layout);
+            builder
+                    .shaderStage()
+                    .fragmentShader(data_shaders_fluid_2d_divergence_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts( { globalConstantsSet, textureSetLayout})
+                    .renderPass(renderPass)
+                    .name("divergence")
+                    .build(divergence.layout);
 
     divergenceFree.pipeline =
-        builder
-            .shaderStage()
-                .fragmentShader(resource("divergence_free_field.frag.spv"))
-            .layout().clear()
-                .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
-            .renderPass(renderPass)
-            .name("divergence_free_field")
-        .build(divergenceFree.layout);
+            builder
+                    .shaderStage()
+                    .fragmentShader(data_shaders_fluid_2d_divergence_free_field_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
+                    .renderPass(renderPass)
+                    .name("divergence_free_field")
+                    .build(divergenceFree.layout);
 
     jacobi.pipeline =
-        builder
-            .shaderStage()
-                .fragmentShader(resource("jacobi.frag.spv"))
-            .layout().clear()
-                .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
-                .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(jacobi.constants))
-            .renderPass(renderPass)
-            .name("jacobi")
-        .build(jacobi.layout);
+            builder
+                    .shaderStage()
+                    .fragmentShader(data_shaders_fluid_2d_jacobi_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
+                    .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(jacobi.constants))
+                    .renderPass(renderPass)
+                    .name("jacobi")
+                    .build(jacobi.layout);
 
     addSourcePipeline.pipeline =
-        builder
-            .shaderStage()
-                .fragmentShader(resource("add_sources.frag.spv"))
-            .layout().clear()
-                .addDescriptorSetLayouts({textureSetLayout, textureSetLayout})
-                .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(addSourcePipeline.constants))
-            .renderPass(renderPass)
-            .name("add_sources")
-        .build(addSourcePipeline.layout);
+            builder
+                    .shaderStage()
+                    .fragmentShader(data_shaders_fluid_2d_add_sources_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts({textureSetLayout, textureSetLayout})
+                    .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(addSourcePipeline.constants))
+                    .renderPass(renderPass)
+                    .name("add_sources")
+                    .build(addSourcePipeline.layout);
 
     vorticity.pipeline =
-        builder
-            .shaderStage()
-                .fragmentShader(resource("vorticity.frag.spv"))
-            .layout().clear()
-                .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout})
-            .renderPass(renderPass)
-            .name("vorticity")
-        .build(vorticity.layout);
+            builder
+                    .shaderStage()
+                    .fragmentShader(data_shaders_fluid_2d_vorticity_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout})
+                    .renderPass(renderPass)
+                    .name("vorticity")
+                    .build(vorticity.layout);
 
     vorticityForce.pipeline =
-        builder
-            .shaderStage()
-                .fragmentShader(resource("vorticity_force.frag.spv"))
-            .layout().clear()
-                .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
-                .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vorticityForce.constants))
-            .renderPass(renderPass)
-            .name("vorticity_force")
-        .build(vorticityForce.layout);
+            builder
+                    .shaderStage()
+                    .fragmentShader(data_shaders_fluid_2d_vorticity_force_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
+                    .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vorticityForce.constants))
+                    .renderPass(renderPass)
+                    .name("vorticity_force")
+                    .build(vorticityForce.layout);
 
 //    @formatter:on
 }

@@ -82,7 +82,7 @@ public:
 
         auto bytes = reinterpret_cast<char*>(&value);
         _data.insert(_data.end(), bytes, bytes + dataSize);
-        _offset += _data.size();
+        _offset = _data.size();
         _entries.push_back(entry);
         return *this;
     }

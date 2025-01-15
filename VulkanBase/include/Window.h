@@ -3,6 +3,7 @@
 #include "common.h"
 #include "keys.h"
 #include "events.h"
+#include <string_view>
 
 class Window {
 public:
@@ -126,6 +127,9 @@ protected:
         return *reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
     }
 
+    void setTitle(std::string_view title) const {
+        glfwSetWindowTitle(window, title.data());
+    }
 
 protected:
     std::string title;

@@ -121,9 +121,9 @@ public:
 
     void jitter(float jx, float jy) final;
 
-    void extract(Frustum &frustum) final;
+    void extract(Frustum &frustum) const final;
 
-    void extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) override;
+    void extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const override;
 
     float fov;
     float aspectRatio;
@@ -152,7 +152,7 @@ public:
     mutable Camera camera;
     mutable Camera _previousCamera;
     const Mouse& mouse;
-    std::array<glm::vec4, 8> corners{};
+    mutable std::array<glm::vec4, 8> corners{};
 
     float zoomAmount = 0;
 
