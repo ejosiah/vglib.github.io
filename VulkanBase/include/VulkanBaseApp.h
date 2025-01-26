@@ -311,6 +311,8 @@ protected:
 
     static FileManager& fileManager();
 
+    void clear(VkCommandBuffer commandBuffer, const Texture& texture, const glm::vec4& color, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 private:
     void setPaused(bool flag);
 

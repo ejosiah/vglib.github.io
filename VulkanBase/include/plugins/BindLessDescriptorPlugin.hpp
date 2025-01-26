@@ -34,14 +34,16 @@ struct BindlessDescriptor {
     VkDescriptorSet descriptorSet{};
     std::map<VkDescriptorType, std::atomic_int> bindingIds;
     std::map<VkDescriptorType, int> bindings;
+    VulkanSampler* defaultSampler;
 
     BindlessDescriptor() = default;
 
-    BindlessDescriptor(const VulkanDevice& device, const VulkanDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet descriptorSet ,std::map<VkDescriptorType, int> bindings, int reserveSlots = 0)
+    BindlessDescriptor(const VulkanDevice& device, const VulkanDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet descriptorSet , VulkanSampler* sampler, std::map<VkDescriptorType, int> bindings, int reserveSlots = 0)
     : device(&device)
     , descriptorSetLayout(&descriptorSetLayout)
     , descriptorSet(descriptorSet) 
     , bindings(std::move(bindings))
+    , defaultSampler(sampler)
     {
         bindingIds[VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER] = reserveSlots;
         bindingIds[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE] = 0;
@@ -78,15 +80,17 @@ struct BindlessDescriptor {
     void update(const BindlessTexture& bTexture) {
         assert(bTexture.index <= bindingIds[bTexture.type]);
         assert(device != VK_NULL_HANDLE && descriptorSet != VK_NULL_HANDLE);
-        
+
+
         auto texture = bTexture.texture;
+        auto sampler = texture->sampler.handle ? texture->sampler.handle : defaultSampler->handle;
         auto write = initializers::writeDescriptorSet();
         write.dstSet = descriptorSet;
         write.dstBinding = bindings[bTexture.type];
         write.descriptorType = bTexture.type;
         write.descriptorCount = 1;
         write.dstArrayElement = bTexture.index;
-        VkDescriptorImageInfo imageInfo{texture->sampler.handle, texture->imageView.handle, bTexture.imageLayout};
+        VkDescriptorImageInfo imageInfo{sampler, texture->imageView.handle, bTexture.imageLayout};
         write.pImageInfo = &imageInfo;
         
         device->updateDescriptorSets(std::span{ &write, 1});
@@ -167,6 +171,7 @@ public:
         setBindingPoints();
         createDescriptorPool();
         createDescriptorSetLayout();
+        createDefaultSampler();
     }
 
     std::string name() const override {
@@ -209,7 +214,7 @@ public:
     }
 
     BindlessDescriptor descriptorSet(int reserveSlots = 0) const {
-        return BindlessDescriptor{ device(), m_descriptorSetLayout, createDescriptorSet(), bindings, reserveSlots};
+        return BindlessDescriptor{ device(), m_descriptorSetLayout, createDescriptorSet(), &m_defaultSampler, bindings, reserveSlots};
     }
 
     VulkanDescriptorSetLayout& descriptorSetLayout() {
@@ -310,10 +315,26 @@ protected:
         return m_descriptorPool.allocate( { m_descriptorSetLayout }).front();
     }
 
+    void createDefaultSampler() {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.maxLod = 1;
+
+        m_defaultSampler = device().createSampler(samplerInfo);
+    }
+
 private:
     mutable VkPhysicalDeviceVulkan11Features  m_Vulkan11Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
     mutable VkPhysicalDeviceVulkan12Features  m_Vulkan12Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
     std::map<VkDescriptorType, int> bindings;
+    mutable VulkanSampler m_defaultSampler;
     VulkanDescriptorPool m_descriptorPool{};
     VulkanDescriptorSetLayout m_descriptorSetLayout{};
     std::vector<VkDescriptorSetLayoutBinding> m_additionalBindings;

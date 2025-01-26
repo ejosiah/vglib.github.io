@@ -1001,3 +1001,43 @@ void VulkanBaseApp::save(const FramebufferAttachment &attachment) {
 FileManager &VulkanBaseApp::fileManager()  {
     return FileManager::instance();
 }
+
+void VulkanBaseApp::clear(VkCommandBuffer commandBuffer, const Texture &texture, const glm::vec4 &color,
+                          VkImageLayout layout) {
+
+    static VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+
+    barrier.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.oldLayout = layout;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.image = texture.image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = texture.levels;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = texture.layers;
+
+    static VkDependencyInfo info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    info.imageMemoryBarrierCount = 1;
+    info.pImageMemoryBarriers = &barrier;
+    static VkClearColorValue colorValue{};
+    colorValue.float32[0] = color.r;
+    colorValue.float32[1] = color.g;
+    colorValue.float32[2] = color.b;
+    colorValue.float32[3] = color.a;
+
+    vkCmdPipelineBarrier2(commandBuffer, &info);
+    vkCmdClearColorImage(commandBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &colorValue, 1, &barrier.subresourceRange);
+
+    barrier.srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = layout;
+    vkCmdPipelineBarrier2(commandBuffer, &info);
+
+}
