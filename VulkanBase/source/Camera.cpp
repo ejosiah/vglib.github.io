@@ -231,3 +231,19 @@ float CameraController::far() {
 void CameraController::fieldOfView(float value) {
     return cameras[currentMode]->fieldOfView(value);
 }
+
+const Camera &CameraController::previousCamera() const {
+    return cameras[currentMode]->previousCamera();
+}
+
+void CameraController::jitter(float jx, float jy) {
+    return cameras[currentMode]->jitter(jx, jy);
+}
+
+void CameraController::extract(Frustum &frustum) const {
+    cameras[currentMode]->extract(frustum);
+}
+
+void CameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const {
+    cameras[currentMode]->extractAABB(bMin, bMax);
+}

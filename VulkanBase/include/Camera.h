@@ -93,6 +93,14 @@ public:
 
     void fieldOfView(float value) override;
 
+    const Camera &previousCamera() const override;
+
+    void jitter(float jx, float jy) override;
+
+    void extract(Frustum &frustum) const override;
+
+    void extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const override;
+
 private:
     CameraMode currentMode;
     mutable std::map<CameraMode, std::unique_ptr<BaseCameraController>> cameras;
