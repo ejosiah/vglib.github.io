@@ -448,7 +448,8 @@ struct VulkanDevice{
             SetDebugUtilsObjectName(logicalDevice, &s);
         }
 #endif
-        return VulkanBuffer{allocator, buffer, allocation, size, name};
+        bool mappable = memoryUsage == VMA_MEMORY_USAGE_CPU_ONLY || memoryUsage == VMA_MEMORY_USAGE_CPU_TO_GPU  || memoryUsage == VMA_MEMORY_USAGE_GPU_TO_CPU;
+        return VulkanBuffer{ allocator, buffer, allocation, size, name, mappable };
     }
 
     [[nodiscard]]

@@ -5,6 +5,7 @@
 #include "vk_mem_alloc.h"
 
 #include <span>
+#include <algorithm>
 
 struct BufferRegion;
 
@@ -33,8 +34,11 @@ struct VulkanBuffer{
         allocator = source.allocator;
         buffer = source.buffer;
         allocation = source.allocation;
-        name = source.name;
         size = source.size;
+        name = source.name;
+        mappable = source.mappable;
+        op_handle = source.op_handle;
+        mapped = source.mapped;
         if(buffer) {
             incrementRef(buffer);
         }
@@ -48,14 +52,14 @@ struct VulkanBuffer{
     VulkanBuffer& operator=(VulkanBuffer&& source) noexcept {
         if(&source == this) return *this;
 
-        this->~VulkanBuffer();
-
-        allocator = std::exchange(source.allocator, VK_NULL_HANDLE);
-        buffer = std::exchange(source.buffer, VK_NULL_HANDLE);
-        allocation = std::exchange(source.allocation, VK_NULL_HANDLE);
-        name = std::exchange(source.name, "");
-        size = std::exchange(source.size, 0);
-        op_handle = std::exchange(source.op_handle, {});
+        std::swap(allocator, source.allocator);
+        std::swap(buffer, source.buffer);
+        std::swap(allocation, source.allocation);
+        std::swap(name, source.name);
+        std::swap(size, source.size);
+        std::swap(mappable, source.mappable);
+        std::swap(op_handle, source.op_handle);
+        std::swap(mapped, source.mapped);
 
         return *this;
     }
@@ -176,6 +180,7 @@ struct VulkanBuffer{
     }
 
     void* map() const {
+        assert(mappable);
         if(mapped) return mapped;
         vmaMapMemory(allocator, allocation, &mapped);
         return mapped;
@@ -233,14 +238,13 @@ struct VulkanBuffer{
 
     BufferRegion region(VkDeviceSize start, VkDeviceSize end = VK_WHOLE_SIZE);
 
-    VmaAllocator allocator = VK_NULL_HANDLE;
-    VkBuffer buffer = VK_NULL_HANDLE;
-    VmaAllocation allocation = VK_NULL_HANDLE;
-    VkDeviceSize  size = 0;
-    std::string name{};
-    mutable void* mapped = nullptr;
-    bool isMapped = false;
-    bool mappable = false;
+    VmaAllocator allocator{};
+    VkBuffer buffer{};
+    VmaAllocation allocation{};
+    VkDeviceSize size{};
+    std::string name;
+    mutable void* mapped{};
+    bool mappable{};
     static std::map<VkBuffer, std::atomic_uint32_t> refCounts;
 #ifdef WIN32
     mutable std::optional<HANDLE> op_handle {};
