@@ -65,9 +65,9 @@ public:
     [[nodiscard]]
     virtual const glm::vec3& acceleration() const = 0;
 
-    virtual float near() = 0;
+    virtual float near() const = 0;
 
-    virtual float far() = 0;
+    virtual float far() const = 0;
 
     virtual void fieldOfView(float value) = 0;
 

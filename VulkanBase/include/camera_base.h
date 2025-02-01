@@ -88,9 +88,9 @@ public:
 
     const glm::vec3& getYAxis();
 
-    float near() override;
+    float near() const override;
 
-    float far() override;
+    float far() const override;
 
     void fieldOfView(float value) override;
 

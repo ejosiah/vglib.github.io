@@ -407,11 +407,11 @@ bool BaseCameraController::moved() const {
     return _moved;
 }
 
-float BaseCameraController::near() {
+float BaseCameraController::near() const {
     return znear;
 }
 
-float BaseCameraController::far() {
+float BaseCameraController::far() const {
     return zfar;
 }
 

@@ -68,9 +68,9 @@ public:
 
     const glm::vec3 &acceleration() const final;
 
-    float near() override;
+    float near() const final;
 
-    float far() override;
+    float far() const final;
 
     std::string mode() const;
 

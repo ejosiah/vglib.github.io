@@ -220,11 +220,11 @@ bool CameraController::moved() const {
     return cameras[currentMode]->moved();
 }
 
-float CameraController::near() {
+float CameraController::near() const {
     return cameras[currentMode]->near();
 }
 
-float CameraController::far() {
+float CameraController::far() const {
     return cameras[currentMode]->far();
 }
 

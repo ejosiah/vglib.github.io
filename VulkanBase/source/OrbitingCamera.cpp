@@ -31,7 +31,7 @@ void OrbitingCameraController::update(float elapsedTime) {
     rotateSmoothly(dx, dy, 0.0f);
 
     if (!preferTargetYAxisOrbiting) {
-        float dz = dz = direction.x * orbitRollSpeed * elapsedTime;
+        float dz = direction.x * orbitRollSpeed * elapsedTime;
         if (dz != 0.0f) {
             rotate(0.0f, 0.0f, dz);
         }
