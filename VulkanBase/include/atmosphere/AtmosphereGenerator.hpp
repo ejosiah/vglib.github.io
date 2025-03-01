@@ -22,7 +22,7 @@ public:
 
         struct {
             float bottom{6360 * km};
-            float top{6460 * km};
+            float top{6420 * km};
         } radius;
 
         struct {

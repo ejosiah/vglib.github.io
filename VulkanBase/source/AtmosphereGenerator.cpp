@@ -58,6 +58,7 @@ void AtmosphereGenerator::initAtmosphereDescriptor() {
 }
 
 void AtmosphereGenerator::barrier(VkCommandBuffer commandBuffer, const std::vector<int>& images) {
+    // TODO replace with memory barrier, individual image memory barriers not required
     std::vector<VkImageMemoryBarrier> barriers{};
     for(auto image : images) barriers.push_back(m_barriers[image]);
 
