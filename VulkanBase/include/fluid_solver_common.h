@@ -42,7 +42,7 @@ struct Quantity{
     std::string name{};
     Field field;
     Field source;
-    float diffuseRate{0};
+    float diffuseRate{MIN_FLOAT};
     UpdateSource update = [](VkCommandBuffer, Field&){};
     PostAdvect postAdvect = [](VkCommandBuffer, Field&) { return false; };
 };
