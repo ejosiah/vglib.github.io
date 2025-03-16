@@ -8,7 +8,6 @@ find_package(stb)
 find_package(spdlog)
 find_package(freetype)
 find_package(imgui)
-find_package(Boost)
 find_package(GTest REQUIRED)
 find_package(argparse)
 find_package(Bullet)
@@ -32,7 +31,7 @@ add_definitions(
 set(CONAN_LIBS_DEP assimp::assimp glm::glm glfw
                     stb::stb spdlog::spdlog
                      imgui::imgui
-                    boost::boost argparse::argparse
+                    argparse::argparse
                     Bullet::Bullet EnTT::EnTT
                     meshoptimizer::meshoptimizer
                     openexr::openexr Taskflow::Taskflow)
@@ -63,7 +62,7 @@ if (OpenCL_FOUND)
     add_definitions( -DOPENCL_FOUND=1 )
     target_link_libraries(VulkanBase PUBLIC ${OpenCL_LIBRARIES})
     message(STATUS "openCL found ${OpenCL_LIBRARIES}")
-    add_compile_definitions(OPENCL_AVAILABLE)
+#    add_compile_definitions(OPENCL_AVAILABLE)
 endif()
 
 add_executable(VulkanBaseTest  ${TEST_FILES})

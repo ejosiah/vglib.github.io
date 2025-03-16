@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <vector>
 #include <glm/glm.hpp>
-#include <boost/functional/hash.hpp>
+//#include <boost/functional/hash.hpp>
 
 struct Int128_t{
 
@@ -24,8 +24,8 @@ struct std::hash<Int128_t>
 {
     size_t operator()(Int128_t const& i) const noexcept{
         size_t seed = 0;
-        boost::hash_combine(seed, i.high);
-        boost::hash_combine(seed, i.low);
+//        boost::hash_combine(seed, i.high);
+//        boost::hash_combine(seed, i.low);
         return seed;
     }
 };
@@ -65,7 +65,7 @@ struct HalfEdgeMesh{
             size_t seed = 0;
             const point_type point = *(reinterpret_cast<const point_type*>((reinterpret_cast<const char*>(&source) + point_offset)));
             for(int j = 0; j < stride; j++){
-                boost::hash_combine(seed, point[j]);
+//                boost::hash_combine(seed, point[j]);
             }
             return seed;
         };
