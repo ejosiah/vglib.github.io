@@ -185,7 +185,7 @@ namespace eular {
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
-        auto writes = initializers::writeDescriptorSets<19>();
+        auto writes = initializers::writeDescriptorSets<23>();
 
         auto writeOffset = 0u;
 
@@ -215,6 +215,7 @@ namespace eular {
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.v);
         writeOffset = createDescriptorSet(writes, writeOffset, _divergenceField);
         writeOffset = createDescriptorSet(writes, writeOffset, _pressureField);
+        writeOffset = createDescriptorSet(writes, writeOffset, _forceField);
 
         device->updateDescriptorSets(writes);
 
@@ -678,7 +679,7 @@ namespace eular {
         VkImageSubresourceRange range{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
         vkCmdClearColorImage(commandBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &color, 1, &range);
 
-        texture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, DEFAULT_SUB_RANGE
+        texture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, DEFAULT_SUB_RANGE
                 , VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
                 , VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     }
@@ -744,8 +745,12 @@ namespace eular {
 
 
     void FluidSolver::applyExternalForces(VkCommandBuffer commandBuffer) {
+        static std::array<VkDescriptorSet, 3> sets;
+        sets[2] = _valueSamplerDescriptorSet;
         for(const auto& externalForce : _externalForces){
-            externalForce(commandBuffer, _bindlessDescriptor->descriptorSet, _forceField, _groupCount);
+            sets[0] = _forceField.textureDescriptorSets[in];
+            sets[1] = _forceField.imageDescriptorSets[out];
+            externalForce(commandBuffer, sets, _groupCount);
             addComputeBarrier(commandBuffer);
             _forceField.swap();
         }
@@ -971,5 +976,9 @@ namespace eular {
 
     void FluidSolver::runSimulation(VkCommandBuffer commandBuffer) {
         velocityStep(commandBuffer);
+    }
+
+    std::vector<VulkanDescriptorSetLayout> FluidSolver::forceFieldSetLayouts() {
+        return  { _textureDescriptorSetLayout, _imageDescriptorSetLayout, _samplerDescriptorSetLayout };
     }
 }

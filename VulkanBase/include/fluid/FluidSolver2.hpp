@@ -70,7 +70,7 @@ namespace eular {
     using ForceField = Field;
     using VorticityField = Field;
 
-    using ExternalForce = std::function<void(VkCommandBuffer, VkDescriptorSet, const ForceField&, glm::uvec3)>;
+    using ExternalForce = std::function<void(VkCommandBuffer, std::span<VkDescriptorSet>, glm::uvec3)>;
 
     class FluidSolver : public ComputePipelines {
     public:
@@ -239,7 +239,7 @@ namespace eular {
         struct {
             glm::uvec4 vector_field_id;
             uint force_field_id;
-        } forceConstants;
+        } forceConstants{};
 
         glm::uvec3 _groupCount{1};
         VulkanDescriptorSetLayout uniformsSetLayout;
@@ -261,5 +261,7 @@ namespace eular {
 
         std::vector<ExternalForce> _externalForces;
         LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::RGGS};
+
+        std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
     };
 }
