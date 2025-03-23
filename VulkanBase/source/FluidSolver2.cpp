@@ -185,7 +185,7 @@ namespace eular {
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
-        auto writes = initializers::writeDescriptorSets<11>();
+        auto writes = initializers::writeDescriptorSets<15>();
 
         auto writeOffset = 0u;
 
@@ -213,6 +213,7 @@ namespace eular {
 
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.u);
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.v);
+        writeOffset = createDescriptorSet(writes, writeOffset, _divergenceField);
 
         device->updateDescriptorSets(writes);
 
@@ -597,7 +598,10 @@ namespace eular {
                 {
                     .name = "divergence",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
-                    .layouts =  { &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) },
+                    .layouts =  {
+                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
+                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_samplerDescriptorSetLayout, &_imageDescriptorSetLayout
+                     },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
                 {
@@ -860,10 +864,20 @@ namespace eular {
     }
 
     void FluidSolver::computeDivergence(VkCommandBuffer commandBuffer) {
+        auto& vf = _vectorField;
+        static std::array<VkDescriptorSet, 6> sets;
+
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _bindlessDescriptor->descriptorSet;
+        sets[2] = vf.u.textureDescriptorSets[in];
+        sets[3] = vf.v.textureDescriptorSets[in];
+        sets[4] = _valueSamplerDescriptorSet;
+        sets[5] = _divergenceField.imageDescriptorSets[in];
+
         updateProjectConstants();
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence"));
-        bindDescriptorSet(commandBuffer, layout("divergence"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdPushConstants(commandBuffer, layout("divergence"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants), &projectConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
