@@ -185,7 +185,7 @@ namespace eular {
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
-        auto writes = initializers::writeDescriptorSets<15>();
+        auto writes = initializers::writeDescriptorSets<19>();
 
         auto writeOffset = 0u;
 
@@ -214,13 +214,13 @@ namespace eular {
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.u);
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.v);
         writeOffset = createDescriptorSet(writes, writeOffset, _divergenceField);
+        writeOffset = createDescriptorSet(writes, writeOffset, _pressureField);
 
         device->updateDescriptorSets(writes);
 
         for(auto& write : writes) {
-            if(write.pImageInfo) {
-                delete write.pImageInfo;
-            }
+            delete write.pImageInfo;
+
         }
     }
 
@@ -607,7 +607,11 @@ namespace eular {
                 {
                     .name = "divergence_free_field",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence_free_field.comp.spv)",
-                    .layouts =  { &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) },
+                    .layouts =  {
+                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
+                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_textureDescriptorSetLayout,
+                            &_samplerDescriptorSetLayout, &_imageDescriptorSetLayout, &_imageDescriptorSetLayout
+                      },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
                 {
@@ -897,10 +901,22 @@ namespace eular {
     }
 
     void FluidSolver::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
+        auto& vf = _vectorField;
+        static std::array<VkDescriptorSet, 8> sets;
+
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _bindlessDescriptor->descriptorSet;
+        sets[2] = vf.u.textureDescriptorSets[in];
+        sets[3] = vf.v.textureDescriptorSets[in];
+        sets[4] = _pressureField.textureDescriptorSets[in];
+        sets[5] = _valueSamplerDescriptorSet;
+        sets[6] = vf.u.imageDescriptorSets[out];
+        sets[7] = vf.v.imageDescriptorSets[out];
+
         updateProjectConstants();
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence_free_field"));
-        bindDescriptorSet(commandBuffer, layout("divergence_free_field"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence_free_field"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdPushConstants(commandBuffer, layout("divergence_free_field"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants), &projectConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
