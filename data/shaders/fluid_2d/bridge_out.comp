@@ -1,0 +1,18 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(push_constant) uniform Constatns {
+    uvec2 vector_field_id;
+    uint dst_vector_field;
+};
+
+void main() {
+    vec2 u = vectorField(get_uv(), vector_field_id.xy);
+    imageStore(gImages[dst_vector_field], gid, vec4(u, 0, 0));
+}

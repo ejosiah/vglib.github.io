@@ -47,8 +47,10 @@ struct Quantity{
     PostAdvect postAdvect = [](VkCommandBuffer, Field&) { return false; };
 };
 
-class FluidSolver{
+class FluidSolver {
 public:
+    VectorField vectorField;
+
     FluidSolver() = default;
     FluidSolver(VulkanDevice *device, VulkanDescriptorPool *descriptorPool,
                 VulkanRenderPass *displayRenderPass, FileManager *fileManager, glm::uvec3 gridSize);
@@ -91,7 +93,7 @@ protected:
 
     void updateAdvectDescriptorSet();
 
-protected:
+public:
     VulkanDescriptorSetLayout samplerSet;
     VulkanDescriptorSetLayout advectTextureSet;
     VkDescriptorSet samplerDescriptorSet{};
@@ -166,7 +168,6 @@ protected:
     uint32_t height{};
     uint32_t depth{1};
 
-    VectorField vectorField;
     DivergenceField divergenceField;
     PressureField pressureField;
     ForceField forceField;

@@ -1,0 +1,22 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+#include "common_new.glsl"
+
+layout(push_constant) uniform Constants {
+    uvec4 vector_field_id;
+    uint force_field_id;
+};
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+
+void main() {
+    if(outOfBounds()) return;
+
+    vec2 xy = get_uv();
+    vec2 u = vectorField(xy, vector_field_id.xy) + force(xy, force_field_id) * dt;
+    updateVectorField(u, vector_field_id.xy);
+}

@@ -22,6 +22,11 @@ struct BindlessTexture {
     VkImageLayout imageLayout{VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 };
 
+struct BindlessSampler {
+    const VulkanSampler* sampler{};
+    uint32_t index{~0u};
+};
+
 struct BindlessBuffer {
     VulkanBuffer buffer;
     VkDescriptorType type{};
@@ -94,7 +99,6 @@ struct BindlessDescriptor {
         write.pImageInfo = &imageInfo;
         
         device->updateDescriptorSets(std::span{ &write, 1});
-
     }
 
     void update(std::span<BindlessTexture> textures) {
@@ -120,6 +124,23 @@ struct BindlessDescriptor {
         }
 
        device->updateDescriptorSets(writes);
+    }
+
+    void update(BindlessSampler sampler) {
+        assert(sampler.index != ~0u);
+
+        auto writes = initializers::writeDescriptorSets<1>();
+
+        writes[0].dstSet = descriptorSet;
+        writes[0].dstBinding = bindings[VK_DESCRIPTOR_TYPE_SAMPLER];
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+        writes[0].descriptorCount = 1;
+        writes[0].dstArrayElement = sampler.index;
+        VkDescriptorImageInfo samplerInfo{sampler.sampler->handle, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED};
+        writes[0].pImageInfo = &samplerInfo;
+
+        device->updateDescriptorSets(writes);
+
     }
 
 };
@@ -221,15 +242,17 @@ public:
         return m_descriptorSetLayout;
     }
 
-    void addBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindings) {
+    BindLessDescriptorPlugin& addBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindings) {
         for(const auto& binding : bindings) {
             addBinding(binding);
         }
+        return *this;
     }
 
-    void addBinding(const VkDescriptorSetLayoutBinding& binding) {
+    BindLessDescriptorPlugin& addBinding(const VkDescriptorSetLayoutBinding& binding) {
         assert(binding.binding < TextureResourceBindingPoint || binding.binding > (TextureResourceBindingPoint + 6));
         m_additionalBindings.push_back(binding);
+        return *this;
     }
 
     void createDescriptorSetLayout() {
@@ -247,11 +270,11 @@ public:
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
                     .binding(nextBinding())
-                        .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLER)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
                     .binding(nextBinding())
-                        .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLER)
                         .descriptorCount(MaxDescriptorResources)
                         .shaderStages(VK_SHADER_STAGE_ALL)
                     .binding(nextBinding())
@@ -288,8 +311,8 @@ protected:
         auto nextBinding = sequence(int(TextureResourceBindingPoint));
         bindings[VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER] = nextBinding();
         bindings[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE] = nextBinding();
-        bindings[VK_DESCRIPTOR_TYPE_SAMPLER] = nextBinding();
         bindings[VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE] = nextBinding();
+        bindings[VK_DESCRIPTOR_TYPE_SAMPLER] = nextBinding();
         bindings[VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER] = nextBinding();
         bindings[VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER] = nextBinding();
 

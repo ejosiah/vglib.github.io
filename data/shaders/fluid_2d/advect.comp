@@ -1,40 +1,35 @@
 #version 460
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(set = 0, binding = 0) uniform Globals{
-    ivec2 gridSize;
-    vec2 dx;
-    vec2 dy;
-    float dt;
-    int ensureBoundaryCondition;
+#include "common_new.glsl"
+
+layout(push_constant) uniform Constants {
+    uvec2 vector_field_id;
+    uint quantity_in;
+    uint quantity_out;
+    uint sampler_id;
 };
 
-#include "common.glsl"
+vec4 getQuantity(vec2 xy) {
+    return texture(sampler2D(gTexture2D[quantity_in], gSamplers[sampler_id]), xy);
+}
 
-layout(set = 1, binding = 0) uniform sampler2D velocity_field_u;
-layout(set = 1, binding = 1) uniform sampler2D velocity_field_v;
-
-layout(set = 2, binding = 0) uniform texture2D quantity;
-layout(set = 3, binding = 0) uniform sampler linerSampler;
-
-layout(set = 4, binding = 0) uniform writeonly image2D quantityOut;
+void updateQuantity(vec4 q) {
+    imageStore(gImages[quantity_out], gid, q);
+}
 
 void main() {
-    ivec2 gid = ivec2(gl_GlobalInvocationID);
-    if(gid.x >= gridSize.x || gid.y >= gridSize.y) return;
+    if(outOfBounds()) return;
 
-    vec2 uv = (vec2(gl_GlobalInvocationID) + 0.5)/gridSize;
-
-    vec2 u;
-    u.x = texture(velocity_field_u, uv).x;
-    u.y = texture(velocity_field_v, uv).x;
+    vec2 uv = get_uv();
+    vec2 u = vectorField(uv, vector_field_id);
 
     vec2 p = st(uv - dt * u);
-    vec4 q = texture(sampler2D(quantity, linerSampler), p);
+    vec4 q = getQuantity(p);
 
-    imageStore(quantityOut, gid, q);
-
+    updateQuantity(q);
 }

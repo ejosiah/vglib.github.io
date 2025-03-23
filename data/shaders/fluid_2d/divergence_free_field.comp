@@ -1,0 +1,40 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(push_constant) uniform Constants {
+    uvec4 vector_field_id;
+    uint divergence_field_id;
+    uint pressure_field_id;
+};
+
+float p(vec2 coord) {
+    return texture(gTextures[pressure_field_id], st(coord)).x;
+}
+
+vec2 w(vec2 coord) {
+    return vectorField(st(coord), vector_field_id.xy);
+}
+
+vec2 pg(vec2 uv){
+    float dudx = (p(uv + dx) - p(uv - dx))/(2*dx.x);
+    float dudy = (p(uv + dy) - p(uv - dy))/(2*dy.y);
+
+    return vec2(dudx, dudy);
+}
+
+void main() {
+    if(outOfBounds()) return;
+
+    vec2 uv = get_uv();
+
+    vec2 u = w(uv) - pg(uv);
+
+    imageStore(gImages[vector_field_id.z], gid, vec4(u.x));
+    imageStore(gImages[vector_field_id.w], gid, vec4(u.y));
+}

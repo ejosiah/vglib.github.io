@@ -145,7 +145,7 @@ void FluidSolver::createPipelines() {
                     .basePipeline(arrows.pipeline)
                     .shaderStage()
                     .vertexShader(data_shaders_quad_vert)
-                    .fragmentShader(data_shaders_fluid_2d_advect_frag)
+                    .fragmentShader(R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.frag.spv)")
                     .layout().clear()
                     .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, advectTextureSet, samplerSet})
                     .renderPass(renderPass)

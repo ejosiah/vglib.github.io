@@ -6,14 +6,17 @@
 #include "VulkanRAII.h"
 #include "filemanager.hpp"
 #include "glm/glm.hpp"
+#include "fluid/FluidSolver2.hpp"
 
-class FluidSolver2D : public FluidSolver{
+class FluidSolver2D : public FluidSolver {
 public:
     FluidSolver2D() = default;
 
     FluidSolver2D(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, VulkanRenderPass* displayRenderPass, FileManager* fileManager, glm::vec2 gridSize);
 
     void init();
+
+    eular::FluidSolver* delegate{};
 
 protected:
     std::tuple<VkDeviceSize, void *> getGlobalConstants() override;
@@ -115,7 +118,7 @@ private:
         bool advectVField = true;
         bool project = true;
         bool showArrows = false;
-        bool vorticity = true;
+        bool vorticity = false;
         int poissonIterations = 30;
         float viscosity = MIN_FLOAT;
     } options;

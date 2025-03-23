@@ -1,0 +1,49 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(push_constant) uniform Constants {
+    float alpha;
+    float rBeta;
+    uint solution_in;
+    uint unknown_in;
+    uint unknown_out;
+    uint is_vector_field;
+    uint pass;
+};
+
+vec4 b(vec2 coord){
+    vec4 _b = texture(gTextures[solution_in], st(coord));
+    if(is_vector_field == 1){
+        return applyBoundaryCondition(coord, _b);
+    }
+    return _b;
+}
+
+vec4 x0(vec2 coord){
+    vec4 _x0 = texture(gTextures[unknown_in], st(coord));
+    if(is_vector_field == 1){
+        return applyBoundaryCondition(coord, _x0);
+    }
+    return _x0;
+}
+
+void main() {
+    if(outOfBounds()) return;
+
+    if(pass == 0 && gid.x + gid.y % 2 == 1) return;
+    if(pass == 1 && gid.x + gid.y * 2 == 0) return;
+
+    float dx2 = dx.x * dx.x;
+    float dy2 = dy.y * dy.y;
+    vec2 uv = get_uv();
+
+    vec4 x =  ((x0(uv + dx) + x0(uv - dx)) * dy2 + (x0(uv + dy) + x0(uv - dy)) * dx2 + alpha * b(uv)) * rBeta;
+
+    imageStore(gImages[unknown_out], gid, x);
+}
