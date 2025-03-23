@@ -14,11 +14,16 @@ namespace eular {
     };
 
     struct Field : std::array<Texture, 2> {
+        std::string name;
         uint32_t in{~0u};
         uint32_t out{~0u};
+        std::array<VkDescriptorSet, 2> imageDescriptorSets{};
+        std::array<VkDescriptorSet, 2> textureDescriptorSets{};
 
         void swap() {
             std::swap(in, out);
+            std::swap(imageDescriptorSets[0], imageDescriptorSets[1]);
+            std::swap(textureDescriptorSets[0], textureDescriptorSets[1]);
         }
     };
 
@@ -107,6 +112,8 @@ namespace eular {
 
         void updateDescriptorSets();
 
+        uint32_t createDescriptorSet(std::vector<VkWriteDescriptorSet>& writeOffset, uint32_t index, Field& field);
+
         void initGlobalConstants();
 
         void velocityStep(VkCommandBuffer commandBuffer);
@@ -173,6 +180,11 @@ namespace eular {
         Field _forceField;
         Field _vorticityField;
 
+        VulkanDescriptorSetLayout _imageDescriptorSetLayout;
+        VulkanDescriptorSetLayout _textureDescriptorSetLayout;
+        VulkanDescriptorSetLayout _samplerDescriptorSetLayout;
+        VulkanDescriptorSetLayout _debugDescriptorSetLayout;
+
         std::vector<std::reference_wrapper<Quantity>> _quantities;
         VkImageType _imageType{};
 
@@ -236,10 +248,16 @@ namespace eular {
         VulkanSampler _valueSampler;
         VulkanSampler _linearSampler;
 
+        VkDescriptorSet _valueSamplerDescriptorSet{};
+        VkDescriptorSet _linearSamplerDescriptorSet{};
+
         struct {
             glm::uvec2 vector_field_id{~0u};
             uint32_t dst_vector_field{~0u};
         } brideConstants;
+
+        static constexpr uint32_t in = 0;
+        static constexpr uint32_t out = 1;
 
         std::vector<ExternalForce> _externalForces;
         LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::RGGS};
