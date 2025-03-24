@@ -143,6 +143,24 @@ namespace eular {
                 .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
 
+        _fieldDescriptorSetLayout =
+            device->descriptorSetLayoutBuilder()
+                .name("fluid_solver_field_set_layout")
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .immutableSamplers(_valueSampler)
+                .binding(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .binding(2)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .createLayout();
+
         _imageDescriptorSetLayout =
             device->descriptorSetLayoutBuilder()
                 .name("fluid_solver_image_set_layout")
@@ -185,7 +203,7 @@ namespace eular {
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
-        auto writes = initializers::writeDescriptorSets<23>();
+        auto writes = initializers::writeDescriptorSets<53>();
 
         auto writeOffset = 0u;
 
@@ -227,14 +245,18 @@ namespace eular {
 
     uint32_t FluidSolver::createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field) {
         auto sets = _descriptorPool->allocate( {
+            _fieldDescriptorSetLayout, _fieldDescriptorSetLayout,
             _imageDescriptorSetLayout, _imageDescriptorSetLayout,
             _textureDescriptorSetLayout, _textureDescriptorSetLayout});
 
-        field.imageDescriptorSets[0] = sets[0];
-        field.imageDescriptorSets[1] = sets[1];
+        field.descriptorSet[0] = sets[0];
+        field.descriptorSet[1] = sets[1];
 
-        field.textureDescriptorSets[0] = sets[2];
-        field.textureDescriptorSets[1] = sets[3];
+        field.imageDescriptorSets[0] = sets[2];
+        field.imageDescriptorSets[1] = sets[3];
+
+        field.textureDescriptorSets[0] = sets[4];
+        field.textureDescriptorSets[1] = sets[5];
 
         writes[writeOffset].dstSet = field.imageDescriptorSets[0];
         writes[writeOffset].dstBinding = 0;
@@ -262,6 +284,48 @@ namespace eular {
         writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         writes[writeOffset].descriptorCount = 1;
         writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        ++writeOffset;
+
+        writes[writeOffset].dstSet = field.descriptorSet[0];
+        writes[writeOffset].dstBinding = 0;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        ++writeOffset;
+
+        writes[writeOffset].dstSet = field.descriptorSet[0];
+        writes[writeOffset].dstBinding = 1;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        ++writeOffset;
+
+        writes[writeOffset].dstSet = field.descriptorSet[0];
+        writes[writeOffset].dstBinding = 2;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[0].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        ++writeOffset;
+
+        writes[writeOffset].dstSet = field.descriptorSet[1];
+        writes[writeOffset].dstBinding = 0;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        ++writeOffset;
+
+        writes[writeOffset].dstSet = field.descriptorSet[1];
+        writes[writeOffset].dstBinding = 1;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        ++writeOffset;
+
+        writes[writeOffset].dstSet = field.descriptorSet[1];
+        writes[writeOffset].dstBinding = 2;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[0].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
         ++writeOffset;
 
         return writeOffset;
@@ -572,10 +636,11 @@ namespace eular {
                     .name = "advect",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
                     .layouts =  {
-                                    &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                                    &_imageDescriptorSetLayout, &_imageDescriptorSetLayout, &_imageDescriptorSetLayout,
-                                    &_textureDescriptorSetLayout, &_samplerDescriptorSetLayout},
-                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants) } }
+                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
+                    }
+
                 },
                 {
                     .name = "apply_force",
@@ -762,10 +827,10 @@ namespace eular {
 
         sets[0] = uniformDescriptorSet;
         sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = vf.u.imageDescriptorSets[in];
-        sets[3] = vf.v.imageDescriptorSets[in];
-        sets[4] = field.imageDescriptorSets[out];
-        sets[5] = field.textureDescriptorSets[in];
+        sets[2] = vf.u.descriptorSet[in];
+        sets[3] = vf.v.descriptorSet[in];
+        sets[4] = field.descriptorSet[in];
+        sets[5] = field.descriptorSet[out];
         sets[6] = _linearSamplerDescriptorSet;
 
         advectConstants.quantity_in = field.in;
@@ -773,7 +838,6 @@ namespace eular {
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("advect"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("advect"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdPushConstants(commandBuffer, layout("advect"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants), &advectConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
     }
@@ -1032,7 +1096,7 @@ namespace eular {
     }
 
     void FluidSolver::add(Quantity &quantity) {
-        auto writes = initializers::writeDescriptorSets<8>();
+        auto writes = initializers::writeDescriptorSets<20>();
         auto offset = createDescriptorSet(writes, 0, quantity.field);
         createDescriptorSet(writes, offset, quantity.source);
 

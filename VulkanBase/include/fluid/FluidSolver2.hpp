@@ -19,11 +19,13 @@ namespace eular {
         uint32_t out{~0u};
         std::array<VkDescriptorSet, 2> imageDescriptorSets{};
         std::array<VkDescriptorSet, 2> textureDescriptorSets{};
+        std::array<VkDescriptorSet, 2> descriptorSet{};
 
         void swap() {
             std::swap(in, out);
             std::swap(imageDescriptorSets[0], imageDescriptorSets[1]);
             std::swap(textureDescriptorSets[0], textureDescriptorSets[1]);
+            std::swap(descriptorSet[0], descriptorSet[1]);
         }
     };
 
@@ -195,6 +197,7 @@ namespace eular {
         Field _forceField;
         Field _vorticityField;
 
+        VulkanDescriptorSetLayout _fieldDescriptorSetLayout;
         VulkanDescriptorSetLayout _imageDescriptorSetLayout;
         VulkanDescriptorSetLayout _textureDescriptorSetLayout;
         VulkanDescriptorSetLayout _samplerDescriptorSetLayout;
