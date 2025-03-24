@@ -4,7 +4,6 @@
 #include "Texture.h"
 #include "ComputePipelins.hpp"
 #include "VulkanDevice.h"
-#include "plugins/BindLessDescriptorPlugin.hpp"
 #include <variant>
 
 namespace eular {
@@ -15,26 +14,10 @@ namespace eular {
 
     struct Field : std::array<Texture, 2> {
         std::string name;
-        uint32_t in{~0u};
-        uint32_t out{~0u};
-        std::array<VkDescriptorSet, 2> imageDescriptorSets{};
-        std::array<VkDescriptorSet, 2> textureDescriptorSets{};
         std::array<VkDescriptorSet, 2> descriptorSet{};
 
         void swap() {
-            std::swap(in, out);
-            std::swap(imageDescriptorSets[0], imageDescriptorSets[1]);
-            std::swap(textureDescriptorSets[0], textureDescriptorSets[1]);
             std::swap(descriptorSet[0], descriptorSet[1]);
-        }
-    };
-
-    struct BridgeField : std::array<Texture*, 2>{
-        uint32_t in{~0u};
-        uint32_t out{~0u};
-
-        void swap() {
-            std::swap(in, out);
         }
     };
 
@@ -80,7 +63,7 @@ namespace eular {
 
         FluidSolver() = default;
 
-        FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, BindlessDescriptor *bindlessDescriptor, glm::vec2 gridSize);
+        FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize);
 
         void init();
 
@@ -106,7 +89,8 @@ namespace eular {
 
         void ensureBoundaryCondition(bool flag);
 
-        BridgeField _oldVectorField;
+        std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
+        std::vector<VulkanDescriptorSetLayout> sourceFieldSetLayouts();
 
     public:
         void createSamplers();
@@ -165,31 +149,18 @@ namespace eular {
 
         void addComputeBarrier(VkCommandBuffer commandBuffer);
 
-        void updateProjectConstants();
-
         void jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown);
 
         void rbgsSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown);
 
-        void bridgeOut(VkCommandBuffer commandBuffer);
-
-        void bridgeIn(VkCommandBuffer commandBuffer);
-
         std::vector<PipelineMetaData> pipelineMetaData() final;
 
-        BindlessDescriptor &bindlessDescriptor();
-
-        void bindTextures(VkDescriptorType descriptorType);
-
         void prepTextures();
-
-        [[maybe_unused]] void bindDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout layout);
 
         static void clear(VkCommandBuffer commandBuffer, Texture& texture);
 
     public:
         VulkanDescriptorPool* _descriptorPool{};
-        BindlessDescriptor *_bindlessDescriptor{};
 
         VectorField _vectorField;
         DivergenceField _divergenceField;
@@ -279,8 +250,5 @@ namespace eular {
 
         std::vector<ExternalForce> _externalForces;
         LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::RBGS};
-
-        std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
-        std::vector<VulkanDescriptorSetLayout> sourceFieldSetLayouts();
     };
 }

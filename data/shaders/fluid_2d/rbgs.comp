@@ -7,9 +7,9 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 #include "common_new.glsl"
 
-layout(set = 2, binding = 0) uniform sampler2D solution;
-layout(set = 3, binding = 0) uniform sampler2D unknown_tex;
-layout(set = 4, binding = 2) uniform writeonly image2D unknow_image;
+layout(set = 1, binding = 0) uniform sampler2D solution;
+layout(set = 2, binding = 0) uniform sampler2D unknown_tex;
+layout(set = 3, binding = 2) uniform writeonly image2D unknow_image;
 
 layout(push_constant, scalar) uniform Constants {
     float alpha;

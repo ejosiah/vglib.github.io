@@ -2,18 +2,12 @@
 
 namespace eular {
     
-    FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, BindlessDescriptor *bindlessDescriptor, glm::vec2 gridSize)
+    FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize)
         : ComputePipelines(device)
         , _descriptorPool(descriptorPool)
-        , _bindlessDescriptor(bindlessDescriptor)
         , _gridSize(gridSize, 1)
         , _delta(1.f/gridSize, 0)
-        , _imageType(VK_IMAGE_TYPE_2D)
-   {
-        _bindlessDescriptor->reserveSlots(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 12);
-        _bindlessDescriptor->reserveSlots(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 12);
-        _bindlessDescriptor->reserveSlots(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4);
-        _bindlessDescriptor->reserveSlots(VK_DESCRIPTOR_TYPE_SAMPLER, 2);
+        , _imageType(VK_IMAGE_TYPE_2D){
         _groupCount.xy = glm::uvec2(glm::ceil(gridSize/32.f));
     }
 
@@ -43,9 +37,6 @@ namespace eular {
         samplerInfo.magFilter = VK_FILTER_LINEAR;
         samplerInfo.minFilter = VK_FILTER_LINEAR;
         _linearSampler = device->createSampler(samplerInfo);
-
-        _bindlessDescriptor->update(BindlessSampler{ &_linearSampler, 0 });
-        _bindlessDescriptor->update(BindlessSampler{ &_valueSampler, 1 });
 
         _vectorField.u[0].sampler = _valueSampler;
         _vectorField.u[1].sampler = _valueSampler;
@@ -121,15 +112,6 @@ namespace eular {
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _pressureField.name, 0), _pressureField[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _pressureField.name, 1), _pressureField[1].image.image);
 
-        bindTextures(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-        bindTextures(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-
-        auto& vf = _vectorField;
-        _bindlessDescriptor->update({&vf.u[0], VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, vf.u.in, VK_IMAGE_LAYOUT_GENERAL});
-        _bindlessDescriptor->update({&vf.u[1], VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, vf.u.out, VK_IMAGE_LAYOUT_GENERAL});
-        _bindlessDescriptor->update({&vf.v[0], VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, vf.v.in, VK_IMAGE_LAYOUT_GENERAL});
-        _bindlessDescriptor->update({&vf.v[1], VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, vf.v.out, VK_IMAGE_LAYOUT_GENERAL});
-
         prepTextures();
     }
 
@@ -203,7 +185,7 @@ namespace eular {
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
-        auto writes = initializers::writeDescriptorSets<53>();
+        auto writes = initializers::writeDescriptorSets<33>();
 
         auto writeOffset = 0u;
 
@@ -244,47 +226,10 @@ namespace eular {
     }
 
     uint32_t FluidSolver::createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field) {
-        auto sets = _descriptorPool->allocate( {
-            _fieldDescriptorSetLayout, _fieldDescriptorSetLayout,
-            _imageDescriptorSetLayout, _imageDescriptorSetLayout,
-            _textureDescriptorSetLayout, _textureDescriptorSetLayout});
+        auto sets = _descriptorPool->allocate( { _fieldDescriptorSetLayout, _fieldDescriptorSetLayout});
 
         field.descriptorSet[0] = sets[0];
         field.descriptorSet[1] = sets[1];
-
-        field.imageDescriptorSets[0] = sets[2];
-        field.imageDescriptorSets[1] = sets[3];
-
-        field.textureDescriptorSets[0] = sets[4];
-        field.textureDescriptorSets[1] = sets[5];
-
-        writes[writeOffset].dstSet = field.imageDescriptorSets[0];
-        writes[writeOffset].dstBinding = 0;
-        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        writes[writeOffset].descriptorCount = 1;
-        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[0].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
-        ++writeOffset;
-
-        writes[writeOffset].dstSet = field.imageDescriptorSets[1];
-        writes[writeOffset].dstBinding = 0;
-        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        writes[writeOffset].descriptorCount = 1;
-        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
-        ++writeOffset;
-
-        writes[writeOffset].dstSet = field.textureDescriptorSets[0];
-        writes[writeOffset].dstBinding = 0;
-        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        writes[writeOffset].descriptorCount = 1;
-        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[0].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
-        ++writeOffset;
-
-        writes[writeOffset].dstSet = field.textureDescriptorSets[1];
-        writes[writeOffset].dstBinding = 0;
-        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        writes[writeOffset].descriptorCount = 1;
-        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
-        ++writeOffset;
 
         writes[writeOffset].dstSet = field.descriptorSet[0];
         writes[writeOffset].dstBinding = 0;
@@ -395,44 +340,6 @@ namespace eular {
         });
     }
 
-    
-    void
-    FluidSolver::bindTextures(VkDescriptorType descriptorType) {
-        auto nextId = ~0u;
-        _bindlessDescriptor->update({&_vectorField.u[0], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _vectorField.u.in = nextId;
-        _bindlessDescriptor->update({&_vectorField.u[1], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _vectorField.u.out = nextId;
-
-        _bindlessDescriptor->update({&_vectorField.v[0], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _vectorField.v.in = nextId;
-        _bindlessDescriptor->update({&_vectorField.v[1], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _vectorField.v.out = nextId;
-
-        // force field
-        _bindlessDescriptor->update({&_forceField[0], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _forceField.in = nextId;
-        _bindlessDescriptor->update({&_forceField[1], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _forceField.out = nextId;
-
-        // vorticity field
-        _bindlessDescriptor->update({&_vorticityField[0], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _vorticityField.in = nextId;
-        _bindlessDescriptor->update({&_vorticityField[1], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _vorticityField.out = nextId;
-
-        _bindlessDescriptor->update({&_divergenceField[0], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _divergenceField.in = nextId;
-        _bindlessDescriptor->update({&_divergenceField[1], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _divergenceField.out = nextId;
-
-        _bindlessDescriptor->update({&_pressureField[0], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _pressureField.in = nextId;
-        _bindlessDescriptor->update({&_pressureField[1], descriptorType, ++nextId, VK_IMAGE_LAYOUT_GENERAL});
-        _pressureField.out = nextId;
-    }
-
-    
     void FluidSolver::set(VectorFieldSource2D vectorField) {
         auto size = size_t(_gridSize.x * _gridSize.y);
 
@@ -636,9 +543,8 @@ namespace eular {
                     .name = "advect",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
                     .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                            &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
                     }
 
                 },
@@ -646,9 +552,8 @@ namespace eular {
                     .name = "apply_force",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\apply_force.comp.spv)",
                     .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) ,
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                            &uniformsSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                     },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(forceConstants) } }
 
@@ -657,8 +562,8 @@ namespace eular {
                         .name = "add_sources",
                         .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
                         .layouts =  {
-                                &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                                &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                                &uniformsSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                                &_fieldDescriptorSetLayout
                         },
                         .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
@@ -666,8 +571,7 @@ namespace eular {
                     .name = "jacobi",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\jacobi.comp.spv)",
                     .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                     },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants) } }
                 },
@@ -675,8 +579,8 @@ namespace eular {
                     .name = "rbgs",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\rbgs.comp.spv)",
                     .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout,
                     },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants) } }
                 },
@@ -684,8 +588,8 @@ namespace eular {
                     .name = "divergence",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
                     .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout
                      },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
@@ -693,24 +597,11 @@ namespace eular {
                     .name = "divergence_free_field",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence_free_field.comp.spv)",
                     .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                       },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
-                },
-                {
-                    .name = "bridge_out",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\bridge_out.comp.spv)",
-                    .layouts =  { &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) },
-                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(brideConstants) } }
-                },
-                {
-                    .name = "bridge_in",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\bridge_in.comp.spv)",
-                    .layouts =  { &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) },
-                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(brideConstants) } }
-                },
+                }
         };
     }
 
@@ -783,9 +674,6 @@ namespace eular {
     }
 
     void FluidSolver::advectVectorField(VkCommandBuffer commandBuffer) {
-        advectConstants.vector_field_id.x = _vectorField.u.in;
-        advectConstants.vector_field_id.y = _vectorField.v.in;
-
         advect(commandBuffer, _vectorField.u);
         advect(commandBuffer, _vectorField.v);
 
@@ -811,18 +699,14 @@ namespace eular {
 
     void FluidSolver::advect(VkCommandBuffer commandBuffer, Field& field) {
         auto& vf = _vectorField;
-        static std::array<VkDescriptorSet, 7> sets;
+        static std::array<VkDescriptorSet, 6> sets;
 
         sets[0] = uniformDescriptorSet;
-        sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = vf.u.descriptorSet[in];
-        sets[3] = vf.v.descriptorSet[in];
-        sets[4] = field.descriptorSet[in];
-        sets[5] = field.descriptorSet[out];
-        sets[6] = _linearSamplerDescriptorSet;
-
-        advectConstants.quantity_in = field.in;
-        advectConstants.quantity_out = field.out;
+        sets[1] = vf.u.descriptorSet[in];
+        sets[2] = vf.v.descriptorSet[in];
+        sets[3] = field.descriptorSet[in];
+        sets[4] = field.descriptorSet[out];
+        sets[5] = _linearSamplerDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("advect"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("advect"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -844,17 +728,13 @@ namespace eular {
     }
 
     void FluidSolver::addForcesToVectorField(VkCommandBuffer commandBuffer, ForceField &sourceField) {
-        forceConstants.vector_field_id = glm::vec4(_vectorField.u.in, _vectorField.v.in, _vectorField.u.out, _vectorField.v.out);
-        forceConstants.force_field_id = sourceField.in;
-
-        static std::array<VkDescriptorSet, 7> sets;
+        static std::array<VkDescriptorSet, 6> sets;
         sets[0] = uniformDescriptorSet;
-        sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = _vectorField.u.descriptorSet[in];
-        sets[3] = _vectorField.v.descriptorSet[in];
-        sets[4] = sourceField.descriptorSet[in];
-        sets[5] = _vectorField.u.descriptorSet[out];
-        sets[6] = _vectorField.v.descriptorSet[out];
+        sets[1] = _vectorField.u.descriptorSet[in];
+        sets[2] = _vectorField.v.descriptorSet[in];
+        sets[3] = sourceField.descriptorSet[in];
+        sets[4] = _vectorField.u.descriptorSet[out];
+        sets[5] = _vectorField.v.descriptorSet[out];
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("apply_force"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("apply_force"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -869,29 +749,19 @@ namespace eular {
 
     }
 
-    [[maybe_unused]] void FluidSolver::bindDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout layout) {
-        static std::array<VkDescriptorSet, 2> sets{ uniformDescriptorSet, _bindlessDescriptor->descriptorSet};
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 2, sets.data(), 0, VK_NULL_HANDLE);
-    }
-
     void FluidSolver::add(ExternalForce &&force) {
         _externalForces.push_back(force);
     }
 
     void FluidSolver::jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown) {
-        static std::array<VkDescriptorSet, 5> sets;
+        static std::array<VkDescriptorSet, 4> sets;
         sets[0] = uniformDescriptorSet;
-        sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = solution.descriptorSet[in];
+        sets[1] = solution.descriptorSet[in];
 
         const auto N = options.poissonIterations;
         for(auto i = 0; i < N; ++i) {
-            linearSolverConstants.solution_in = solution.in;
-            linearSolverConstants.unknown_in = unknown.in;
-            linearSolverConstants.unknown_out = unknown.out;
-
-            sets[3] = unknown.descriptorSet[in];
-            sets[4] = unknown.descriptorSet[out];
+            sets[2] = unknown.descriptorSet[in];
+            sets[3] = unknown.descriptorSet[out];
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("jacobi"));
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("jacobi"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -907,20 +777,15 @@ namespace eular {
     }
 
     void FluidSolver::rbgsSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown) {
-        static std::array<VkDescriptorSet, 5> sets;
+        static std::array<VkDescriptorSet, 4> sets;
         sets[0] = uniformDescriptorSet;
-        sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = solution.descriptorSet[in];
+        sets[1] = solution.descriptorSet[in];
 
         const auto N = options.poissonIterations;
-        linearSolverConstants.solution_in = solution.in;
 
         for(auto i = 0; i < N; ++i) {
-            linearSolverConstants.unknown_in = unknown.in;
-            linearSolverConstants.unknown_out = unknown.out;
-
-            sets[3] = unknown.descriptorSet[in];
-            sets[4] = unknown.descriptorSet[out];
+            sets[2] = unknown.descriptorSet[in];
+            sets[3] = unknown.descriptorSet[out];
 
             linearSolverConstants.pass = 0;
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("rbgs"));
@@ -930,11 +795,8 @@ namespace eular {
             addComputeBarrier(commandBuffer);
             unknown.swap();
 
-            linearSolverConstants.unknown_in = unknown.in;
-            linearSolverConstants.unknown_out = unknown.out;
-
-            sets[3] = unknown.descriptorSet[in];
-            sets[4] = unknown.descriptorSet[out];
+            sets[2] = unknown.descriptorSet[in];
+            sets[3] = unknown.descriptorSet[out];
 
             linearSolverConstants.pass = 1;
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("rbgs"));
@@ -967,48 +829,14 @@ namespace eular {
         vkCmdPipelineBarrier2(commandBuffer, &dInfo);
     }
 
-    void FluidSolver::bridgeOut(VkCommandBuffer commandBuffer) {
-        brideConstants.vector_field_id.x = _vectorField.u.in;
-        brideConstants.vector_field_id.y = _vectorField.v.in;
-        brideConstants.dst_vector_field = _oldVectorField.in;
-
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("bridge_out"));
-        bindDescriptorSet(commandBuffer, layout("bridge_out"));
-        vkCmdPushConstants(commandBuffer, layout("bridge_out"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(brideConstants), &brideConstants);
-        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
-
-//        _oldVectorField.swap();
-    }
-
-    void FluidSolver::bridgeIn(VkCommandBuffer commandBuffer) {
-        _oldVectorField.swap();
-        brideConstants.vector_field_id.x = _vectorField.u.in;
-        brideConstants.vector_field_id.y = _vectorField.v.in;
-        brideConstants.dst_vector_field = _oldVectorField.in;
-
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("bridge_in"));
-        bindDescriptorSet(commandBuffer, layout("bridge_in"));
-        vkCmdPushConstants(commandBuffer, layout("bridge_in"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(brideConstants), &brideConstants);
-        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
-    }
-
-    BindlessDescriptor &FluidSolver::bindlessDescriptor() {
-        return *_bindlessDescriptor;
-    }
-
     void FluidSolver::computeDivergence(VkCommandBuffer commandBuffer) {
         auto& vf = _vectorField;
-        static std::array<VkDescriptorSet, 5> sets;
+        static std::array<VkDescriptorSet, 4> sets;
 
         sets[0] = uniformDescriptorSet;
-        sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = vf.u.descriptorSet[in];
-        sets[3] = vf.v.descriptorSet[in];
-        sets[4] = _divergenceField.descriptorSet[in];
-
-        updateProjectConstants();
+        sets[1] = vf.u.descriptorSet[in];
+        sets[2] = vf.v.descriptorSet[in];
+        sets[3] = _divergenceField.descriptorSet[in];
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -1032,32 +860,20 @@ namespace eular {
 
     void FluidSolver::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
         auto& vf = _vectorField;
-        static std::array<VkDescriptorSet, 7> sets;
+        static std::array<VkDescriptorSet, 6> sets;
 
         sets[0] = uniformDescriptorSet;
-        sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = vf.u.descriptorSet[in];
-        sets[3] = vf.v.descriptorSet[in];
-        sets[4] = _pressureField.descriptorSet[in];
-        sets[5] = vf.u.descriptorSet[out];
-        sets[6] = vf.v.descriptorSet[out];
-
-        updateProjectConstants();
+        sets[1] = vf.u.descriptorSet[in];
+        sets[2] = vf.v.descriptorSet[in];
+        sets[3] = _pressureField.descriptorSet[in];
+        sets[4] = vf.u.descriptorSet[out];
+        sets[5] = vf.v.descriptorSet[out];
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence_free_field"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence_free_field"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdPushConstants(commandBuffer, layout("divergence_free_field"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants), &projectConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
-    }
-
-    void FluidSolver::updateProjectConstants() {
-        projectConstants.vector_field_id.x = _vectorField.u.in;
-        projectConstants.vector_field_id.y = _vectorField.v.in;
-        projectConstants.vector_field_id.z = _vectorField.u.out;
-        projectConstants.vector_field_id.w = _vectorField.v.out;
-        projectConstants.divergence_field_id = _divergenceField.in;
-        projectConstants.pressure_field_id = _pressureField.in;
     }
 
     void FluidSolver::dt(float value) {
@@ -1083,7 +899,7 @@ namespace eular {
     }
 
     void FluidSolver::add(Quantity &quantity) {
-        auto writes = initializers::writeDescriptorSets<20>();
+        auto writes = initializers::writeDescriptorSets<12>();
         auto offset = createDescriptorSet(writes, 0, quantity.field);
         createDescriptorSet(writes, offset, quantity.source);
 
@@ -1103,12 +919,11 @@ namespace eular {
     }
 
     void FluidSolver::addSource(VkCommandBuffer commandBuffer, Quantity &quantity) {
-        static std::array<VkDescriptorSet, 5> sets;
+        static std::array<VkDescriptorSet, 4> sets;
         sets[0] = uniformDescriptorSet;
-        sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = quantity.source.descriptorSet[in];
-        sets[3] = quantity.field.descriptorSet[in];
-        sets[4] = quantity.field.descriptorSet[out];
+        sets[1] = quantity.source.descriptorSet[in];
+        sets[2] = quantity.field.descriptorSet[in];
+        sets[3] = quantity.field.descriptorSet[out];
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add_sources"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add_sources"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);

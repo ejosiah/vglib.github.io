@@ -61,19 +61,13 @@ void FluidSolver2D::add(ExternalForce &&force) {
 void FluidSolver2D::runSimulation(VkCommandBuffer commandBuffer) {
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, screenQuad.vertices, &offset);
-//    velocityStep(commandBuffer);
-    delegate->velocityStep(commandBuffer);
-    delegate->bridgeOut(commandBuffer);
+    velocityStep(commandBuffer);
     quantityStep(commandBuffer);
     _elapsedTime += timeStep;
 }
 
 void FluidSolver2D::velocityStep(VkCommandBuffer commandBuffer) {
     if(!options.advectVField) return;
-
-    static int count = 0;
-//    if(count > 0) return;
-    ++count;
 
     clearForces(commandBuffer);
     applyForces(commandBuffer);
@@ -215,7 +209,6 @@ void FluidSolver2D::advectVectorField(VkCommandBuffer commandBuffer) {
     sets[1] = vectorField.advectDescriptorSet[in];
 
     advect(commandBuffer, sets,vectorField.framebuffer[out]);
-//    delegate->advectVectorField(commandBuffer);
     vectorField.swap();
 }
 
@@ -243,7 +236,6 @@ void FluidSolver2D::project(VkCommandBuffer commandBuffer) {
     solvePressure(commandBuffer);
     computeDivergenceFreeField(commandBuffer);
     vectorField.swap();
-    delegate->bridgeIn(commandBuffer);
 }
 
 void FluidSolver2D::computeDivergence(VkCommandBuffer commandBuffer) {

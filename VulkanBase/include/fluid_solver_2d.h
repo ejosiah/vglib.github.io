@@ -16,8 +16,6 @@ public:
 
     void init();
 
-    eular::FluidSolver* delegate{};
-
 protected:
     std::tuple<VkDeviceSize, void *> getGlobalConstants() override;
 

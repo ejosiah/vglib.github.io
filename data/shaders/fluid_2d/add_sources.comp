@@ -9,9 +9,9 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(set = 2, binding = 0) uniform sampler2D source_field;
-layout(set = 3, binding = 0) uniform sampler2D accumulated_field;
-layout(set = 4, binding = 2) uniform writeonly image2D destination_field;
+layout(set = 1, binding = 0) uniform sampler2D source_field;
+layout(set = 2, binding = 0) uniform sampler2D accumulated_field;
+layout(set = 3, binding = 2) uniform writeonly image2D destination_field;
 
 void main() {
     if(gid.x >= grid_size.x || gid.y >= grid_size.y) return;
