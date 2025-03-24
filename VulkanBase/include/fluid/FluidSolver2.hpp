@@ -10,7 +10,7 @@
 namespace eular {
 
     enum class LinearSolverStrategy  {
-        Jacobi, RGGS
+        Jacobi, RBGS
     };
 
     struct Field : std::array<Texture, 2> {
@@ -278,7 +278,7 @@ namespace eular {
         static constexpr uint32_t out = 1;
 
         std::vector<ExternalForce> _externalForces;
-        LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::Jacobi};
+        LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::RBGS};
 
         std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
         std::vector<VulkanDescriptorSetLayout> sourceFieldSetLayouts();

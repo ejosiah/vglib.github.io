@@ -667,8 +667,7 @@ namespace eular {
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\jacobi.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_imageDescriptorSetLayout,
-                            &_samplerDescriptorSetLayout
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                     },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants) } }
                 },
@@ -677,8 +676,7 @@ namespace eular {
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\rbgs.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_imageDescriptorSetLayout,
-                            &_samplerDescriptorSetLayout
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                     },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants) } }
                 },
@@ -891,11 +889,10 @@ namespace eular {
     }
 
     void FluidSolver::jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown) {
-        static std::array<VkDescriptorSet, 6> sets;
+        static std::array<VkDescriptorSet, 5> sets;
         sets[0] = uniformDescriptorSet;
         sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = solution.textureDescriptorSets[in];
-        sets[5] = _valueSamplerDescriptorSet;
+        sets[2] = solution.descriptorSet[in];
 
         const auto N = options.poissonIterations;
         for(auto i = 0; i < N; ++i) {
@@ -903,8 +900,8 @@ namespace eular {
             linearSolverConstants.unknown_in = unknown.in;
             linearSolverConstants.unknown_out = unknown.out;
 
-            sets[3] = unknown.textureDescriptorSets[in];
-            sets[4] = unknown.imageDescriptorSets[out];
+            sets[3] = unknown.descriptorSet[in];
+            sets[4] = unknown.descriptorSet[out];
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("jacobi"));
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("jacobi"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -920,11 +917,10 @@ namespace eular {
     }
 
     void FluidSolver::rbgsSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown) {
-        static std::array<VkDescriptorSet, 6> sets;
+        static std::array<VkDescriptorSet, 5> sets;
         sets[0] = uniformDescriptorSet;
         sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = solution.textureDescriptorSets[in];
-        sets[5] = _valueSamplerDescriptorSet;
+        sets[2] = solution.descriptorSet[in];
 
         const auto N = options.poissonIterations;
         linearSolverConstants.solution_in = solution.in;
@@ -933,8 +929,8 @@ namespace eular {
             linearSolverConstants.unknown_in = unknown.in;
             linearSolverConstants.unknown_out = unknown.out;
 
-            sets[3] = unknown.textureDescriptorSets[in];
-            sets[4] = unknown.imageDescriptorSets[out];
+            sets[3] = unknown.descriptorSet[in];
+            sets[4] = unknown.descriptorSet[out];
 
             linearSolverConstants.pass = 0;
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("rbgs"));
@@ -942,24 +938,24 @@ namespace eular {
             vkCmdPushConstants(commandBuffer, layout("rbgs"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants), &linearSolverConstants);
             vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
             addComputeBarrier(commandBuffer);
-
             unknown.swap();
+
             linearSolverConstants.unknown_in = unknown.in;
             linearSolverConstants.unknown_out = unknown.out;
 
-            sets[3] = unknown.textureDescriptorSets[in];
-            sets[4] = unknown.imageDescriptorSets[out];
+            sets[3] = unknown.descriptorSet[in];
+            sets[4] = unknown.descriptorSet[out];
 
             linearSolverConstants.pass = 1;
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("rbgs"));
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("rbgs"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
             vkCmdPushConstants(commandBuffer, layout("rbgs"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants), &linearSolverConstants);
             vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+            unknown.swap();
 
             if(i < N - 1) {
                 addComputeBarrier(commandBuffer);
             }
-            unknown.swap();
         }
     }
 

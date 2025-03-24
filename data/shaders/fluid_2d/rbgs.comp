@@ -7,10 +7,9 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 #include "common_new.glsl"
 
-layout(set = 2, binding = 0) uniform texture2D solution;
-layout(set = 3, binding = 0) uniform texture2D unknown_tex;
-layout(set = 4, binding = 0) uniform writeonly image2D unknow_image;
-layout(set = 5, binding = 0) uniform sampler aSampler;
+layout(set = 2, binding = 0) uniform sampler2D solution;
+layout(set = 3, binding = 0) uniform sampler2D unknown_tex;
+layout(set = 4, binding = 2) uniform writeonly image2D unknow_image;
 
 layout(push_constant, scalar) uniform Constants {
     float alpha;
@@ -23,7 +22,7 @@ layout(push_constant, scalar) uniform Constants {
 };
 
 vec4 b(vec2 coord){
-    vec4 _b = texture(sampler2D(solution, aSampler), st(coord));
+    vec4 _b = texture(solution, st(coord));
     if(is_vector_field == 1){
         return applyBoundaryCondition(coord, _b);
     }
@@ -31,7 +30,7 @@ vec4 b(vec2 coord){
 }
 
 vec4 x0(vec2 coord){
-    vec4 _x0 = texture(sampler2D(unknown_tex, aSampler), st(coord));
+    vec4 _x0 = texture(unknown_tex, st(coord));
     if(is_vector_field == 1){
         return applyBoundaryCondition(coord, _x0);
     }
