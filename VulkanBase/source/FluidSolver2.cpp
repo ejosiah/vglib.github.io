@@ -685,7 +685,7 @@ namespace eular {
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_samplerDescriptorSetLayout, &_imageDescriptorSetLayout
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                      },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
@@ -704,8 +704,8 @@ namespace eular {
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence_free_field.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_textureDescriptorSetLayout,
-                            &_samplerDescriptorSetLayout, &_imageDescriptorSetLayout, &_imageDescriptorSetLayout
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                       },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
@@ -1010,14 +1010,13 @@ namespace eular {
 
     void FluidSolver::computeDivergence(VkCommandBuffer commandBuffer) {
         auto& vf = _vectorField;
-        static std::array<VkDescriptorSet, 6> sets;
+        static std::array<VkDescriptorSet, 5> sets;
 
         sets[0] = uniformDescriptorSet;
         sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = vf.u.textureDescriptorSets[in];
-        sets[3] = vf.v.textureDescriptorSets[in];
-        sets[4] = _valueSamplerDescriptorSet;
-        sets[5] = _divergenceField.imageDescriptorSets[in];
+        sets[2] = vf.u.descriptorSet[in];
+        sets[3] = vf.v.descriptorSet[in];
+        sets[4] = _divergenceField.descriptorSet[in];
 
         updateProjectConstants();
 
@@ -1043,16 +1042,15 @@ namespace eular {
 
     void FluidSolver::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
         auto& vf = _vectorField;
-        static std::array<VkDescriptorSet, 8> sets;
+        static std::array<VkDescriptorSet, 7> sets;
 
         sets[0] = uniformDescriptorSet;
         sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = vf.u.textureDescriptorSets[in];
-        sets[3] = vf.v.textureDescriptorSets[in];
-        sets[4] = _pressureField.textureDescriptorSets[in];
-        sets[5] = _valueSamplerDescriptorSet;
-        sets[6] = vf.u.imageDescriptorSets[out];
-        sets[7] = vf.v.imageDescriptorSets[out];
+        sets[2] = vf.u.descriptorSet[in];
+        sets[3] = vf.v.descriptorSet[in];
+        sets[4] = _pressureField.descriptorSet[in];
+        sets[5] = vf.u.descriptorSet[out];
+        sets[6] = vf.v.descriptorSet[out];
 
         updateProjectConstants();
 

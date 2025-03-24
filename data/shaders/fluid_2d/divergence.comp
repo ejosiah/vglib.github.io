@@ -7,10 +7,9 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 #include "common_new.glsl"
 
-layout(set = 2, binding = 0) uniform texture2D vector_field_u;
-layout(set = 3, binding = 0) uniform texture2D vector_field_v;
-layout(set = 4, binding = 0) uniform sampler aSampler;
-layout(set = 5, binding = 0) uniform writeonly image2D divergence_field;
+layout(set = 2, binding = 0) uniform sampler2D vector_field_u;
+layout(set = 3, binding = 0) uniform sampler2D vector_field_v;
+layout(set = 4, binding = 2) uniform writeonly image2D divergence_field;
 
 layout(push_constant) uniform Constants {
     uvec4 vector_field_id;
@@ -20,8 +19,8 @@ layout(push_constant) uniform Constants {
 
 vec2 F(vec2 xy) {
     vec2 u;
-    u.x = texture(sampler2D(vector_field_u, aSampler), xy).x;
-    u.y = texture(sampler2D(vector_field_v, aSampler), xy).x;
+    u.x = texture(vector_field_u, xy).x;
+    u.y = texture(vector_field_v, xy).x;
     return u;
 }
 
