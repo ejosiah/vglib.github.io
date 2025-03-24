@@ -647,8 +647,8 @@ namespace eular {
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\apply_force.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) ,
-                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_textureDescriptorSetLayout,
-                            &_imageDescriptorSetLayout, &_imageDescriptorSetLayout, &_samplerDescriptorSetLayout
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                     },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(forceConstants) } }
 
@@ -859,15 +859,14 @@ namespace eular {
         forceConstants.vector_field_id = glm::vec4(_vectorField.u.in, _vectorField.v.in, _vectorField.u.out, _vectorField.v.out);
         forceConstants.force_field_id = sourceField.in;
 
-        static std::array<VkDescriptorSet, 8> sets;
+        static std::array<VkDescriptorSet, 7> sets;
         sets[0] = uniformDescriptorSet;
         sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = _vectorField.u.textureDescriptorSets[in];
-        sets[3] = _vectorField.v.textureDescriptorSets[in];
-        sets[4] = sourceField.textureDescriptorSets[in];
-        sets[5] = _vectorField.u.imageDescriptorSets[out];
-        sets[6] = _vectorField.v.imageDescriptorSets[out];
-        sets[7] = _valueSamplerDescriptorSet;
+        sets[2] = _vectorField.u.descriptorSet[in];
+        sets[3] = _vectorField.v.descriptorSet[in];
+        sets[4] = sourceField.descriptorSet[in];
+        sets[5] = _vectorField.u.descriptorSet[out];
+        sets[6] = _vectorField.v.descriptorSet[out];
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("apply_force"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("apply_force"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
