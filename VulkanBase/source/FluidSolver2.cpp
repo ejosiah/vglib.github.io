@@ -654,13 +654,13 @@ namespace eular {
 
                 },
                 {
-                    .name = "add_sources",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
-                    .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) ,
-                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_imageDescriptorSetLayout,
-                            &_samplerDescriptorSetLayout
-                    },
+                        .name = "add_sources",
+                        .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
+                        .layouts =  {
+                                &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
+                                &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                        },
+                        .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
                 {
                     .name = "jacobi",
@@ -686,16 +686,6 @@ namespace eular {
                     .layouts =  {
                             &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
-                     },
-                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
-                },
-                {
-                    .name = "add_sources",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
-                    .layouts =  {
-                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
-                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_imageDescriptorSetLayout,
-                            &_samplerDescriptorSetLayout
                      },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
@@ -1089,7 +1079,7 @@ namespace eular {
     }
 
     std::vector<VulkanDescriptorSetLayout> FluidSolver::sourceFieldSetLayouts() {
-        return  { _textureDescriptorSetLayout, _imageDescriptorSetLayout, _samplerDescriptorSetLayout };
+        return  { _fieldDescriptorSetLayout, _fieldDescriptorSetLayout };
     }
 
     void FluidSolver::add(Quantity &quantity) {
@@ -1113,13 +1103,12 @@ namespace eular {
     }
 
     void FluidSolver::addSource(VkCommandBuffer commandBuffer, Quantity &quantity) {
-        static std::array<VkDescriptorSet, 6> sets;
+        static std::array<VkDescriptorSet, 5> sets;
         sets[0] = uniformDescriptorSet;
         sets[1] = _bindlessDescriptor->descriptorSet;
-        sets[2] = quantity.source.textureDescriptorSets[in];
-        sets[3] = quantity.field.textureDescriptorSets[in];
-        sets[4] = quantity.field.imageDescriptorSets[out];
-        sets[5] = _valueSamplerDescriptorSet;
+        sets[2] = quantity.source.descriptorSet[in];
+        sets[3] = quantity.field.descriptorSet[in];
+        sets[4] = quantity.field.descriptorSet[out];
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add_sources"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add_sources"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
