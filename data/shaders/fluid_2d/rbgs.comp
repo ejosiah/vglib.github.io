@@ -12,7 +12,7 @@ layout(set = 3, binding = 0) uniform texture2D unknown_tex;
 layout(set = 4, binding = 0) uniform writeonly image2D unknow_image;
 layout(set = 5, binding = 0) uniform sampler aSampler;
 
-layout(push_constant) uniform Constants {
+layout(push_constant, scalar) uniform Constants {
     float alpha;
     float rBeta;
     uint solution_in;

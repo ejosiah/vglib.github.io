@@ -48,6 +48,8 @@ namespace eular {
         }
     };
 
+    using UpdateSource = std::function<void(VkCommandBuffer, Field&, glm::uvec3)>;
+    using PostAdvect = std::function<bool(VkCommandBuffer, Field&, glm::uvec3)>;
 
     struct Quantity {
         std::string name;
@@ -55,9 +57,8 @@ namespace eular {
         Field source;
         float diffuseRate{MIN_FLOAT};
 
-        void update(VkCommandBuffer, Field &) {};
-
-        bool postAdvect(VkCommandBuffer, Field &) { return false; };
+        UpdateSource update = [](VkCommandBuffer, Field&, glm::uvec3){};
+        PostAdvect postAdvect = [](VkCommandBuffer, Field&, glm::uvec3) { return false; };
 
     };
 
@@ -112,11 +113,27 @@ namespace eular {
 
         void updateDescriptorSets();
 
-        uint32_t createDescriptorSet(std::vector<VkWriteDescriptorSet>& writeOffset, uint32_t index, Field& field);
+        uint32_t createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field);
 
         void initGlobalConstants();
 
         void velocityStep(VkCommandBuffer commandBuffer);
+
+        void quantityStep(VkCommandBuffer commandBuffer);
+
+        void quantityStep(VkCommandBuffer commandBuffer, Quantity& quantity);
+
+        void clearSources(VkCommandBuffer commandBuffer, Quantity& quantity);
+
+        void updateSources(VkCommandBuffer commandBuffer, Quantity& quantity);
+
+        void addSource(VkCommandBuffer commandBuffer, Quantity& quantity);
+
+        void diffuseQuantity(VkCommandBuffer commandBuffer, Quantity& quantity);
+
+        void advectQuantity(VkCommandBuffer commandBuffer, Quantity& quantity);
+
+        void postAdvection(VkCommandBuffer commandBuffer, Quantity& quantity);
 
         void advectVectorField(VkCommandBuffer commandBuffer);
 
@@ -134,7 +151,7 @@ namespace eular {
 
         void diffuseVelocityField(VkCommandBuffer commandBuffer);
 
-        void diffuse(VkCommandBuffer commandBuffer, Field& field);
+        void diffuse(VkCommandBuffer commandBuffer, Field& field, float rate);
 
         void project(VkCommandBuffer commandBuffer);
 
@@ -147,8 +164,6 @@ namespace eular {
         void addComputeBarrier(VkCommandBuffer commandBuffer);
 
         void updateProjectConstants();
-
-        void quantityStep(VkCommandBuffer commandBuffer);
 
         void jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown);
 
@@ -260,7 +275,7 @@ namespace eular {
         static constexpr uint32_t out = 1;
 
         std::vector<ExternalForce> _externalForces;
-        LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::RGGS};
+        LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::Jacobi};
 
         std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
     };

@@ -580,9 +580,22 @@ namespace eular {
                 {
                     .name = "apply_force",
                     .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\apply_force.comp.spv)",
-                    .layouts =  { &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) },
+                    .layouts =  {
+                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) ,
+                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_textureDescriptorSetLayout,
+                            &_imageDescriptorSetLayout, &_imageDescriptorSetLayout, &_samplerDescriptorSetLayout
+                    },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(forceConstants) } }
 
+                },
+                {
+                    .name = "add_sources",
+                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
+                    .layouts =  {
+                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout) ,
+                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_imageDescriptorSetLayout,
+                            &_samplerDescriptorSetLayout
+                    },
                 },
                 {
                     .name = "jacobi",
@@ -610,6 +623,16 @@ namespace eular {
                     .layouts =  {
                             &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
                             &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_samplerDescriptorSetLayout, &_imageDescriptorSetLayout
+                     },
+                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
+                },
+                {
+                    .name = "add_sources",
+                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
+                    .layouts =  {
+                            &uniformsSetLayout, const_cast<VulkanDescriptorSetLayout*>(_bindlessDescriptor->descriptorSetLayout),
+                            &_textureDescriptorSetLayout, &_textureDescriptorSetLayout, &_imageDescriptorSetLayout,
+                            &_samplerDescriptorSetLayout
                      },
                     .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
                 },
@@ -642,16 +665,10 @@ namespace eular {
     void FluidSolver::velocityStep(VkCommandBuffer commandBuffer) {
         if(!options.advectVField) return;
 
-        static int count = 0;
-//        if(count > 0) return;
-        ++count;
-
         clearForces(commandBuffer);
         applyForces(commandBuffer);
-//        if(options.viscosity > MIN_FLOAT) {
-//            diffuseVelocityField(commandBuffer);
-//            project(commandBuffer);
-//        }
+        diffuseVelocityField(commandBuffer);
+
         advectVectorField(commandBuffer);
         project(commandBuffer);
     }
@@ -685,14 +702,17 @@ namespace eular {
     }
 
     void FluidSolver::diffuseVelocityField(VkCommandBuffer commandBuffer) {
-        linearSolverConstants.alpha = (_delta.x * _delta.x * _delta.x * _delta.y)/(_timeStep * options.viscosity);
-        linearSolverConstants.rBeta = 1.0f/((2.0f * glm::dot(_delta, _delta)) + linearSolverConstants.alpha);
+        if(options.viscosity == MIN_FLOAT) return;
         linearSolverConstants.is_vector_field = true;
-        diffuse(commandBuffer, _vectorField.u);
-        diffuse(commandBuffer, _vectorField.v);
+        diffuse(commandBuffer, _vectorField.u, options.viscosity);
+        diffuse(commandBuffer, _vectorField.v, options.viscosity);
+        project(commandBuffer);
     }
 
-    void FluidSolver::diffuse(VkCommandBuffer commandBuffer, Field& field) {
+    void FluidSolver::diffuse(VkCommandBuffer commandBuffer, Field& field, float rate) {
+        if(rate == MIN_FLOAT) return;
+        linearSolverConstants.alpha = (_delta.x * _delta.x * _delta.x * _delta.y)/(_timeStep * rate);
+        linearSolverConstants.rBeta = 1.0f/((2.0f * glm::dot(_delta, _delta)) + linearSolverConstants.alpha);
         if(linearSolverStrategy == LinearSolverStrategy::Jacobi) {
             jacobiSolver(commandBuffer, field, field);
         }else {
@@ -719,6 +739,21 @@ namespace eular {
         _vectorField.swap();
 //        bridgeOut(commandBuffer);
 
+    }
+
+    void FluidSolver::quantityStep(VkCommandBuffer commandBuffer) {
+        for(auto& quantity : _quantities) {
+            quantityStep(commandBuffer, quantity);
+        }
+    }
+
+    void FluidSolver::quantityStep(VkCommandBuffer commandBuffer, Quantity& quantity) {
+        clearSources(commandBuffer, quantity);
+        updateSources(commandBuffer, quantity);
+        addSource(commandBuffer, quantity);
+        diffuseQuantity(commandBuffer, quantity);
+        advectQuantity(commandBuffer, quantity);
+        postAdvection(commandBuffer, quantity);
     }
 
     void FluidSolver::advect(VkCommandBuffer commandBuffer, Field& field) {
@@ -759,11 +794,24 @@ namespace eular {
     void FluidSolver::addForcesToVectorField(VkCommandBuffer commandBuffer, ForceField &sourceField) {
         forceConstants.vector_field_id = glm::vec4(_vectorField.u.in, _vectorField.v.in, _vectorField.u.out, _vectorField.v.out);
         forceConstants.force_field_id = sourceField.in;
+
+        static std::array<VkDescriptorSet, 8> sets;
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _bindlessDescriptor->descriptorSet;
+        sets[2] = _vectorField.u.textureDescriptorSets[in];
+        sets[3] = _vectorField.v.textureDescriptorSets[in];
+        sets[4] = sourceField.textureDescriptorSets[in];
+        sets[5] = _vectorField.u.imageDescriptorSets[out];
+        sets[6] = _vectorField.v.imageDescriptorSets[out];
+        sets[7] = _valueSamplerDescriptorSet;
+
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("apply_force"));
-        bindDescriptorSet(commandBuffer, layout("apply_force"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("apply_force"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdPushConstants(commandBuffer, layout("apply_force"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(forceConstants), &forceConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
+
+        _vectorField.swap();
     }
 
     void FluidSolver::computeVorticityConfinement(VkCommandBuffer commandBuffer) {
@@ -976,9 +1024,61 @@ namespace eular {
 
     void FluidSolver::runSimulation(VkCommandBuffer commandBuffer) {
         velocityStep(commandBuffer);
+        quantityStep(commandBuffer);
     }
 
     std::vector<VulkanDescriptorSetLayout> FluidSolver::forceFieldSetLayouts() {
         return  { _textureDescriptorSetLayout, _imageDescriptorSetLayout, _samplerDescriptorSetLayout };
     }
+
+    void FluidSolver::add(Quantity &quantity) {
+        auto writes = initializers::writeDescriptorSets<8>();
+        auto offset = createDescriptorSet(writes, 0, quantity.field);
+        createDescriptorSet(writes, offset, quantity.source);
+
+        device->updateDescriptorSets(writes);
+
+        _quantities.emplace_back(quantity);
+    }
+
+    void FluidSolver::clearSources(VkCommandBuffer commandBuffer, Quantity &quantity) {
+        clear(commandBuffer, quantity.source[in]);
+        clear(commandBuffer, quantity.source[out]);
+    }
+
+    void FluidSolver::updateSources(VkCommandBuffer commandBuffer, Quantity &quantity) {
+        quantity.update(commandBuffer, quantity.source, _groupCount);
+        addComputeBarrier(commandBuffer);
+    }
+
+    void FluidSolver::addSource(VkCommandBuffer commandBuffer, Quantity &quantity) {
+        static std::array<VkDescriptorSet, 6> sets;
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _bindlessDescriptor->descriptorSet;
+        sets[2] = quantity.source.textureDescriptorSets[in];
+        sets[3] = quantity.field.textureDescriptorSets[in];
+        sets[4] = quantity.field.imageDescriptorSets[out];
+        sets[5] = _valueSamplerDescriptorSet;
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add_sources"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add_sources"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer);
+    }
+
+    void FluidSolver::diffuseQuantity(VkCommandBuffer commandBuffer, Quantity &quantity) {
+        linearSolverConstants.is_vector_field = false;
+        diffuse(commandBuffer, quantity.field, quantity.diffuseRate);
+    }
+
+    void FluidSolver::advectQuantity(VkCommandBuffer commandBuffer, Quantity &quantity) {
+        advect(commandBuffer, quantity.field);
+        quantity.field.swap();
+    }
+
+    void FluidSolver::postAdvection(VkCommandBuffer commandBuffer, Quantity &quantity) {
+        quantity.postAdvect(commandBuffer, quantity.field, _groupCount);
+        addComputeBarrier(commandBuffer);
+    }
+
 }

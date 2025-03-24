@@ -3,20 +3,42 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
+layout(local_size_x = 32, local_size_y = 32) in;
+
 #include "common_new.glsl"
+
+layout(set = 2, binding = 0) uniform texture2D vector_field_u_in;
+layout(set = 3, binding = 0) uniform texture2D vector_field_v_in;
+layout(set = 4, binding = 0) uniform texture2D force_field_in;
+
+layout(set = 5, binding = 0) uniform writeonly image2D vector_field_u_out;
+layout(set = 6, binding = 0) uniform writeonly image2D vector_field_v_out;
+layout(set = 7, binding = 0) uniform sampler aSampler;
 
 layout(push_constant) uniform Constants {
     uvec4 vector_field_id;
     uint force_field_id;
 };
 
-layout(local_size_x = 32, local_size_y = 32) in;
 
+vec2 vector_field(vec2 uv) {
+    vec2 u;
+    u.x = texture(sampler2D(vector_field_u_in, aSampler), uv).x;
+    u.y = texture(sampler2D(vector_field_v_in, aSampler), uv).x;
+
+    return u;
+}
+
+vec2 force_field(vec2 uv) {
+    return texture(sampler2D(force_field_in, aSampler), uv).xy;
+}
 
 void main() {
     if(outOfBounds()) return;
 
     vec2 xy = get_uv();
-    vec2 u = vectorField(xy, vector_field_id.xy) + force(xy, force_field_id) * dt;
-    updateVectorField(u, vector_field_id.xy);
+    vec2 u = vector_field(xy) + force_field(xy) * dt;
+
+    imageStore(vector_field_u_out, gid, vec4(u.x));
+    imageStore(vector_field_v_out, gid, vec4(u.y));
 }
