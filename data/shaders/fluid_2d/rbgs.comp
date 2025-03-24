@@ -14,9 +14,6 @@ layout(set = 3, binding = 2) uniform writeonly image2D unknow_image;
 layout(push_constant, scalar) uniform Constants {
     float alpha;
     float rBeta;
-    uint solution_in;
-    uint unknown_in;
-    uint unknown_out;
     uint is_vector_field;
     uint pass;
 };

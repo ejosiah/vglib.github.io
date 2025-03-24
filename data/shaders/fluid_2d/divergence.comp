@@ -11,12 +11,6 @@ layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
 layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
 layout(set = 3, binding = 2) uniform writeonly image2D divergence_field;
 
-layout(push_constant) uniform Constants {
-    uvec4 vector_field_id;
-    uint divergence_field_id;
-    uint pressure_field_id;
-};
-
 vec2 F(vec2 xy) {
     vec2 u;
     u.x = texture(vector_field_u, xy).x;

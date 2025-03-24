@@ -14,12 +14,6 @@ layout(set = 3, binding = 0) uniform sampler2D force_field_in;
 layout(set = 4, binding = 2) uniform writeonly image2D vector_field_u_out;
 layout(set = 5, binding = 2) uniform writeonly image2D vector_field_v_out;
 
-layout(push_constant) uniform Constants {
-    uvec4 vector_field_id;
-    uint force_field_id;
-};
-
-
 vec2 vector_field(vec2 uv) {
     vec2 u;
     u.x = texture(vector_field_u_in, uv).x;

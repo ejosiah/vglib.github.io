@@ -205,30 +205,10 @@ namespace eular {
         struct {
             float alpha{};
             float rBeta{};
-            uint solution_in{~0u};
-            uint unknown_in{~0u};
-            uint unknown_out{~0u};
             uint is_vector_field{};
             uint pass{0};
         } linearSolverConstants;
 
-        struct {
-            glm::uvec2 vector_field_id{~0u};
-            uint quantity_in{~0u};
-            uint quantity_out{~0u};
-            uint sampler_id{0};
-        } advectConstants;
-
-        struct {
-            glm::uvec4 vector_field_id{~0u};
-            uint divergence_field_id{~0u};
-            uint pressure_field_id{~0u};
-        } projectConstants;
-
-        struct {
-            glm::uvec4 vector_field_id;
-            uint force_field_id;
-        } forceConstants{};
 
         glm::uvec3 _groupCount{1};
         VulkanDescriptorSetLayout uniformsSetLayout;
@@ -240,10 +220,6 @@ namespace eular {
         VkDescriptorSet _valueSamplerDescriptorSet{};
         VkDescriptorSet _linearSamplerDescriptorSet{};
 
-        struct {
-            glm::uvec2 vector_field_id{~0u};
-            uint32_t dst_vector_field{~0u};
-        } brideConstants;
 
         static constexpr uint32_t in = 0;
         static constexpr uint32_t out = 1;

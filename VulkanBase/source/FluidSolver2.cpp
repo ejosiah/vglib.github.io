@@ -546,7 +546,6 @@ namespace eular {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
                     }
-
                 },
                 {
                     .name = "apply_force",
@@ -554,18 +553,15 @@ namespace eular {
                     .layouts =  {
                             &uniformsSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
-                    },
-                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(forceConstants) } }
-
+                    }
                 },
                 {
                         .name = "add_sources",
                         .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
                         .layouts =  {
-                                &uniformsSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                                &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                                 &_fieldDescriptorSetLayout
-                        },
-                        .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
+                        }
                 },
                 {
                     .name = "jacobi",
@@ -590,8 +586,7 @@ namespace eular {
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout
-                     },
-                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
+                     }
                 },
                 {
                     .name = "divergence_free_field",
@@ -599,8 +594,7 @@ namespace eular {
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
-                      },
-                    .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants) } }
+                      }
                 }
         };
     }
@@ -738,7 +732,6 @@ namespace eular {
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("apply_force"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("apply_force"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdPushConstants(commandBuffer, layout("apply_force"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(forceConstants), &forceConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
 
@@ -840,7 +833,6 @@ namespace eular {
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdPushConstants(commandBuffer, layout("divergence"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants), &projectConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
     }
@@ -871,7 +863,6 @@ namespace eular {
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence_free_field"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence_free_field"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdPushConstants(commandBuffer, layout("divergence_free_field"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(projectConstants), &projectConstants);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
     }
