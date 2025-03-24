@@ -290,14 +290,14 @@ namespace eular {
         writes[writeOffset].dstBinding = 0;
         writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[writeOffset].descriptorCount = 1;
-        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[0].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
         ++writeOffset;
 
         writes[writeOffset].dstSet = field.descriptorSet[0];
         writes[writeOffset].dstBinding = 1;
         writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         writes[writeOffset].descriptorCount = 1;
-        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[0].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
         ++writeOffset;
 
         writes[writeOffset].dstSet = field.descriptorSet[0];
@@ -325,7 +325,7 @@ namespace eular {
         writes[writeOffset].dstBinding = 2;
         writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         writes[writeOffset].descriptorCount = 1;
-        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[0].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo {VK_NULL_HANDLE, field[1].imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
         ++writeOffset;
 
         return writeOffset;
@@ -844,11 +844,11 @@ namespace eular {
 
 
     void FluidSolver::applyExternalForces(VkCommandBuffer commandBuffer) {
-        static std::array<VkDescriptorSet, 3> sets;
-        sets[2] = _valueSamplerDescriptorSet;
+        static std::array<VkDescriptorSet, 2> sets;
+//        sets[2] = _valueSamplerDescriptorSet;
         for(const auto& externalForce : _externalForces){
-            sets[0] = _forceField.textureDescriptorSets[in];
-            sets[1] = _forceField.imageDescriptorSets[out];
+            sets[0] = _forceField.descriptorSet[in];
+            sets[1] = _forceField.descriptorSet[out];
             externalForce(commandBuffer, sets, _groupCount);
             addComputeBarrier(commandBuffer);
             _forceField.swap();
@@ -1092,6 +1092,10 @@ namespace eular {
     }
 
     std::vector<VulkanDescriptorSetLayout> FluidSolver::forceFieldSetLayouts() {
+        return  { _fieldDescriptorSetLayout, _fieldDescriptorSetLayout };
+    }
+
+    std::vector<VulkanDescriptorSetLayout> FluidSolver::sourceFieldSetLayouts() {
         return  { _textureDescriptorSetLayout, _imageDescriptorSetLayout, _samplerDescriptorSetLayout };
     }
 
@@ -1128,6 +1132,7 @@ namespace eular {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add_sources"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);
+        quantity.field.swap();
     }
 
     void FluidSolver::diffuseQuantity(VkCommandBuffer commandBuffer, Quantity &quantity) {

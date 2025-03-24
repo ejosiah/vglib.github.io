@@ -281,5 +281,6 @@ namespace eular {
         LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::Jacobi};
 
         std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
+        std::vector<VulkanDescriptorSetLayout> sourceFieldSetLayouts();
     };
 }
