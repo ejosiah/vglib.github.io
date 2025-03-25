@@ -1,0 +1,56 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
+layout(set = 3, binding = 1) uniform texture2D quantity;
+layout(set = 4, binding = 2) uniform writeonly image2D quantity_out;
+layout(set = 5, binding = 0) uniform sampler aSampler;
+
+vec2 loadVectorField(vec2 uv) {
+    vec2 u;
+    u.x = texture(vector_field_u, uv).x;
+    u.y = texture(vector_field_v, uv).x;
+
+    return u;
+}
+
+
+vec4 getQuantity(vec2 xy) {
+    return texture(sampler2D(quantity, aSampler), xy);
+}
+
+void updateQuantity(vec4 q) {
+    imageStore(quantity_out, gid, q);
+}
+
+void main() {
+    if(outOfBounds()) return;
+
+    vec2 uv = get_uv();
+    vec2 u = loadVectorField(uv);
+
+    vec2 p = st(uv - dt * u)/(dx + dy);
+    vec2 p0 = floor(p - 0.5) + 0.5;
+    vec2 f = p - p0;
+    vec2 t = bool(use_hermite) ? f * f * (3 - 2 * f) : f;
+    p0  = p0 * (dx + dy);
+    vec2 p1 = p0 + dx;
+    vec2 p2 = p0 + dy;
+    vec2 p3 = p1 + dy;
+
+    vec4 q0 = texture(sampler2D(quantity, aSampler), p0);
+    vec4 q1 = texture(sampler2D(quantity, aSampler), p1);
+    vec4 q2 = texture(sampler2D(quantity, aSampler), p2);
+    vec4 q3 = texture(sampler2D(quantity, aSampler), p3);
+
+    vec4 q = mix(mix(q0, q1, t.x), mix(q2, q3, t.x), t.y);
+
+    updateQuantity(q);
+}

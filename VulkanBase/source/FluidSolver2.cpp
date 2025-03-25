@@ -185,7 +185,7 @@ namespace eular {
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
-        auto writes = initializers::writeDescriptorSets<33>();
+        auto writes = initializers::writeDescriptorSets<39>();
 
         auto writeOffset = 0u;
 
@@ -216,6 +216,7 @@ namespace eular {
         writeOffset = createDescriptorSet(writes, writeOffset, _divergenceField);
         writeOffset = createDescriptorSet(writes, writeOffset, _pressureField);
         writeOffset = createDescriptorSet(writes, writeOffset, _forceField);
+        writeOffset = createDescriptorSet(writes, writeOffset, _vorticityField);
 
         device->updateDescriptorSets(writes);
 
@@ -313,6 +314,12 @@ namespace eular {
 
             barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 
+            barrier.image = _vectorField.u[0].image;
+            barriers.push_back(barrier);
+
+            barrier.image = _vectorField.v[0].image;
+            barriers.push_back(barrier);
+
             barrier.image = _vectorField.u[1].image;
             barriers.push_back(barrier);
 
@@ -340,7 +347,7 @@ namespace eular {
         });
     }
 
-    void FluidSolver::set(VectorFieldSource2D vectorField) {
+    FluidSolver& FluidSolver::set(VectorFieldSource2D vectorField) {
         auto size = size_t(_gridSize.x * _gridSize.y);
 
         std::vector<float> uBuffer;
@@ -364,8 +371,8 @@ namespace eular {
 
         VkImageMemoryBarrier2 barrier{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_NONE,
-                .srcAccessMask = VK_ACCESS_NONE,
+                .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
                 .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -428,10 +435,12 @@ namespace eular {
             vkCmdPipelineBarrier2(commandBuffer, &dInfo);
 
         });
+
+        return *this;
     }
 
-    
-    void FluidSolver::set(VectorFieldSource3D vectorField) {
+
+    FluidSolver& FluidSolver::set(VectorFieldSource3D vectorField) {
         auto size = size_t(_gridSize.x * _gridSize.y * _gridSize.z);
 
         std::vector<float> uBuffer;
@@ -534,6 +543,8 @@ namespace eular {
             vkCmdPipelineBarrier2(commandBuffer, &dInfo);
 
         });
+
+        return *this;
     }
 
     
@@ -595,7 +606,24 @@ namespace eular {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                       }
-                }
+                },
+                {
+                    .name = "vorticity",
+                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity.comp.spv)",
+                    .layouts =  {
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout
+                      }
+                },
+                {
+                    .name = "vorticity_force",
+                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity_force.comp.spv)",
+                    .layouts =  {
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout
+                      },
+                      .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float) } }
+                },
         };
     }
 
@@ -670,9 +698,7 @@ namespace eular {
     void FluidSolver::advectVectorField(VkCommandBuffer commandBuffer) {
         advect(commandBuffer, _vectorField.u);
         advect(commandBuffer, _vectorField.v);
-
         _vectorField.swap();
-//        bridgeOut(commandBuffer);
 
     }
 
@@ -711,7 +737,6 @@ namespace eular {
 
     void FluidSolver::applyExternalForces(VkCommandBuffer commandBuffer) {
         static std::array<VkDescriptorSet, 2> sets;
-//        sets[2] = _valueSamplerDescriptorSet;
         for(const auto& externalForce : _externalForces){
             sets[0] = _forceField.descriptorSet[in];
             sets[1] = _forceField.descriptorSet[out];
@@ -739,11 +764,14 @@ namespace eular {
     }
 
     void FluidSolver::computeVorticityConfinement(VkCommandBuffer commandBuffer) {
-
+        if(!options.vorticity) return;
+        computeVorticity(commandBuffer);
+        applyVorticity(commandBuffer);
     }
 
-    void FluidSolver::add(ExternalForce &&force) {
+    FluidSolver& FluidSolver::add(ExternalForce &&force) {
         _externalForces.push_back(force);
+        return *this;
     }
 
     void FluidSolver::jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown) {
@@ -867,9 +895,10 @@ namespace eular {
         addComputeBarrier(commandBuffer);
     }
 
-    void FluidSolver::dt(float value) {
+    FluidSolver& FluidSolver::dt(float value) {
         _timeStep = value;
         globalConstants.cpu->dt = value;
+        return *this;
     }
 
     float FluidSolver::dt() const {
@@ -879,6 +908,7 @@ namespace eular {
     void FluidSolver::runSimulation(VkCommandBuffer commandBuffer) {
         velocityStep(commandBuffer);
         quantityStep(commandBuffer);
+        _elapsedTime += _timeStep;
     }
 
     std::vector<VulkanDescriptorSetLayout> FluidSolver::forceFieldSetLayouts() {
@@ -936,6 +966,67 @@ namespace eular {
     void FluidSolver::postAdvection(VkCommandBuffer commandBuffer, Quantity &quantity) {
         quantity.postAdvect(commandBuffer, quantity.field, _groupCount);
         addComputeBarrier(commandBuffer);
+    }
+
+    void FluidSolver::computeVorticity(VkCommandBuffer commandBuffer) {
+        static std::array<VkDescriptorSet, 4> sets;
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _vectorField.u.descriptorSet[in];
+        sets[2] = _vectorField.v.descriptorSet[in];
+        sets[3] = _vorticityField.descriptorSet[in];
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("vorticity"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("vorticity"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer);
+    }
+
+    void FluidSolver::applyVorticity(VkCommandBuffer commandBuffer) {
+        static std::array<VkDescriptorSet, 4> sets;
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _vorticityField.descriptorSet[in];
+        sets[2] = _forceField.descriptorSet[in];
+        sets[3] = _forceField.descriptorSet[out];
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("vorticity_force"));
+        vkCmdPushConstants(commandBuffer, layout("vorticity_force"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &options.vorticityConfinementScale);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("vorticity_force"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer);
+        _forceField.swap();
+    }
+
+    FluidSolver &FluidSolver::poissonIterations(int value) {
+        options.poissonIterations = value;
+        return *this;
+    }
+
+    FluidSolver &FluidSolver::viscosity(float value) {
+        options.viscosity = value;
+        return *this;
+    }
+
+    FluidSolver &FluidSolver::ensureBoundaryCondition(bool flag) {
+        globalConstants.cpu->ensure_boundary_condition = static_cast<int>(flag);
+        return *this;
+    }
+
+    FluidSolver &FluidSolver::poissonEquationSolver(LinearSolverStrategy strategy) {
+        linearSolverStrategy = strategy;
+        return *this;
+    }
+
+    FluidSolver &FluidSolver::enableVorticity(bool flag) {
+        options.vorticity = true;
+        return *this;
+    }
+
+    VulkanDescriptorSetLayout FluidSolver::fieldDescriptorSetLayout() const {
+        return _fieldDescriptorSetLayout;
+    }
+
+    float FluidSolver::elapsedTime() const {
+        return _elapsedTime;
     }
 
 }

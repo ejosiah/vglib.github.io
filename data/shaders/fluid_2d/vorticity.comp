@@ -1,0 +1,32 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
+layout(set = 3, binding = 2) uniform writeonly image2D vorticity_field;
+
+vec2 u(vec2 coord) {
+    vec2 u;
+    u.x = texture(vector_field_u, st(coord)).x;
+    u.y = texture(vector_field_v, st(coord)).x;
+
+    return applyBoundaryCondition(coord, u);
+}
+
+
+void main(){
+    vec2 uv = get_uv();
+
+    float dudx = (u(uv + dx).x - u(uv - dx).x)/(2*dx.x);
+    float dudy = (u(uv + dy).y - u(uv - dy).y)/(2*dy.y);
+
+    float vorticity = dudy - dudx;
+
+    imageStore(vorticity_field, gid, vec4(vorticity));
+}

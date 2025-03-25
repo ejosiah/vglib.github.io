@@ -141,7 +141,7 @@ public:
         VulkanPipeline pipeline;
         VulkanPipelineLayout layout;
         struct {
-            float vorticityConfinementScale{0};
+            float vorticityConfinementScale{1};
         } constants;
     } vorticityForce;
 

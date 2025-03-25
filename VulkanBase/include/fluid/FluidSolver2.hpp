@@ -69,25 +69,33 @@ namespace eular {
 
         void initFields();
 
-        void set(VectorFieldSource2D vectorField);
+        FluidSolver& set(VectorFieldSource2D vectorField);
 
-        void set(VectorFieldSource3D vectorField);
+        FluidSolver& set(VectorFieldSource3D vectorField);
 
-        void add(ExternalForce&& force);
+        FluidSolver& add(ExternalForce&& force);
 
         void runSimulation(VkCommandBuffer commandBuffer);
 
         void add(Quantity &quantity);
 
-        void dt(float value);
+        FluidSolver& dt(float value);
 
         float dt() const;
 
-        void poissonIterations(int value);
+        float elapsedTime() const;
 
-        void viscosity(float value);
+        FluidSolver& poissonIterations(int value);
 
-        void ensureBoundaryCondition(bool flag);
+        FluidSolver& viscosity(float value);
+
+        FluidSolver& ensureBoundaryCondition(bool flag);
+
+        FluidSolver& enableVorticity(bool flag);
+
+        FluidSolver& poissonEquationSolver(LinearSolverStrategy strategy);
+
+        VulkanDescriptorSetLayout fieldDescriptorSetLayout() const;
 
         std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
         std::vector<VulkanDescriptorSetLayout> sourceFieldSetLayouts();
@@ -134,6 +142,10 @@ namespace eular {
         void addForcesToVectorField(VkCommandBuffer commandBuffer, ForceField& sourceField);
 
         void computeVorticityConfinement(VkCommandBuffer commandBuffer);
+
+        void computeVorticity(VkCommandBuffer commandBuffer);
+
+        void applyVorticity(VkCommandBuffer commandBuffer);
 
         void diffuseVelocityField(VkCommandBuffer commandBuffer);
 
@@ -185,8 +197,9 @@ namespace eular {
             glm::ivec2 grid_size{0};
             glm::vec2 dx{1};
             glm::vec2 dy{1};
-            float dt{};
+            float dt{1.0f / 120.f};
             uint32_t ensure_boundary_condition{1};
+            uint32_t use_hermite{0};
         };
 
         struct {
@@ -197,9 +210,10 @@ namespace eular {
         struct {
             bool advectVField = true;
             bool project = true;
-            bool vorticity = false;
+            bool vorticity = true;
             int poissonIterations = 30;
             float viscosity = MIN_FLOAT;
+            float vorticityConfinementScale{10};
         } options;
 
         struct {
@@ -219,12 +233,13 @@ namespace eular {
 
         VkDescriptorSet _valueSamplerDescriptorSet{};
         VkDescriptorSet _linearSamplerDescriptorSet{};
-
+        VkDescriptorSet _samplerDescriptor{};
 
         static constexpr uint32_t in = 0;
         static constexpr uint32_t out = 1;
 
         std::vector<ExternalForce> _externalForces;
-        LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::RBGS};
+        float _elapsedTime{};
+        LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::Jacobi};
     };
 }

@@ -1,0 +1,44 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(set = 1, binding = 0) uniform sampler2D vorticity_field;
+layout(set = 2, binding = 0) uniform sampler2D force_field;
+layout(set = 3, binding = 2) uniform writeonly image2D force_field_out;
+
+layout(push_constant) uniform Constants{
+    float csCale;
+};
+
+float vort(vec2 coord) {
+    return texture(vorticity_field, st(coord)).x;
+}
+
+vec2 accumForce(vec2 coord){
+    return texture(force_field, st(coord)).xy;
+}
+
+void main(){
+    vec2 uv = get_uv();
+
+    float dudx = (abs(vort(uv + dx)) - abs(vort(uv - dx)))/(2*dx.x);
+    float dudy = (abs(vort(uv + dy)) - abs(vort(uv - dy)))/(2*dy.y);
+
+    vec2 n = vec2(dudx, dudy);
+
+    // safe normalize
+    float epsilon = 2.4414e-4;
+    float magSqr = max(epsilon, dot(n, n));
+    n = n * inversesqrt(magSqr);
+
+    float vc = vort(uv);
+    vec2 eps = (dx + dy) * csCale;
+    vec2 force = eps * vc * n * vec2(1, -1) + accumForce(uv);
+
+    imageStore(force_field_out, gid, vec4(force, 0, 0));
+}
