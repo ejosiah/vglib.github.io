@@ -19,7 +19,7 @@ vec2 F(vec2 xy) {
 }
 
 vec2 u(vec2 coord) {
-    return applyBoundaryCondition(coord, F(st(coord)));
+    return applyBoundaryCondition(coord, F(coord));
 }
 
 void main() {

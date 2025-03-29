@@ -16,11 +16,11 @@ layout(push_constant) uniform Constants{
 };
 
 float vort(vec2 coord) {
-    return texture(vorticity_field, st(coord)).x;
+    return texture(vorticity_field, coord).x;
 }
 
 vec2 accumForce(vec2 coord){
-    return texture(force_field, st(coord)).xy;
+    return texture(force_field, coord).xy;
 }
 
 void main(){

@@ -6,7 +6,6 @@
 #include "VulkanRAII.h"
 #include "filemanager.hpp"
 #include "glm/glm.hpp"
-#include "fluid/FluidSolver2.hpp"
 
 class FluidSolver2D : public FluidSolver {
 public:
@@ -57,7 +56,7 @@ public:
 
     float elapsedTime();
 
-protected:
+public:
     void quantityStep(VkCommandBuffer commandBuffer);
 
     void quantityStep(VkCommandBuffer commandBuffer, Quantity& quantity);
@@ -118,6 +117,6 @@ private:
         bool showArrows = false;
         bool vorticity = false;
         int poissonIterations = 30;
-        float viscosity = MIN_FLOAT;
+        float viscosity = 0;
     } options;
 };

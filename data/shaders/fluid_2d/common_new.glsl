@@ -1,13 +1,13 @@
+#extension GL_EXT_scalar_block_layout : enable
+
 layout(set = 0, binding = 0, scalar) uniform Globals{
     ivec2 grid_size;
     vec2 dx;
     vec2 dy;
     float dt;
-    uint ensure_boundary_condition;
-    uint use_hermite;
+    int ensure_boundary_condition;
+    int use_hermite;
 };
-
-#define st(p) ((ensure_boundary_condition == 0) ? p : fract(p))
 
 ivec2 gid = ivec2(gl_GlobalInvocationID);
 

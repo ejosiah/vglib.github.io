@@ -199,7 +199,7 @@ namespace eular {
             glm::vec2 dy{1};
             float dt{1.0f / 120.f};
             uint32_t ensure_boundary_condition{1};
-            uint32_t use_hermite{0};
+            uint32_t use_hermite{1};
         };
 
         struct {
@@ -210,10 +210,10 @@ namespace eular {
         struct {
             bool advectVField = true;
             bool project = true;
-            bool vorticity = true;
+            bool vorticity = false;
             int poissonIterations = 30;
-            float viscosity = MIN_FLOAT;
-            float vorticityConfinementScale{10};
+            float viscosity = 0;
+            float vorticityConfinementScale{1};
         } options;
 
         struct {

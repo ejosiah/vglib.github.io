@@ -8,7 +8,7 @@ layout(local_size_x = 32, local_size_y = 32) in;
 #include "common_new.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D solution;
-layout(set = 2, binding = 0) uniform sampler2D unknown_tex;
+layout(set = 2, binding = 0) uniform sampler2D unknown;
 layout(set = 3, binding = 2) uniform writeonly image2D unknow_image;
 
 layout(push_constant, scalar) uniform Constants {
@@ -19,7 +19,7 @@ layout(push_constant, scalar) uniform Constants {
 };
 
 vec4 b(vec2 coord){
-    vec4 _b = texture(solution, st(coord));
+    vec4 _b = texture(solution, coord);
     if(is_vector_field == 1){
         return applyBoundaryCondition(coord, _b);
     }
@@ -27,21 +27,18 @@ vec4 b(vec2 coord){
 }
 
 vec4 x0(vec2 coord){
-    vec4 _x0 = texture(unknown_tex, st(coord));
+    vec4 _x0 = texture(unknown, coord);
     if(is_vector_field == 1){
         return applyBoundaryCondition(coord, _x0);
     }
     return _x0;
 }
-
 void main() {
-    if(outOfBounds()) return;
-
-    float dx2 = dx.x * dx.x;
-    float dy2 = dy.y * dy.y;
     vec2 uv = get_uv();
 
-    vec4 x =  ((x0(uv + dx) + x0(uv - dx)) * dy2 + (x0(uv + dy) + x0(uv - dy)) * dx2 + alpha * b(uv)) * rBeta;
+    float dxdx = dx.x * dx.x;
+    float dydy = dy.y * dy.y;
+    vec4 x = ((x0(uv + dx) + x0(uv - dx)) * dydy + (x0(uv + dy) + x0(uv - dy)) * dxdx + alpha * b(uv)) * rBeta;
 
     imageStore(unknow_image, gid, x);
 }

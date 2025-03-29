@@ -36,7 +36,7 @@ void main() {
     vec2 uv = get_uv();
     vec2 u = loadVectorField(uv);
 
-    vec2 p = st(uv - dt * u);
+    vec2 p = uv - dt * u;
     vec4 q = getQuantity(p);
 
     updateQuantity(q);

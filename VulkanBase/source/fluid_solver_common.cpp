@@ -155,7 +155,7 @@ void FluidSolver::createPipelines() {
     divergence.pipeline =
             builder
                     .shaderStage()
-                    .fragmentShader(data_shaders_fluid_2d_divergence_frag)
+                    .fragmentShader(R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.frag.spv)")
                     .layout().clear()
                     .addDescriptorSetLayouts( { globalConstantsSet, textureSetLayout})
                     .renderPass(renderPass)

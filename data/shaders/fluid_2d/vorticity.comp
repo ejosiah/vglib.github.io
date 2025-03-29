@@ -13,8 +13,8 @@ layout(set = 3, binding = 2) uniform writeonly image2D vorticity_field;
 
 vec2 u(vec2 coord) {
     vec2 u;
-    u.x = texture(vector_field_u, st(coord)).x;
-    u.y = texture(vector_field_v, st(coord)).x;
+    u.x = texture(vector_field_u, coord).x;
+    u.y = texture(vector_field_v, coord).x;
 
     return applyBoundaryCondition(coord, u);
 }

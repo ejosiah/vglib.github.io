@@ -13,22 +13,24 @@ namespace eular {
 
     
     void FluidSolver::init() {
+        initGlobalConstants();
         createSamplers();
         initFields();
-        initGlobalConstants();
         createDescriptorSetLayouts();
         updateDescriptorSets();
         createPipelines();
     }
 
     void FluidSolver::createSamplers() {
+        VkSamplerAddressMode addressMode = globalConstants.cpu->ensure_boundary_condition == 1 ?
+                                           VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE :VK_SAMPLER_ADDRESS_MODE_REPEAT;
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerInfo.magFilter = VK_FILTER_NEAREST;
         samplerInfo.minFilter = VK_FILTER_NEAREST;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeU = addressMode;
+        samplerInfo.addressModeV = addressMode;
+        samplerInfo.addressModeW = addressMode;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST ;
 
@@ -76,23 +78,24 @@ namespace eular {
         _divergenceField.name = "divergence_field";
         _pressureField.name = "pressure_field";
 
-        textures::createNoTransition(*device, _vectorField.u[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-        textures::createNoTransition(*device, _vectorField.u[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-        textures::createNoTransition(*device, _vectorField.v[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-        textures::createNoTransition(*device, _vectorField.v[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 
-        textures::createNoTransition(*device, _forceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-        textures::createNoTransition(*device, _forceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+        textures::createNoTransition(*device, _vectorField.u[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _vectorField.u[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _vectorField.v[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _vectorField.v[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+
+        textures::createNoTransition(*device, _forceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _forceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 
-        textures::createNoTransition(*device, _vorticityField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-        textures::createNoTransition(*device, _vorticityField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+        textures::createNoTransition(*device, _vorticityField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _vorticityField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
-        textures::createNoTransition(*device, _divergenceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-        textures::createNoTransition(*device, _divergenceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+        textures::createNoTransition(*device, _divergenceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _divergenceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
-        textures::createNoTransition(*device, _pressureField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-        textures::createNoTransition(*device, _pressureField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+        textures::createNoTransition(*device, _pressureField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _pressureField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 0), _vectorField.u[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 1), _vectorField.u[1].image.image);
@@ -552,7 +555,7 @@ namespace eular {
         return {
                 {
                     .name = "advect",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
+                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect_manual.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
@@ -634,7 +637,6 @@ namespace eular {
         clearForces(commandBuffer);
         applyForces(commandBuffer);
         diffuseVelocityField(commandBuffer);
-
         advectVectorField(commandBuffer);
         project(commandBuffer);
     }
@@ -676,7 +678,7 @@ namespace eular {
     }
 
     void FluidSolver::diffuse(VkCommandBuffer commandBuffer, Field& field, float rate) {
-        if(rate == MIN_FLOAT) return;
+        if(rate <= 0) return;
         linearSolverConstants.alpha = (_delta.x * _delta.x * _delta.x * _delta.y)/(_timeStep * rate);
         linearSolverConstants.rBeta = 1.0f/((2.0f * glm::dot(_delta, _delta)) + linearSolverConstants.alpha);
         if(linearSolverStrategy == LinearSolverStrategy::Jacobi) {
@@ -868,7 +870,7 @@ namespace eular {
     void FluidSolver::solvePressure(VkCommandBuffer commandBuffer) {
         linearSolverConstants.alpha = -_delta.x * _delta.x * _delta.y * _delta.y;
         linearSolverConstants.rBeta = (1.0f/(2.0f * glm::dot(_delta, _delta)));
-        linearSolverConstants.is_vector_field = true;
+        linearSolverConstants.is_vector_field = false;
 
         if(linearSolverStrategy == LinearSolverStrategy::Jacobi) {
             jacobiSolver(commandBuffer, _divergenceField, _pressureField);

@@ -19,7 +19,7 @@ layout(push_constant, scalar) uniform Constants {
 };
 
 vec4 b(vec2 coord){
-    vec4 _b = texture(solution, st(coord));
+    vec4 _b = texture(solution, coord);
     if(is_vector_field == 1){
         return applyBoundaryCondition(coord, _b);
     }
@@ -27,7 +27,7 @@ vec4 b(vec2 coord){
 }
 
 vec4 x0(vec2 coord){
-    vec4 _x0 = texture(unknown_tex, st(coord));
+    vec4 _x0 = texture(unknown_tex, coord);
     if(is_vector_field == 1){
         return applyBoundaryCondition(coord, _x0);
     }
@@ -38,7 +38,7 @@ void main() {
     if(outOfBounds()) return;
 
     if(pass == 0 && gid.x + gid.y % 2 == 1) return;
-    if(pass == 1 && gid.x + gid.y * 2 == 0) return;
+    if(pass == 1 && gid.x + gid.y % 2 == 0) return;
 
     float dx2 = dx.x * dx.x;
     float dy2 = dy.y * dy.y;

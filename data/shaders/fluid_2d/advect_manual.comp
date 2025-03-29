@@ -36,7 +36,7 @@ void main() {
     vec2 uv = get_uv();
     vec2 u = loadVectorField(uv);
 
-    vec2 p = st(uv - dt * u)/(dx + dy);
+    vec2 p = (uv - dt * u)/(dx + dy);
     vec2 p0 = floor(p - 0.5) + 0.5;
     vec2 f = p - p0;
     vec2 t = bool(use_hermite) ? f * f * (3 - 2 * f) : f;

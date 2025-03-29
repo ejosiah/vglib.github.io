@@ -252,6 +252,7 @@ void FluidSolver2D::computeDivergence(VkCommandBuffer commandBuffer) {
 }
 
 void FluidSolver2D::solvePressure(VkCommandBuffer commandBuffer) {
+    jacobi.constants.isVectorField = 0;
     auto alpha = -delta.x * delta.x * delta.y * delta.y;
     auto rBeta = (1.0f/(2.0f * glm::dot(delta, delta)));
     for(int i = 0; i < options.poissonIterations; i++){
@@ -293,7 +294,7 @@ void FluidSolver2D::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
 }
 
 void FluidSolver2D::diffuse(VkCommandBuffer commandBuffer, Field &field, float rate) {
-    if(rate <= MIN_FLOAT) return;
+    if(rate <= 0) return;
     diffuseHelper.texture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, DEFAULT_SUB_RANGE
             , VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT
             , VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
