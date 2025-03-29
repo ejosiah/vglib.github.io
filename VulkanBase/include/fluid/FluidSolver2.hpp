@@ -8,6 +8,8 @@
 
 namespace eular {
 
+    enum class TimeDirection { Forward, Backword };
+
     enum class LinearSolverStrategy  {
         Jacobi, RBGS
     };
@@ -131,7 +133,12 @@ namespace eular {
 
         void advectVectorField(VkCommandBuffer commandBuffer);
 
+        void macCormackAdvect(VkCommandBuffer commandBuffer, Field& field);
+
         void advect(VkCommandBuffer commandBuffer, Field& field);
+
+        void advect(VkCommandBuffer commandBuffer, VkDescriptorSet inDescriptor,
+                    VkDescriptorSet outDescriptor, TimeDirection timeDirection = TimeDirection::Forward);
 
         void clearForces(VkCommandBuffer commandBuffer);
 
@@ -177,8 +184,9 @@ namespace eular {
         VectorField _vectorField;
         DivergenceField _divergenceField;
         PressureField _pressureField;
-        Field _forceField;
-        Field _vorticityField;
+        ForceField _forceField;
+        VorticityField _vorticityField;
+        Field _macCormackData;
 
         VulkanDescriptorSetLayout _fieldDescriptorSetLayout;
         VulkanDescriptorSetLayout _imageDescriptorSetLayout;
@@ -199,7 +207,7 @@ namespace eular {
             glm::vec2 dy{1};
             float dt{1.0f / 120.f};
             uint32_t ensure_boundary_condition{1};
-            uint32_t use_hermite{1};
+            uint32_t use_hermite{0};
         };
 
         struct {
@@ -209,6 +217,7 @@ namespace eular {
 
         struct {
             bool advectVField = true;
+            bool macCormackAdvection = true;
             bool project = true;
             bool vorticity = false;
             int poissonIterations = 30;

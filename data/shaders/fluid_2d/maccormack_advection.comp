@@ -9,13 +9,10 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
 layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
-layout(set = 3, binding = 0) uniform sampler2D quantity;
-layout(set = 4, binding = 2) uniform writeonly image2D quantity_out;
-
-layout(push_constant) uniform Constants {
-    float time_sign;
-};
-
+layout(set = 3, binding = 0) uniform sampler2D ph1_n1_texture;
+layout(set = 4, binding = 0) uniform sampler2D ph1_n_texture;
+layout(set = 5, binding = 0) uniform sampler2D quantity;
+layout(set = 6, binding = 2) uniform writeonly image2D quantity_out;
 
 vec2 loadVectorField(vec2 uv) {
     vec2 u;
@@ -35,10 +32,9 @@ void main() {
     vec2 uv = get_uv();
     vec2 u = loadVectorField(uv);
 
-    vec2 p = (uv - time_sign * dt * u)/(dx + dy);
-    vec2 p0 = floor(p - 0.5) + 0.5;
-    vec2 f = p - p0;
-    vec2 t = bool(use_hermite) ? f * f * (3 - 2 * f) : f;
+    vec2 p = (uv -  dt * u);
+
+    vec2 p0 = floor(p/(dx + dy) - 0.5) + 0.5;
     p0  = p0 * (dx + dy);
     vec2 p1 = p0 + dx;
     vec2 p2 = p0 + dy;
@@ -49,7 +45,14 @@ void main() {
     vec4 q2 = texture(quantity, p2);
     vec4 q3 = texture(quantity, p3);
 
-    vec4 q = mix(mix(q0, q1, t.x), mix(q2, q3, t.x), t.y);
+    vec4 qMin = min(min(q0, q1), min(q2, q3));
+    vec4 qMax = max(max(q0, q1), max(q2, q3));
 
+    vec4 ph1_n1h = texture(ph1_n1_texture, uv);
+    vec4 ph1_nh = texture(ph1_n_texture, p);
+    vec4 ph1n = texture(quantity, uv);
+
+    vec4 q = (ph1_n1h + 0.5 * (ph1n - ph1_nh));
+    q = clamp(q, qMin, qMax);
     updateQuantity(q);
 }

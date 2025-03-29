@@ -77,6 +77,7 @@ namespace eular {
         _vorticityField.name = "vorticity_field";
         _divergenceField.name = "divergence_field";
         _pressureField.name = "pressure_field";
+        _macCormackData.name = "macCormack_intermediate_data";
 
 
         textures::createNoTransition(*device, _vectorField.u[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
@@ -97,6 +98,9 @@ namespace eular {
         textures::createNoTransition(*device, _pressureField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
         textures::createNoTransition(*device, _pressureField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
+        textures::createNoTransition(*device, _macCormackData[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _macCormackData[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 0), _vectorField.u[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 1), _vectorField.u[1].image.image);
 
@@ -114,6 +118,9 @@ namespace eular {
 
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _pressureField.name, 0), _pressureField[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _pressureField.name, 1), _pressureField[1].image.image);
+
+        device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _macCormackData.name, 0), _macCormackData[0].image.image);
+        device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _macCormackData.name, 1), _macCormackData[1].image.image);
 
         prepTextures();
     }
@@ -188,7 +195,7 @@ namespace eular {
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
-        auto writes = initializers::writeDescriptorSets<39>();
+        auto writes = initializers::writeDescriptorSets<45>();
 
         auto writeOffset = 0u;
 
@@ -220,6 +227,7 @@ namespace eular {
         writeOffset = createDescriptorSet(writes, writeOffset, _pressureField);
         writeOffset = createDescriptorSet(writes, writeOffset, _forceField);
         writeOffset = createDescriptorSet(writes, writeOffset, _vorticityField);
+        writeOffset = createDescriptorSet(writes, writeOffset, _macCormackData);
 
         device->updateDescriptorSets(writes);
 
@@ -314,7 +322,6 @@ namespace eular {
             barrier.image = _pressureField[0].image;
             barriers.push_back(barrier);
 
-
             barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 
             barrier.image = _vectorField.u[0].image;
@@ -338,6 +345,12 @@ namespace eular {
             barriers.push_back(barrier);
 
             barrier.image = _pressureField[1].image;
+            barriers.push_back(barrier);
+
+            barrier.image = _macCormackData[0].image;
+            barriers.push_back(barrier);
+
+            barrier.image = _macCormackData[1].image;
             barriers.push_back(barrier);
 
             VkDependencyInfo dInfo {
@@ -559,7 +572,8 @@ namespace eular {
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
-                    }
+                    },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float) } }
                 },
                 {
                     .name = "apply_force",
@@ -624,6 +638,16 @@ namespace eular {
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout
+                      },
+                      .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float) } }
+                },
+                {
+                    .name = "maccormack",
+                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\maccormack_advection.comp.spv)",
+                    .layouts =  {
+                            &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                       },
                       .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float) } }
                 },
@@ -719,18 +743,50 @@ namespace eular {
         postAdvection(commandBuffer, quantity);
     }
 
+    void FluidSolver::macCormackAdvect(VkCommandBuffer commandBuffer, Field& field) {
+        advect(commandBuffer, field.descriptorSet[in], _macCormackData.descriptorSet[in], TimeDirection::Forward);
+        advect(commandBuffer, _macCormackData.descriptorSet[in], _macCormackData.descriptorSet[out], TimeDirection::Backword);
+
+        auto& vf = _vectorField;
+        static std::array<VkDescriptorSet, 7> sets;
+
+        sets[0] = uniformDescriptorSet;
+        sets[1] = vf.u.descriptorSet[in];
+        sets[2] = vf.v.descriptorSet[in];
+        sets[3] = _macCormackData.descriptorSet[in];
+        sets[4] = _macCormackData.descriptorSet[out];
+        sets[5] = field.descriptorSet[in];
+        sets[6] = field.descriptorSet[out];
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("maccormack"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("maccormack"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer);
+    }
+
     void FluidSolver::advect(VkCommandBuffer commandBuffer, Field& field) {
+        if(options.macCormackAdvection){
+            macCormackAdvect(commandBuffer, field);
+        }else {
+            advect(commandBuffer, field.descriptorSet[in], field.descriptorSet[out]);
+        }
+    }
+
+    void FluidSolver::advect(VkCommandBuffer commandBuffer, VkDescriptorSet inDescriptor, VkDescriptorSet outDescriptor, TimeDirection timeDirection) {
+
         auto& vf = _vectorField;
         static std::array<VkDescriptorSet, 6> sets;
 
         sets[0] = uniformDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = field.descriptorSet[in];
-        sets[4] = field.descriptorSet[out];
+        sets[3] = inDescriptor;
+        sets[4] = outDescriptor;
         sets[5] = _linearSamplerDescriptorSet;
 
+        auto multiplier = timeDirection == TimeDirection::Forward ? 1.f : -1.f;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("advect"));
+        vkCmdPushConstants(commandBuffer, layout("advect"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &multiplier);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("advect"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer);

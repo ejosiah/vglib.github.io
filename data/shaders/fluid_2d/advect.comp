@@ -13,6 +13,10 @@ layout(set = 3, binding = 1) uniform texture2D quantity;
 layout(set = 4, binding = 2) uniform writeonly image2D quantity_out;
 layout(set = 5, binding = 0) uniform sampler aSampler;
 
+layout(push_constant) uniform Constants {
+    float time_sign;
+};
+
 vec2 loadVectorField(vec2 uv) {
     vec2 u;
     u.x = texture(vector_field_u, uv).x;
@@ -36,7 +40,7 @@ void main() {
     vec2 uv = get_uv();
     vec2 u = loadVectorField(uv);
 
-    vec2 p = uv - dt * u;
+    vec2 p = uv - time_sign * dt * u;
     vec4 q = getQuantity(p);
 
     updateQuantity(q);
