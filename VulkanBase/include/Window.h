@@ -8,12 +8,13 @@
 class Window {
 public:
     friend class Plugin;
-    Window(std::string_view title, int width, int height, bool fullscreen = false, int screen = 0)
+    Window(std::string_view title, int width, int height, bool fullscreen = false, bool enableResize = true, int screen = 0)
     : title(title)
     , width(width)
     , height(height)
     , fullscreen(fullscreen)
     , screen(screen)
+    , enableResize(enableResize)
     {}
 
     inline void addMouseClickListener(MouseClickListener&& listener){
@@ -138,6 +139,7 @@ protected:
     int prevWidth;
     int prevHeight;
     bool resized = false;
+    bool enableResize = true;
     bool fullscreen;
     mutable int screen = 0;
     GLFWwindow* window = nullptr;

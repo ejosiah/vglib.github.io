@@ -41,6 +41,8 @@ struct Settings{
      */
     bool vSync = false;
 
+    bool enableResize = true;
+
     /**
      * @brief surface format settings for swapchain
      */

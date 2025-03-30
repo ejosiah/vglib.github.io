@@ -57,6 +57,7 @@ void Window::initWindow() {
     if(!glfwVulkanSupported()){
         throw std::runtime_error("Vulkan Not supported");
     }
+    glfwWindowHint(GLFW_RESIZABLE , int(enableResize));
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     if(fullscreen){
