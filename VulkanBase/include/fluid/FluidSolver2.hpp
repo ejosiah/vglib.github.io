@@ -217,7 +217,7 @@ namespace eular {
 
         struct {
             bool advectVField = true;
-            bool macCormackAdvection = true;
+            bool macCormackAdvection = false;
             bool project = true;
             bool vorticity = false;
             int poissonIterations = 30;
@@ -242,7 +242,6 @@ namespace eular {
 
         VkDescriptorSet _valueSamplerDescriptorSet{};
         VkDescriptorSet _linearSamplerDescriptorSet{};
-        VkDescriptorSet _samplerDescriptor{};
 
         static constexpr uint32_t in = 0;
         static constexpr uint32_t out = 1;

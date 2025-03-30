@@ -69,14 +69,13 @@ void FluidSolver2D::runSimulation(VkCommandBuffer commandBuffer) {
 void FluidSolver2D::velocityStep(VkCommandBuffer commandBuffer) {
     if(!options.advectVField) return;
 
-    clearForces(commandBuffer);
-    applyForces(commandBuffer);
-    if(options.viscosity > MIN_FLOAT) {
+    advectVectorField(commandBuffer);
+    if(options.viscosity > 0) {
         jacobi.constants.isVectorField = 1;
         diffuse(commandBuffer, vectorField, options.viscosity);
-        project(commandBuffer);
     }
-    advectVectorField(commandBuffer);
+    clearForces(commandBuffer);
+    applyForces(commandBuffer);
     project(commandBuffer);
 }
 

@@ -568,7 +568,7 @@ namespace eular {
         return {
                 {
                     .name = "advect",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect_manual.comp.spv)",
+                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
@@ -658,10 +658,10 @@ namespace eular {
     void FluidSolver::velocityStep(VkCommandBuffer commandBuffer) {
         if(!options.advectVField) return;
 
+        advectVectorField(commandBuffer);
+        diffuseVelocityField(commandBuffer);
         clearForces(commandBuffer);
         applyForces(commandBuffer);
-        diffuseVelocityField(commandBuffer);
-        advectVectorField(commandBuffer);
         project(commandBuffer);
     }
 
@@ -694,7 +694,7 @@ namespace eular {
     }
 
     void FluidSolver::diffuseVelocityField(VkCommandBuffer commandBuffer) {
-        if(options.viscosity == MIN_FLOAT) return;
+        if(options.viscosity <= 0) return;
         linearSolverConstants.is_vector_field = true;
         diffuse(commandBuffer, _vectorField.u, options.viscosity);
         diffuse(commandBuffer, _vectorField.v, options.viscosity);
