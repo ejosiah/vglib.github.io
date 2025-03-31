@@ -337,6 +337,7 @@ namespace eular {
             barriers.push_back(barrier);
 
             barrier.image = _forceField[1].image;
+            barriers.push_back(barrier);
 
             barrier.image = _vorticityField[1].image;
             barriers.push_back(barrier);
@@ -1022,8 +1023,10 @@ namespace eular {
     }
 
     void FluidSolver::postAdvection(VkCommandBuffer commandBuffer, Quantity &quantity) {
-        quantity.postAdvect(commandBuffer, quantity.field, _groupCount);
-        addComputeBarrier(commandBuffer);
+        if(quantity.postAdvect(commandBuffer, quantity.field, _groupCount)) {
+            addComputeBarrier(commandBuffer);
+            quantity.field.swap();
+        }
     }
 
     void FluidSolver::computeVorticity(VkCommandBuffer commandBuffer) {
