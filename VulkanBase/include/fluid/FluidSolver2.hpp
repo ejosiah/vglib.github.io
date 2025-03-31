@@ -45,7 +45,7 @@ namespace eular {
         float diffuseRate{MIN_FLOAT};
 
         UpdateSource update = [](VkCommandBuffer, Field&, glm::uvec3){};
-        PostAdvect postAdvect = [](VkCommandBuffer, Field&, glm::uvec3) { return false; };
+        std::vector<PostAdvect> postAdvectActions;
 
     };
 

@@ -161,7 +161,7 @@ namespace gpu {
             size_t numItems = buffer.size/sizeof(float);
             VkDeviceSize sumsSize = (std::abs(int(numItems - 1))/ITEMS_PER_WORKGROUP + 1) * sizeof(float);  // FIXME
             sumsSize = alignedSize(sumsSize, bufferOffsetAlignment) + sizeof(int);
-            sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sumsSize);
+            sumsBuffer = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, sumsSize);
             constants.N = numItems;
 
             auto writes = initializers::writeDescriptorSets<2>();

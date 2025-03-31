@@ -1023,9 +1023,11 @@ namespace eular {
     }
 
     void FluidSolver::postAdvection(VkCommandBuffer commandBuffer, Quantity &quantity) {
-        if(quantity.postAdvect(commandBuffer, quantity.field, _groupCount)) {
-            addComputeBarrier(commandBuffer);
-            quantity.field.swap();
+        for(auto& postAdvect : quantity.postAdvectActions) {
+            if(postAdvect(commandBuffer, quantity.field, _groupCount)) {
+                addComputeBarrier(commandBuffer);
+                quantity.field.swap();
+            }
         }
     }
 
