@@ -40,6 +40,9 @@ void main() {
     vec2 uv = get_uv();
     vec2 u = loadVectorField(uv);
 
+    vec2 pm = uv - 0.5 * time_sign * dt * u;
+    u = loadVectorField(pm);
+
     vec2 p = uv - time_sign * dt * u;
     vec4 q = getQuantity(p);
 
