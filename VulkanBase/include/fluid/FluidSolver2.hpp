@@ -5,6 +5,7 @@
 #include "ComputePipelins.hpp"
 #include "VulkanDevice.h"
 #include <variant>
+#include "Field.hpp"
 
 namespace eular {
 
@@ -12,41 +13,6 @@ namespace eular {
 
     enum class LinearSolverStrategy  {
         Jacobi, RBGS
-    };
-
-    struct Field : std::array<Texture, 2> {
-        std::string name;
-        std::array<VkDescriptorSet, 2> descriptorSet{};
-
-        void swap() {
-            std::swap(descriptorSet[0], descriptorSet[1]);
-        }
-    };
-
-    struct VectorField {
-        Field u;
-        Field v;
-        Field w;
-
-        void swap() {
-            u.swap();
-            v.swap();
-            w.swap();
-        }
-    };
-
-    using UpdateSource = std::function<void(VkCommandBuffer, Field&, glm::uvec3)>;
-    using PostAdvect = std::function<bool(VkCommandBuffer, Field&, glm::uvec3)>;
-
-    struct Quantity {
-        std::string name;
-        Field field;
-        Field source;
-        float diffuseRate{MIN_FLOAT};
-
-        UpdateSource update = [](VkCommandBuffer, Field&, glm::uvec3){};
-        std::vector<PostAdvect> postAdvectActions;
-
     };
 
 
