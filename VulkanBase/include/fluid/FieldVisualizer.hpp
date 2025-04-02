@@ -38,8 +38,8 @@ private:
     VulkanRenderPass* _renderPass{};
     VulkanDescriptorSetLayout _fieldSetLayout;
     eular::VectorField* _vectorField{};
-    glm::ivec2 _gridSize;
-    glm::uvec2 _screenResolution;
+    glm::ivec2 _gridSize{};
+    glm::uvec2 _screenResolution{};
     glm::vec3 _streamColor{1};
 
     struct Uniforms {
