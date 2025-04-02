@@ -20,6 +20,7 @@ namespace eular {
         Field u;
         Field v;
         Field w;
+        bool staggered{};
 
         void swap() {
             u.swap();
@@ -30,6 +31,8 @@ namespace eular {
 
     using UpdateSource = std::function<void(VkCommandBuffer, Field&, glm::uvec3)>;
     using PostAdvect = std::function<bool(VkCommandBuffer, Field&, glm::uvec3)>;
+    using VectorFieldFunc2D = std::function<glm::vec2(float, float)>;
+    using VectorFieldFunc3D = std::function<glm::vec3(float, float)>;
 
     struct Quantity {
         std::string name;

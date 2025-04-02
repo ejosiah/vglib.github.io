@@ -20,9 +20,9 @@ layout(push_constant, scalar) uniform Constants {
 
 vec4 b(vec2 coord){
     vec4 _b = texture(solution, coord);
-    if(is_vector_field == 1){
-        return applyBoundaryCondition(coord, _b);
-    }
+//    if(is_vector_field == 1){
+//        return applyBoundaryCondition(coord, _b);
+//    }
     return _b;
 }
 

@@ -37,7 +37,9 @@ namespace eular {
 
         void initFields();
 
-        FluidSolver& set(VectorFieldSource2D vectorField);
+        FluidSolver& generate(const VectorFieldFunc2D& func);
+
+        FluidSolver& set(const VectorFieldSource2D& vectorField);
 
         FluidSolver& set(VectorFieldSource3D vectorField);
 
@@ -186,6 +188,7 @@ namespace eular {
             bool macCormackAdvection = false;
             bool project = true;
             bool vorticity = false;
+            bool ensureBoundaryCondition = true;
             int poissonIterations = 30;
             float viscosity = 0;
             float vorticityConfinementScale{1};

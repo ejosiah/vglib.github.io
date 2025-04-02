@@ -34,5 +34,5 @@ bool outOfBounds() {
 }
 
 vec2 get_uv() {
-    return (vec2(gl_GlobalInvocationID) + 0.5)/grid_size.xy;
+    return (vec2(gid) + 0.5)/grid_size.xy;
 }

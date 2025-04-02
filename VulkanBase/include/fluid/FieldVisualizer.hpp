@@ -45,8 +45,9 @@ private:
     struct Uniforms {
         glm::vec3 color{0};
         glm::ivec2 gridSize{1};
-        float step_size{0.2};
-        int next_vertex{0};
+        float step_size{0.25};
+        uint next_vertex{0};
+        uint offset{5};
     };
 
     struct {

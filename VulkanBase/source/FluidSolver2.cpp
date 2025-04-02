@@ -39,23 +39,6 @@ namespace eular {
         samplerInfo.magFilter = VK_FILTER_LINEAR;
         samplerInfo.minFilter = VK_FILTER_LINEAR;
         _linearSampler = device->createSampler(samplerInfo);
-
-        _vectorField.u[0].sampler = _valueSampler;
-        _vectorField.u[1].sampler = _valueSampler;
-
-        _vectorField.v[0].sampler = _valueSampler;
-        _vectorField.v[1].sampler = _valueSampler;
-
-        _forceField[0].sampler = _valueSampler;
-        _forceField[1].sampler = _valueSampler;
-
-        _vorticityField[0].sampler = _valueSampler;
-        _vorticityField[1].sampler = _valueSampler;
-
-        _divergenceField[0].sampler = _valueSampler;
-
-        _pressureField[0].sampler = _valueSampler;
-        _pressureField[1].sampler = _valueSampler;
     }
 
     void FluidSolver::initGlobalConstants() {
@@ -64,6 +47,7 @@ namespace eular {
         data.dx = {_delta.x, 0};
         data.dy = {0, _delta.y};
         data.dt = _timeStep;
+        data.ensure_boundary_condition = static_cast<int>(options.ensureBoundaryCondition);
         globalConstants.gpu = device->createCpuVisibleBuffer(&data, sizeof(GlobalData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
         globalConstants.cpu =  reinterpret_cast<GlobalData*>(globalConstants.gpu.map());
     }
@@ -142,7 +126,7 @@ namespace eular {
                     .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-                    .immutableSamplers(_valueSampler)
+                    .immutableSamplers(_linearSampler)
                 .binding(1)
                     .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
                     .descriptorCount(1)
@@ -364,7 +348,25 @@ namespace eular {
         });
     }
 
-    FluidSolver& FluidSolver::set(VectorFieldSource2D vectorField) {
+    FluidSolver &FluidSolver::generate(const VectorFieldFunc2D& func) {
+        const auto M  = static_cast<size_t>(_gridSize.y);
+        const auto N = static_cast<size_t>(_gridSize.x);
+        VectorFieldSource2D field;
+        field.reserve(M * N);
+
+        for(auto i = 0; i < M; ++i) {
+            for(auto j = 0; j < N; ++j) {
+                auto x = 2 * float(j)/_gridSize.x - 1;
+                auto y = 2 * float(i)/_gridSize.y - 1;
+                auto v = func(x, y);
+                field.push_back(v);
+            }
+        }
+        set(field);
+        return *this;
+    }
+
+    FluidSolver& FluidSolver::set(const VectorFieldSource2D& vectorField) {
         auto size = size_t(_gridSize.x * _gridSize.y);
 
         std::vector<float> uBuffer;
@@ -1070,7 +1072,7 @@ namespace eular {
     }
 
     FluidSolver &FluidSolver::ensureBoundaryCondition(bool flag) {
-        globalConstants.cpu->ensure_boundary_condition = static_cast<int>(flag);
+        options.ensureBoundaryCondition = flag;
         return *this;
     }
 

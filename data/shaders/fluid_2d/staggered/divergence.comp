@@ -1,0 +1,36 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
+layout(set = 3, binding = 2) uniform writeonly image2D divergence_field;
+
+vec2 F(vec2 xy) {
+    vec2 u;
+    u.x = texture(vector_field_u, xy).x;
+    u.y = texture(vector_field_v, xy).x;
+    return u;
+}
+
+vec2 u(vec2 coord) {
+    return applyBoundaryCondition(coord, F(coord));
+}
+
+void main() {
+    if(outOfBounds()) return;
+
+    vec2 uv = get_uv();
+
+    float dudx = (u(uv + dx).x - u(uv).x)/dx.x;
+    float dudy = (u(uv + dy).y - u(uv).y)/dy.y;
+
+    float div = dudx + dudy;
+
+    imageStore(divergence_field, gid, vec4(div));
+}

@@ -12,7 +12,8 @@ layout(set = 0, binding = 1, scalar) buffer Constants {
     vec3 color;
     ivec2 grid_size;
     float step_size;
-    int next_vertex;
+    uint next_vertex;
+    uint offset;
 };
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
@@ -27,13 +28,17 @@ vec2 loadVectorField(vec2 uv) {
     return u;
 }
 
-ivec2 gid = ivec2(gl_GlobalInvocationID);
+ivec2 gid = ivec2(gl_GlobalInvocationID * offset);
 vec2 uv = (vec2(gid) + 0.5)/grid_size.xy;
 
 void main () {
     if(gid.x >= grid_size.x || gid.y >= grid_size.y) return;
 
     vec2 u = loadVectorField(uv);
+    if(u.x == 0 || u.y == 0) return;
+
+    float l = length(uv);
+    if(isnan(l) || isinf(l)) return;
 
     vec2 x0 = uv + u * step_size;
 

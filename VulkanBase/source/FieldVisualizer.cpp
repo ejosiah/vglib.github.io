@@ -48,11 +48,12 @@ void FieldVisualizer::update(VkCommandBuffer commandBuffer) {
     sets[0] = _streamLines.descriptorSet;
     sets[1] = _vectorField->u.descriptorSet[0];
     sets[2] = _vectorField->v.descriptorSet[0];
-    
-    auto gc = glm::uvec3(_gridSize, 1);
+
+    const auto offset = _streamLines.uniforms->offset;
+    auto gc = glm::uvec2(_gridSize)/glm::max(1u, offset);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("compute_stream_lines"));
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("compute_stream_lines"), 0, COUNT(sets), sets.data(), 0, 0);
-    vkCmdDispatch(commandBuffer, gc.x, gc.y, gc.z);
+    vkCmdDispatch(commandBuffer, gc.x, gc.y, 1);
 }
 
 void FieldVisualizer::renderStreamLines(VkCommandBuffer commandBuffer) {

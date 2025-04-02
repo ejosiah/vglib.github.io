@@ -1,0 +1,50 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
+layout(set = 3, binding = 0) uniform sampler2D pressure_field;
+layout(set = 4, binding = 2) uniform writeonly image2D div_free_vector_field_u;
+layout(set = 5, binding = 2) uniform writeonly image2D div_free_vector_field_v;
+
+float p(vec2 xy) {
+    return texture(pressure_field, xy).x;
+}
+
+vec2 w(vec2 xy) {
+    vec2 u;
+    u.x = texture(vector_field_u, xy).x;
+    u.y = texture(vector_field_v, xy).x;
+    return u;
+}
+
+vec2 pg(vec2 uv){
+    float dudx = (p(uv + dx) - p(uv))/dx.x;
+    float dudy = (p(uv + dy) - p(uv))/dy.y;
+
+    return vec2(dudx, dudy);
+}
+
+
+
+void main() {
+    ivec2 vgrid_size;
+    vgrid_size.x = textureSize(vector_field_u).x;
+    vgrid_size.y = textureSize(vector_field_v).y;
+
+    if(gid.x >= vgrid_size.x || gid.y >= vgrid_size.y) return;
+
+    vec2 vuv =  (vec2(gid)+0.5)/vgrid_size;
+    vec2 uv = get_uv();
+
+    vec2 u = w(vuv) - pg(uv);
+
+    imageStore(div_free_vector_field_u, gid, vec4(u.x));
+    imageStore(div_free_vector_field_v, gid, vec4(u.y));
+}
