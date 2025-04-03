@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Field.hpp"
+#include "FluidSolver2.hpp"
 #include "ComputePipelins.hpp"
 #include "filemanager.hpp"
 
@@ -14,7 +14,7 @@ public:
 
     void init();
 
-    void add(eular::VectorField* vectorField);
+    void set(eular::FluidSolver* solver);
 
     void setStreamLineColor(const glm::vec3& streamColor);
 
@@ -37,7 +37,7 @@ private:
     VulkanDescriptorPool* _descriptorPool{};
     VulkanRenderPass* _renderPass{};
     VulkanDescriptorSetLayout _fieldSetLayout;
-    eular::VectorField* _vectorField{};
+    eular::FluidSolver* _solver{};
     glm::ivec2 _gridSize{};
     glm::uvec2 _screenResolution{};
     glm::vec3 _streamColor{1};

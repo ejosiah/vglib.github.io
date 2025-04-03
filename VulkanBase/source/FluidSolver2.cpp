@@ -46,7 +46,7 @@ namespace eular {
         data.grid_size = glm::ivec3(_gridSize);
         data.dx = {_delta.x, 0};
         data.dy = {0, _delta.y};
-        data.dt = _timeStep;
+        data.dt = options.timeStep;
         data.ensure_boundary_condition = static_cast<int>(options.ensureBoundaryCondition);
         globalConstants.gpu = device->createCpuVisibleBuffer(&data, sizeof(GlobalData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
         globalConstants.cpu =  reinterpret_cast<GlobalData*>(globalConstants.gpu.map());
@@ -347,225 +347,6 @@ namespace eular {
             vkCmdPipelineBarrier2(commandBuffer, &dInfo);
         });
     }
-
-    FluidSolver &FluidSolver::generate(const VectorFieldFunc2D& func) {
-        const auto M  = static_cast<size_t>(_gridSize.y);
-        const auto N = static_cast<size_t>(_gridSize.x);
-        VectorFieldSource2D field;
-        field.reserve(M * N);
-
-        for(auto i = 0; i < M; ++i) {
-            for(auto j = 0; j < N; ++j) {
-                auto x = 2 * float(j)/_gridSize.x - 1;
-                auto y = 2 * float(i)/_gridSize.y - 1;
-                auto v = func(x, y);
-                field.push_back(v);
-            }
-        }
-        set(field);
-        return *this;
-    }
-
-    FluidSolver& FluidSolver::set(const VectorFieldSource2D& vectorField) {
-        auto size = size_t(_gridSize.x * _gridSize.y);
-
-        std::vector<float> uBuffer;
-        std::vector<float> vBuffer;
-
-        uBuffer.reserve(size);
-        vBuffer.reserve(size);
-
-        for(const auto& u : vectorField) {
-            uBuffer.push_back(u.x);
-            vBuffer.push_back(u.y);
-        }
-
-        auto byteSize = size * sizeof(float);
-        auto stagingBuffer_u = device->createStagingBuffer(byteSize);
-        auto stagingBuffer_v = device->createStagingBuffer(byteSize);
-
-        stagingBuffer_u.copy(uBuffer);
-        stagingBuffer_v.copy(vBuffer);
-
-
-        VkImageMemoryBarrier2 barrier{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel =  0,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1,
-                }
-        };
-        std::vector<VkImageMemoryBarrier2> barriers;
-        barrier.image = _vectorField.u[0].image;
-        barriers.push_back(barrier);
-
-        barrier.image = _vectorField.v[0].image;
-        barriers.push_back(barrier);
-
-        VkDependencyInfo dInfo {
-                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                .imageMemoryBarrierCount = COUNT(barriers),
-                .pImageMemoryBarriers = barriers.data()
-        };
-
-
-        device->graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-            vkCmdPipelineBarrier2(commandBuffer, &dInfo);
-
-            const auto gs = glm::uvec2(_gridSize);
-            VkBufferImageCopy region{};
-            region.bufferOffset = 0;
-            region.bufferRowLength = 0;
-            region.bufferImageHeight = 0;
-
-            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            region.imageSubresource.mipLevel = 0;
-            region.imageSubresource.baseArrayLayer = 0;
-            region.imageSubresource.layerCount = 1;
-            region.imageOffset = {0, 0, 0};
-            region.imageExtent = {gs.x, gs.y, 1};
-
-            vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_u, _vectorField.u[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-            vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_v, _vectorField.v[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-            barriers[0].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barriers[0].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-            barriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-            barriers[1].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barriers[1].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-            barriers[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-            vkCmdPipelineBarrier2(commandBuffer, &dInfo);
-
-        });
-
-        return *this;
-    }
-
-
-    FluidSolver& FluidSolver::set(VectorFieldSource3D vectorField) {
-        auto size = size_t(_gridSize.x * _gridSize.y * _gridSize.z);
-
-        std::vector<float> uBuffer;
-        std::vector<float> vBuffer;
-        std::vector<float> wBuffer;
-
-        uBuffer.reserve(size);
-        vBuffer.reserve(size);
-        wBuffer.reserve(size);
-
-        for(const auto& u : vectorField) {
-            uBuffer.push_back(u.x);
-            vBuffer.push_back(u.y);
-            wBuffer.push_back(u.z);
-        }
-
-        auto byteSize = size * sizeof(float);
-        auto stagingBuffer_u = device->createStagingBuffer(byteSize);
-        auto stagingBuffer_v = device->createStagingBuffer(byteSize);
-        auto stagingBuffer_w = device->createStagingBuffer(byteSize);
-
-        stagingBuffer_u.copy(uBuffer);
-        stagingBuffer_v.copy(vBuffer);
-        stagingBuffer_w.copy(vBuffer);
-
-        VkImageMemoryBarrier2 barrier{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_NONE,
-                .srcAccessMask = VK_ACCESS_NONE,
-                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel =  0,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1,
-                }
-        };
-        std::vector<VkImageMemoryBarrier2> barriers;
-        barrier.image = _vectorField.u[0].image;
-        barriers.push_back(barrier);
-
-        barrier.image = _vectorField.v[0].image;
-        barriers.push_back(barrier);
-
-        barrier.image = _vectorField.w[0].image;
-        barriers.push_back(barrier);
-
-        VkDependencyInfo dInfo {
-                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                .imageMemoryBarrierCount = COUNT(barriers),
-                .pImageMemoryBarriers = barriers.data()
-        };
-
-
-        device->graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
-            vkCmdPipelineBarrier2(commandBuffer, &dInfo);
-
-            const auto gs = glm::uvec3(_gridSize);
-            VkBufferImageCopy region{};
-            region.bufferOffset = 0;
-            region.bufferRowLength = 0;
-            region.bufferImageHeight = 0;
-
-            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            region.imageSubresource.mipLevel = 0;
-            region.imageSubresource.baseArrayLayer = 0;
-            region.imageSubresource.layerCount = 1;
-            region.imageOffset = {0, 0, 0};
-            region.imageExtent = {gs.x, gs.y, gs.z};
-
-            vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_u, _vectorField.u[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-            vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_v, _vectorField.v[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-            vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_w, _vectorField.w[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-            barriers[0].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barriers[0].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-            barriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-            barriers[1].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barriers[1].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-            barriers[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-            barriers[2].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            barriers[2].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barriers[2].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-            barriers[2].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barriers[2].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barriers[2].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-            vkCmdPipelineBarrier2(commandBuffer, &dInfo);
-
-        });
-
-        return *this;
-    }
-
     
     std::vector<PipelineMetaData> FluidSolver::pipelineMetaData() {
         return {
@@ -707,7 +488,8 @@ namespace eular {
 
     void FluidSolver::diffuse(VkCommandBuffer commandBuffer, Field& field, float rate) {
         if(rate <= 0) return;
-        linearSolverConstants.alpha = (_delta.x * _delta.x * _delta.x * _delta.y)/(_timeStep * rate);
+        const auto dt = options.timeStep;
+        linearSolverConstants.alpha = (_delta.x * _delta.x * _delta.x * _delta.y)/(dt * rate);
         linearSolverConstants.rBeta = 1.0f/((2.0f * glm::dot(_delta, _delta)) + linearSolverConstants.alpha);
         if(linearSolverStrategy == LinearSolverStrategy::Jacobi) {
             jacobiSolver(commandBuffer, field, field);
@@ -826,14 +608,9 @@ namespace eular {
     }
 
     void FluidSolver::computeVorticityConfinement(VkCommandBuffer commandBuffer) {
-        if(!options.vorticity) return;
+        if(options.vorticityConfinementScale < 1) return;
         computeVorticity(commandBuffer);
         applyVorticity(commandBuffer);
-    }
-
-    FluidSolver& FluidSolver::add(ExternalForce &&force) {
-        _externalForces.push_back(force);
-        return *this;
     }
 
     void FluidSolver::jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown) {
@@ -929,7 +706,8 @@ namespace eular {
 
     void FluidSolver::solvePressure(VkCommandBuffer commandBuffer) {
         const auto rho = options.density;
-        linearSolverConstants.alpha = -(rho * _delta.x * _delta.x * _delta.y * _delta.y)/_timeStep;
+        const auto dt = options.timeStep;
+        linearSolverConstants.alpha = -(rho * _delta.x * _delta.x * _delta.y * _delta.y)/dt;
         linearSolverConstants.rBeta = (1.0f/(2.0f * glm::dot(_delta, _delta)));
         linearSolverConstants.is_vector_field = false;
 
@@ -958,14 +736,9 @@ namespace eular {
         addComputeBarrier(commandBuffer);
     }
 
-    FluidSolver& FluidSolver::dt(float value) {
-        _timeStep = value;
-        globalConstants.cpu->dt = value;
-        return *this;
-    }
 
     float FluidSolver::dt() const {
-        return _timeStep;
+        return options.timeStep;
     }
 
     FluidSolver& FluidSolver::density(float rho) {
@@ -976,7 +749,7 @@ namespace eular {
     void FluidSolver::runSimulation(VkCommandBuffer commandBuffer) {
         velocityStep(commandBuffer);
         quantityStep(commandBuffer);
-        _elapsedTime += _timeStep;
+        _elapsedTime += options.timeStep;
     }
 
     std::vector<VulkanDescriptorSetLayout> FluidSolver::forceFieldSetLayouts() {
@@ -985,16 +758,6 @@ namespace eular {
 
     std::vector<VulkanDescriptorSetLayout> FluidSolver::sourceFieldSetLayouts() {
         return  { _fieldDescriptorSetLayout, _fieldDescriptorSetLayout };
-    }
-
-    void FluidSolver::add(Quantity &quantity) {
-        auto writes = initializers::writeDescriptorSets<12>();
-        auto offset = createDescriptorSet(writes, 0, quantity.field);
-        createDescriptorSet(writes, offset, quantity.source);
-
-        device->updateDescriptorSets(writes);
-
-        _quantities.emplace_back(quantity);
     }
 
     void FluidSolver::clearSources(VkCommandBuffer commandBuffer, Quantity &quantity) {
@@ -1068,31 +831,6 @@ namespace eular {
         _forceField.swap();
     }
 
-    FluidSolver &FluidSolver::poissonIterations(int value) {
-        options.poissonIterations = value;
-        return *this;
-    }
-
-    FluidSolver &FluidSolver::viscosity(float value) {
-        options.viscosity = value;
-        return *this;
-    }
-
-    FluidSolver &FluidSolver::ensureBoundaryCondition(bool flag) {
-        options.ensureBoundaryCondition = flag;
-        return *this;
-    }
-
-    FluidSolver &FluidSolver::poissonEquationSolver(LinearSolverStrategy strategy) {
-        linearSolverStrategy = strategy;
-        return *this;
-    }
-
-    FluidSolver &FluidSolver::enableVorticity(bool flag) {
-        options.vorticity = true;
-        return *this;
-    }
-
     VulkanDescriptorSetLayout FluidSolver::fieldDescriptorSetLayout() const {
         return _fieldDescriptorSetLayout;
     }
@@ -1101,4 +839,206 @@ namespace eular {
         return _elapsedTime;
     }
 
+    VectorField &FluidSolver::vectorField() {
+        return _vectorField;
+    }
+
+    FluidSolver::Builder::Builder(VulkanDevice *device, VulkanDescriptorPool *descriptorPool)
+    : _device(device)
+    , _descriptorPool(descriptorPool){}
+
+    FluidSolver::Builder& FluidSolver::Builder::dt(float value) {
+        _dt = value;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::density(float rho) {
+        _density = rho;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::generate(const VectorFieldFunc2D& func) {
+        _generator = func;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::add(ExternalForce&& force) {
+        _externalForces.push_back(force);
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::poissonIterations(int iterations) {
+        _poissonIterations = iterations;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::viscosity(float value) {
+        _viscosity = value;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::ensureBoundaryCondition(bool flag) {
+        _ensureBoundaryCondition = flag;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::poissonEquationSolver(LinearSolverStrategy strategy) {
+        _linearSolverStrategy = strategy;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::gridSize(glm::vec2 size) {
+        _gridSize = size;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::vorticityConfinementScale(float scale) {
+        _vorticityConfinementScale = scale;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::add(Quantity &quantity) {
+        _quantities.emplace_back(quantity);
+        return *this;
+    }
+
+    std::unique_ptr<FluidSolver> FluidSolver::Builder::build() {
+        assert(_gridSize.x > 0 && _gridSize.y > 0);
+        assert(_poissonIterations > 0);
+        assert(_density >= 1);
+        assert(_dt > 0);
+        assert(_viscosity >= 0);
+
+        auto solver = std::make_unique<FluidSolver>(_device, _descriptorPool, _gridSize);
+        solver->options.advectVField = _advectVField;
+        solver->options.project = _project;
+        solver->options.ensureBoundaryCondition = _ensureBoundaryCondition;
+        solver->options.poissonIterations = _poissonIterations;
+        solver->options.viscosity = _viscosity;
+        solver->options.vorticityConfinementScale = _vorticityConfinementScale;
+        solver->options.density = _density;
+        solver->options.timeStep = _dt;
+        solver->_gridSize = glm::vec3(_gridSize, 1);
+
+        solver->init();
+        solver->_externalForces = _externalForces;
+        generateVectorField(*solver);
+        addQuantities(*solver);
+
+        return solver;
+    }
+
+    void FluidSolver::Builder::generateVectorField(FluidSolver& solver) {
+        if(!_generator.has_value()) return;
+
+        auto func = *_generator;
+
+        const auto M  = static_cast<size_t>(_gridSize.y);
+        const auto N = static_cast<size_t>(_gridSize.x);
+        auto size = size_t(_gridSize.x * _gridSize.y);
+
+        std::vector<float> uBuffer;
+        std::vector<float> vBuffer;
+
+        uBuffer.reserve(size);
+        vBuffer.reserve(size);
+
+        for(auto i = 0; i < M; ++i) {
+            for(auto j = 0; j < N; ++j) {
+                auto x = 2 * float(j)/_gridSize.x - 1;
+                auto y = 2 * float(i)/_gridSize.y - 1;
+                auto u = func(x, y);
+                uBuffer.push_back(u.x);
+                vBuffer.push_back(u.y);
+            }
+        }
+
+
+        auto byteSize = size * sizeof(float);
+        auto stagingBuffer_u = _device->createStagingBuffer(byteSize);
+        auto stagingBuffer_v = _device->createStagingBuffer(byteSize);
+
+        stagingBuffer_u.copy(uBuffer);
+        stagingBuffer_v.copy(vBuffer);
+
+
+        VkImageMemoryBarrier2 barrier{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel =  0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                }
+        };
+        std::vector<VkImageMemoryBarrier2> barriers;
+        barrier.image = solver._vectorField.u[0].image;
+        barriers.push_back(barrier);
+
+        barrier.image = solver._vectorField.v[0].image;
+        barriers.push_back(barrier);
+
+        VkDependencyInfo dInfo {
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .imageMemoryBarrierCount = COUNT(barriers),
+                .pImageMemoryBarriers = barriers.data()
+        };
+
+
+        _device->graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
+            vkCmdPipelineBarrier2(commandBuffer, &dInfo);
+
+            const auto gs = glm::uvec2(_gridSize);
+            VkBufferImageCopy region{};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = {gs.x, gs.y, 1};
+
+            vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_u, solver._vectorField.u[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_v, solver._vectorField.v[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+            barriers[0].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barriers[0].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            barriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+            barriers[1].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barriers[1].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            barriers[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+            vkCmdPipelineBarrier2(commandBuffer, &dInfo);
+
+        });
+    }
+
+    void FluidSolver::Builder::addQuantities(FluidSolver &solver) {
+        for(auto& quantity : _quantities) {
+            auto writes = initializers::writeDescriptorSets<12>();
+            auto offset = solver.createDescriptorSet(writes, 0, quantity.get().field);
+            solver.createDescriptorSet(writes, offset, quantity.get().source);
+
+            _device->updateDescriptorSets(writes);
+
+            solver._quantities.emplace_back(quantity);
+        }
+    }
 }

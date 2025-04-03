@@ -35,8 +35,8 @@ void FieldVisualizer::createBuffers() {
     _streamLines.uniforms = reinterpret_cast<Uniforms*>(_streamLines.uniformBuffer.map());
 }
 
-void FieldVisualizer::add(eular::VectorField *vectorField) {
-    _vectorField = vectorField;
+void FieldVisualizer::set(eular::FluidSolver* solver) {
+    _solver = solver;
 }
 
 void FieldVisualizer::setStreamLineColor(const glm::vec3 &streamColor) {
@@ -46,8 +46,8 @@ void FieldVisualizer::setStreamLineColor(const glm::vec3 &streamColor) {
 void FieldVisualizer::update(VkCommandBuffer commandBuffer) {
     static std::array<VkDescriptorSet, 3> sets;
     sets[0] = _streamLines.descriptorSet;
-    sets[1] = _vectorField->u.descriptorSet[0];
-    sets[2] = _vectorField->v.descriptorSet[0];
+    sets[1] = _solver->vectorField().u.descriptorSet[0];
+    sets[2] = _solver->vectorField().v.descriptorSet[0];
 
     const auto offset = _streamLines.uniforms->offset;
     auto gc = glm::uvec2(_gridSize)/glm::max(1u, offset);

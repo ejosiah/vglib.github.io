@@ -4,8 +4,10 @@
 #include "Texture.h"
 #include "ComputePipelins.hpp"
 #include "VulkanDevice.h"
-#include <variant>
 #include "Field.hpp"
+
+#include <memory>
+#include <optional>
 
 namespace eular {
 
@@ -29,27 +31,13 @@ namespace eular {
     class FluidSolver : public ComputePipelines {
     public:
 
+        class Builder;
+
         FluidSolver() = default;
 
         FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize);
 
-        void init();
-
-        void initFields();
-
-        FluidSolver& generate(const VectorFieldFunc2D& func);
-
-        FluidSolver& set(const VectorFieldSource2D& vectorField);
-
-        FluidSolver& set(VectorFieldSource3D vectorField);
-
-        FluidSolver& add(ExternalForce&& force);
-
         void runSimulation(VkCommandBuffer commandBuffer);
-
-        void add(Quantity &quantity);
-
-        FluidSolver& dt(float value);
 
         FluidSolver& density(float rho);
 
@@ -57,22 +45,19 @@ namespace eular {
 
         float elapsedTime() const;
 
-        FluidSolver& poissonIterations(int value);
-
-        FluidSolver& viscosity(float value);
-
-        FluidSolver& ensureBoundaryCondition(bool flag);
-
-        FluidSolver& enableVorticity(bool flag);
-
-        FluidSolver& poissonEquationSolver(LinearSolverStrategy strategy);
-
         VulkanDescriptorSetLayout fieldDescriptorSetLayout() const;
 
         std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
+
         std::vector<VulkanDescriptorSetLayout> sourceFieldSetLayouts();
 
-    public:
+        VectorField& vectorField();
+
+    protected:
+        void init();
+
+        void initFields();
+
         void createSamplers();
 
         void createDescriptorSetLayouts();
@@ -148,7 +133,7 @@ namespace eular {
 
         static void clear(VkCommandBuffer commandBuffer, Texture& texture);
 
-    public:
+    private:
         VulkanDescriptorPool* _descriptorPool{};
 
         VectorField _vectorField;
@@ -169,7 +154,6 @@ namespace eular {
 
         glm::vec3 _gridSize{};
         glm::vec3 _delta{};
-        float _timeStep{1.0f / 120.f};
 
         struct GlobalData {
             glm::ivec2 grid_size{0};
@@ -190,12 +174,12 @@ namespace eular {
             bool advectVField = true;
             bool macCormackAdvection = false;
             bool project = true;
-            bool vorticity = false;
             bool ensureBoundaryCondition = true;
             int poissonIterations = 30;
             float viscosity = 0;
-            float vorticityConfinementScale{1};
+            float vorticityConfinementScale{0};
             float density{1};
+            float timeStep{1.0f / 120.f};
         } options;
 
         struct {
@@ -222,5 +206,57 @@ namespace eular {
         std::vector<ExternalForce> _externalForces;
         float _elapsedTime{};
         LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::Jacobi};
+    };
+
+    class FluidSolver::Builder {
+    public:
+        Builder(VulkanDevice *device, VulkanDescriptorPool* descriptorPool);
+
+        Builder& dt(float value);
+
+        Builder& density(float rho);
+
+        Builder& generate(const VectorFieldFunc2D& func);
+
+        Builder& add(ExternalForce&& force);
+
+        Builder& poissonIterations(int value);
+
+        Builder& viscosity(float value);
+
+        Builder& ensureBoundaryCondition(bool flag);
+
+        Builder& poissonEquationSolver(LinearSolverStrategy strategy);
+
+        Builder& vorticityConfinementScale(float scale);
+
+        Builder& add(Quantity &quantity);
+
+        Builder& gridSize(glm::vec2 size);
+
+        std::unique_ptr<FluidSolver> build();
+
+    private:
+        void generateVectorField(FluidSolver& solver);
+
+        void addQuantities(FluidSolver& solver);
+
+        VulkanDevice *_device{};
+        VulkanDescriptorPool* _descriptorPool{};
+        bool _advectVField = true;
+        bool _macCormackAdvection = false;
+        bool _project = true;
+        bool _ensureBoundaryCondition = true;
+        int _poissonIterations = 30;
+        float _viscosity = 0;
+        float _vorticityConfinementScale{0};
+        float _density{1};
+        float _dt{1.0f / 120.f};
+        glm::vec2 _gridSize{0};
+        std::vector<std::reference_wrapper<Quantity>> _quantities;
+        LinearSolverStrategy _linearSolverStrategy{LinearSolverStrategy::Jacobi};
+
+        std::vector<ExternalForce> _externalForces;
+        std::optional<VectorFieldFunc2D> _generator;
     };
 }
