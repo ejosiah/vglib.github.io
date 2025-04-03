@@ -5,6 +5,7 @@ layout(set = 0, binding = 0, scalar) uniform Globals{
     vec2 dx;
     vec2 dy;
     float dt;
+    float density;
     int ensure_boundary_condition;
     int use_hermite;
 };

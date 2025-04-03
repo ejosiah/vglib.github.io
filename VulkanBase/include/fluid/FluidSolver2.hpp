@@ -51,6 +51,8 @@ namespace eular {
 
         FluidSolver& dt(float value);
 
+        FluidSolver& density(float rho);
+
         float dt() const;
 
         float elapsedTime() const;
@@ -174,6 +176,7 @@ namespace eular {
             glm::vec2 dx{1};
             glm::vec2 dy{1};
             float dt{1.0f / 120.f};
+            float density{1};
             uint32_t ensure_boundary_condition{1};
             uint32_t use_hermite{0};
         };
@@ -192,6 +195,7 @@ namespace eular {
             int poissonIterations = 30;
             float viscosity = 0;
             float vorticityConfinementScale{1};
+            float density{1};
         } options;
 
         struct {

@@ -699,8 +699,9 @@ namespace eular {
     void FluidSolver::diffuseVelocityField(VkCommandBuffer commandBuffer) {
         if(options.viscosity <= 0) return;
         linearSolverConstants.is_vector_field = true;
-        diffuse(commandBuffer, _vectorField.u, options.viscosity);
-        diffuse(commandBuffer, _vectorField.v, options.viscosity);
+        const auto rho = options.density;
+        diffuse(commandBuffer, _vectorField.u, options.viscosity/rho);
+        diffuse(commandBuffer, _vectorField.v, options.viscosity/rho);
         project(commandBuffer);
     }
 
@@ -927,7 +928,8 @@ namespace eular {
     }
 
     void FluidSolver::solvePressure(VkCommandBuffer commandBuffer) {
-        linearSolverConstants.alpha = -_delta.x * _delta.x * _delta.y * _delta.y;
+        const auto rho = options.density;
+        linearSolverConstants.alpha = -(rho * _delta.x * _delta.x * _delta.y * _delta.y)/_timeStep;
         linearSolverConstants.rBeta = (1.0f/(2.0f * glm::dot(_delta, _delta)));
         linearSolverConstants.is_vector_field = false;
 
@@ -964,6 +966,11 @@ namespace eular {
 
     float FluidSolver::dt() const {
         return _timeStep;
+    }
+
+    FluidSolver& FluidSolver::density(float rho) {
+        options.density = glm::max(1.f, rho);
+        return *this;
     }
 
     void FluidSolver::runSimulation(VkCommandBuffer commandBuffer) {

@@ -36,7 +36,7 @@ void main() {
 
     vec2 uv = get_uv();
 
-    vec2 u = w(uv) - pg(uv);
+    vec2 u = w(uv) -  dt * pg(uv)/density;
 
     imageStore(div_free_vector_field_u, gid, vec4(u.x));
     imageStore(div_free_vector_field_v, gid, vec4(u.y));
