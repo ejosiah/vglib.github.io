@@ -7,11 +7,11 @@
 layout(local_size_x = 1024) in;
 
 layout(set = 0, binding = 0) buffer DATA {
-    int g_data[];
+    float g_data[];
 };
 
 layout(set = 0, binding = 1) buffer SUMS {
-    int g_sums[];
+    float g_sums[];
 };
 
 layout(push_constant) uniform Constants{
@@ -20,10 +20,10 @@ layout(push_constant) uniform Constants{
     uint operation;
 };
 
-int op(int a, int b);
+float op(float a, float b);
 
 void main(){
-    int sum = g_sums[gl_WorkGroupID.x];
+    float sum = g_sums[gl_WorkGroupID.x];
     uint offset = gl_WorkGroupID.x * itemsPerWorkGroup;
     uint i = offset + gl_LocalInvocationIndex;
     uint step = gl_WorkGroupSize.x;
@@ -34,7 +34,7 @@ void main(){
     }
 }
 
-int op(int a, int b) {
+float op(float a, float b) {
     switch(operation) {
         case OPERATION_MIN: return min(a, b);
         case OPERATION_MAX: return max(a, b);

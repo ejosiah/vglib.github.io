@@ -8,7 +8,7 @@ find_package(stb)
 find_package(spdlog)
 find_package(freetype)
 find_package(imgui)
-find_package(GTest REQUIRED)
+find_package(GTest)
 find_package(argparse)
 find_package(Bullet)
 find_package(EnTT)
@@ -16,6 +16,7 @@ find_package(meshoptimizer)
 find_package(OpenEXR)
 find_package(Taskflow)
 find_package(ZLIB)
+
 
 
 if (NOT NO_OPENCL)
@@ -28,13 +29,9 @@ add_definitions(
         -DGLM_FORCE_SWIZZLE
 )
 
-set(CONAN_LIBS_DEP assimp::assimp glm::glm glfw
-                    stb::stb spdlog::spdlog
-                     imgui::imgui
-                    argparse::argparse
-                    Bullet::Bullet EnTT::EnTT
-                    meshoptimizer::meshoptimizer
-                    openexr::openexr Taskflow::Taskflow)
+set(CONAN_LIBS_DEP  assimp::assimp glm::glm glfw stb::stb spdlog::spdlog imgui::imgui
+                    gtest::gtest argparse::argparse Bullet::Bullet EnTT::EnTT meshoptimizer::meshoptimizer
+                    openexr::openexr Taskflow::Taskflow ZLIB::ZLIB Freetype::Freetype)
 
 
 set(VGLIB_INCLUDE_DIRS

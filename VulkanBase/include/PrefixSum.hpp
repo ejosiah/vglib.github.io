@@ -7,6 +7,10 @@
 #include <string>
 #include <string_view>
 
+
+enum class Operation : uint32_t { Add, Min, Max };
+enum class DataType : uint32_t { Int, Float };
+
 class PrefixSum : public ComputePipelines {
 public:
     static constexpr int ITEMS_PER_WORKGROUP = 8192;
@@ -23,13 +27,20 @@ public:
 
     void init();
 
-    void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
+    void operator()(VkCommandBuffer commandBuffer, VulkanBuffer& buffer,
+            Operation operation = Operation::Add, DataType dataType = DataType::Int);
 
-    void operator()(VkCommandBuffer commandBuffer, const BufferRegion& region);
+    void operator()(VkCommandBuffer commandBuffer, const BufferRegion& region,
+            Operation operation = Operation::Add, DataType dataType = DataType::Int);
 
-    void accumulate(VkCommandBuffer commandBuffer, VulkanBuffer& data,  VulkanBuffer& result);
+    void min(VkCommandBuffer commandBuffer, const BufferRegion& data,  VulkanBuffer& result, DataType dataType = DataType::Int);
+    void max(VkCommandBuffer commandBuffer, const BufferRegion& data,  VulkanBuffer& result, DataType dataType = DataType::Int);
 
-    void accumulate(VkCommandBuffer commandBuffer, const BufferRegion& data, VulkanBuffer& result);
+    void accumulate(VkCommandBuffer commandBuffer, VulkanBuffer& data,  VulkanBuffer& result,
+                    Operation operation = Operation::Add, DataType dataType = DataType::Int);
+
+    void accumulate(VkCommandBuffer commandBuffer, const BufferRegion& data, VulkanBuffer& result,
+                    Operation operation = Operation::Add, DataType dataType = DataType::Int);
 
     void inclusive(VkCommandBuffer commandBuffer, VulkanBuffer& buffer, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStage);
 
@@ -78,7 +89,7 @@ protected:
 
     void copySum(VkCommandBuffer commandBuffer, VulkanBuffer& dst);
 
-    void scanInternal(VkCommandBuffer commandBuffer, BufferRegion section);
+    void scanInternal(VkCommandBuffer commandBuffer, BufferRegion section, Operation operation, DataType dataType);
 
     void createDescriptorSet();
 
@@ -88,7 +99,7 @@ private:
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet sumScanDescriptorSet = VK_NULL_HANDLE;
     VulkanDescriptorSetLayout setLayout;
-    uint32_t bufferOffsetAlignment;
+    uint32_t bufferOffsetAlignment{};
     VulkanDescriptorPool descriptorPool;
     VulkanCommandPool* _commandPool{};
     VulkanBuffer stagingBuffer;
@@ -98,6 +109,7 @@ private:
     struct {
         uint32_t itemsPerWorkGroup = ITEMS_PER_WORKGROUP;
         uint32_t N = 0;
+        uint32_t operation = to<uint32_t>(Operation::Add);
     } constants;
 
     VulkanBuffer sumsBuffer;

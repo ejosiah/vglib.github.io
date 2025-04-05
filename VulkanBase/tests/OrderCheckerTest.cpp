@@ -21,24 +21,9 @@ protected:
     bool isSorted(std::span<uint32_t> items, uint32_t numBlocks, uint32_t block) {
         auto buffer = entries(items);
         auto resultBuffer = createBuffer(1);
-
-        auto inputView = buffer.span<uint32_t>();
-
         execute([&](auto commandBuffer){
             _isSorted(commandBuffer, { &buffer, 0, buffer.size}, { &resultBuffer, 0, resultBuffer.size}, numBlocks, block);
         });
-
-        auto outputView = _isSorted._internal.data.span<uint32_t>(items.size() + 1);
-
-        size_t sumSize = glm::ceil(static_cast<float>(items.size())/static_cast<float>(8192));
-        auto sums = _isSorted._internal.sumsBuffer.span<uint32_t>(sumSize);
-
-//        for(int i = 0; i < outputView.size(); ++i) {
-//            if(outputView[i] != 0) {
-//                fmt::print("not {} at {}\n", outputView[i], i);
-//            }
-//        }
-
         auto span = resultBuffer.span<uint32_t>();
         bool result = span.front() == 0;
         resultBuffer.unmap();

@@ -418,7 +418,7 @@ struct VulkanDevice{
     }
 
     [[nodiscard]]
-    inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name, std::set<uint32_t> queueIndices, VmaAllocator allocator, void* next = VK_NULL_HANDLE) const{
+    inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name, std::set<uint32_t> queueIndices, VmaAllocator allocator, void* next = VK_NULL_HANDLE) const {
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.pNext = next;
