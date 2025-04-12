@@ -1,0 +1,24 @@
+#version 460
+
+layout(set = 0, binding = 0) uniform sampler2D vector_field_u;
+layout(set = 0, binding = 1) uniform sampler2D vector_field_v;
+layout(set = 0, binding = 2) uniform writeonly image2D vector_field;
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(push_constant) uniform Constants {
+    vec4 cell_center;
+};
+
+ivec2 gid = ivec2(gl_GlobalInvocationID);
+
+void main() {
+    const vec4 cc = cell_center;
+    vec2 uv = vec2(gid + cc.xy)/textureSize(vector_field_u, 0);
+    float u = texture(vector_field_u, uv).x;
+
+    vec2 vv = vec2(gid + cc.zw)/textureSize(vector_field_v, 0);
+    float v = texture(vector_field_v, vv).x;
+
+    imageStore(vector_field, gid, vec4(u, v, 0, 0));
+}

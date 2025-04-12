@@ -5,7 +5,7 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#include "common_new.glsl"
+#include "../common_new.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
 layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
@@ -17,10 +17,10 @@ float p(vec2 xy) {
     return texture(pressure_field, xy).x;
 }
 
-vec2 w(vec2 xy) {
+vec2 w(vec4 uv) {
     vec2 u;
-    u.x = texture(vector_field_u, xy).x;
-    u.y = texture(vector_field_v, xy).x;
+    u.x = texture(vector_field_u, uv.xy).x;
+    u.y = texture(vector_field_v, uv.zw).x;
     return u;
 }
 
@@ -34,14 +34,12 @@ vec2 pg(vec2 uv){
 
 
 void main() {
-    ivec2 vgrid_size;
-    vgrid_size.x = textureSize(vector_field_u).x;
-    vgrid_size.y = textureSize(vector_field_v).y;
+    vec4 vuv;
 
-    if(gid.x >= vgrid_size.x || gid.y >= vgrid_size.y) return;
+    vuv.xy = vec2(gid + 0.5)/textureSize(vector_field_u, 0);
+    vuv.zw = vec2(gid + 0.5)/textureSize(vector_field_v, 0);
 
-    vec2 vuv =  (vec2(gid)+0.5)/vgrid_size;
-    vec2 uv = get_uv();
+    vec2 uv = vec2(gid + 0.5)/textureSize(pressure_field, 0);
 
     vec2 u = w(vuv) - pg(uv);
 
