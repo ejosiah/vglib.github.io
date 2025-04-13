@@ -53,6 +53,8 @@ namespace eular {
 
         VectorField& vectorField();
 
+        PressureField& pressureField();
+
     protected:
         void init();
 

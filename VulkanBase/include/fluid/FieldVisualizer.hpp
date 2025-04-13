@@ -3,6 +3,7 @@
 #include "FluidSolver2.hpp"
 #include "ComputePipelins.hpp"
 #include "filemanager.hpp"
+#include "PrefixSum.hpp"
 
 class FieldVisualizer : ComputePipelines {
 public:
@@ -22,16 +23,24 @@ public:
 
     void renderStreamLines(VkCommandBuffer commandBuffer);
 
+    void renderPressure(VkCommandBuffer commandBuffer);
+
 protected:
     std::vector<PipelineMetaData> pipelineMetaData() override;
 
 private:
+    void initPrefixSum();
     void createBuffers();
     void createDescriptorSets();
     void updateDescriptorSets();
 
     void createRenderPipeline();
 
+    void computeMinMaxPressure(VkCommandBuffer commandBuffer);
+
+    void computeStreamLines(VkCommandBuffer commandBuffer);
+
+    void copyPressure(VkCommandBuffer commandBuffer);
 
 private:
     VulkanDescriptorPool* _descriptorPool{};
@@ -61,4 +70,18 @@ private:
         glm::vec3 color{1};
     } _streamLines;
 
+    struct {
+        VulkanPipeline pipeline;
+        VulkanPipelineLayout layout;
+        VulkanDescriptorSetLayout setDescriptorSet;
+        VkDescriptorSet descriptorSet{};
+        VulkanBuffer minValue;
+        VulkanBuffer maxValue;
+        VulkanBuffer field;
+    } _pressure;
+    PrefixSum _prefixSum;
+
+    struct {
+        VulkanBuffer vertices;
+    } _screenQuad;
 };

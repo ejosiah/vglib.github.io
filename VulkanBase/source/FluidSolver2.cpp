@@ -843,6 +843,10 @@ namespace eular {
         return _vectorField;
     }
 
+    PressureField &FluidSolver::pressureField() {
+        return _pressureField;
+    }
+
     FluidSolver::Builder::Builder(VulkanDevice *device, VulkanDescriptorPool *descriptorPool)
     : _device(device)
     , _descriptorPool(descriptorPool){}
