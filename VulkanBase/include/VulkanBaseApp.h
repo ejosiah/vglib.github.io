@@ -382,6 +382,7 @@ protected:
 
     void* queueSubmitNextChain{};
     std::unique_ptr<Prototypes> prototypes;
+    VulkanBuffer emptyVertexBuffer;
 
 private:
     static VulkanBaseApp* appInstance;
