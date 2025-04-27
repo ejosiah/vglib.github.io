@@ -124,6 +124,7 @@ VkDeviceSize textures::byteSize(VkFormat format){
         case VK_FORMAT_D16_UNORM:
             return 2;
         case VK_FORMAT_R32_UINT:
+        case VK_FORMAT_D32_SFLOAT:
         case VK_FORMAT_R32_SINT:
         case VK_FORMAT_R32_SFLOAT:
         case VK_FORMAT_R32G32_UINT:
