@@ -1,4 +1,5 @@
 #include "DynamicRenderPassBuilder.hpp"
+#include <spdlog/spdlog.h>
 
 DynamicRenderPassBuilder::DynamicRenderPassBuilder(VulkanDevice *device, GraphicsPipelineBuilder *parent)
 : GraphicsPipelineBuilder(device, parent) {}
@@ -35,7 +36,9 @@ bool DynamicRenderPassBuilder::enabled() const {
 }
 
 const VkPipelineRenderingCreateInfo& DynamicRenderPassBuilder::buildDynamicRenderInfo() {
-    assert(!m_colorAttachments.empty() || m_renderingCreateInfo.depthAttachmentFormat != VK_FORMAT_UNDEFINED);
+    if(m_colorAttachments.empty() && m_renderingCreateInfo.depthAttachmentFormat != VK_FORMAT_UNDEFINED) {
+        spdlog::warn("you may not have a depth buffer or color render target defined");
+    }
     m_renderingCreateInfo.colorAttachmentCount = m_colorAttachments.size();
     m_renderingCreateInfo.pColorAttachmentFormats = m_colorAttachments.data();
 
