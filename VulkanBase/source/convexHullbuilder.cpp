@@ -1,68 +1,12 @@
-#ifdef OPENCL_AVAILABLE
 #include "common.h"
 #include "random.h"
+#define ENABLE_VHACD_IMPLEMENTATION 1
 #include "convexHullbuilder.hpp"
 
-ConvexHullBuilder::ConvexHullBuilder(VulkanDevice *device)
-: m_device{device}{
-    initOpenCL();
-    initVHACD();
+ConvexHullBuilder::ConvexHullBuilder(VulkanDevice *device, bool async)
+: m_device{device}
+, m_interfaceVHACD{ async ? VHACD::CreateVHACD_ASYNC() : VHACD::CreateVHACD()}{
     createCommandPool();
-}
-
-void ConvexHullBuilder::initOpenCL() {
-#ifdef CL_VERSION_1_1
-    std::vector<std::string> info;
-
-    auto good = m_oclHelper.GetPlatformsInfo(info, "\t\t");
-
-    if(!good) return;
-    std::stringstream ss;
-    const auto numPlatforms = info.size();
-    ss << "\t Number of OpenCL platforms: " << numPlatforms << "\n";
-    for(auto i = 0; i < numPlatforms; i++){
-        ss << "\t OpenCL platform [" << i << "]" << "\n";
-        ss << info[i];
-    }
-    ss << "\t Using OpenCL platform [" << m_openClParams.oclPlatformID << "]" << "\n";
-    good = m_oclHelper.InitPlatform(m_openClParams.oclPlatformID);
-    if(!good) return;
-
-    info.clear();
-    good = m_oclHelper.GetDevicesInfo(info, "\t\t");
-    if(!good) return;
-
-    const auto numDevices = info.size();
-    ss << "\t Number of OpenCL devices: " << numDevices << "\n";
-    for(auto i = 0; i < numDevices; i++){
-        ss << "\t OpenCL device [" << i << "]" << "\n";
-        ss << info[i];
-    }
-    good = m_oclHelper.InitDevice(m_openClParams.oclDeviceID);
-
-    if(good){
-        spdlog::info("OpenCL (ON)");
-        spdlog::debug(ss.str());
-        spdlog::info("Using OpenCL device [{}]", m_openClParams.oclDeviceID);
-        m_openCLOnline = true;
-    }else{
-        m_openClParams.oclAcceleration = 0;
-    }
-#else
-    spdlog::info("OpenCL (OFF)");
-#endif
-}
-
-void ConvexHullBuilder::initVHACD() {
-    m_interfaceVHACD = VHACD::CreateVHACD();
-#ifdef CL_VERSION_1_1
-    if(m_openClParams.oclAcceleration){
-        auto good = m_interfaceVHACD->OCLInit(m_oclHelper.GetDevice(), &m_loggerVHACD);
-        if (!good) {
-            m_openClParams.oclAcceleration = 0;
-        }
-    }
-#endif
 }
 
 void ConvexHullBuilder::createCommandPool() {
@@ -147,6 +91,12 @@ ConvexHullBuilder &ConvexHullBuilder::setData(const std::vector<float>& points, 
 
 ConvexHullBuilder &ConvexHullBuilder::setParams(const VHACD::IVHACD::Parameters &parameters) {
     m_params = parameters;
+    if(!m_params.m_callback) {
+        m_params.m_callback = &n_defaultCallback;
+    }
+    if(!m_params.m_logger) {
+        m_params.m_logger = &m_loggerVHACD;
+    }
     return *this;
 }
 
@@ -162,6 +112,10 @@ std::future<ConvexHulls> ConvexHullBuilder::build() {
 
         if(!res) throw std::runtime_error{"unable to build convex hull"};
 
+        while(!m_interfaceVHACD->IsReady()) {
+            std::this_thread::sleep_for(std::chrono::nanoseconds(10000));
+            // TODO cancel
+        }
         auto numConvexHulls = m_interfaceVHACD->GetNConvexHulls();
 
         ConvexHulls hulls{};
@@ -184,24 +138,24 @@ std::future<ConvexHulls> ConvexHullBuilder::build() {
             m_interfaceVHACD->GetConvexHull(i, ch);
 
             std::vector<ConvexHullPoint> vertices;
-            auto numVertices = ch.m_nPoints * 3;
-            for(int j = 0; j < numVertices; j += 3){
-                auto x = static_cast<float>(ch.m_points[j + 0]);
-                auto y = static_cast<float>(ch.m_points[j + 1]);
-                auto z = static_cast<float>(ch.m_points[j + 2]);
+            auto numVertices = ch.m_points.size();
+            for(int j = 0; j < numVertices; j++){
+                auto x = static_cast<float>(ch.m_points[j].mX);
+                auto y = static_cast<float>(ch.m_points[j].mY);
+                auto z = static_cast<float>(ch.m_points[j].mZ);
                 ConvexHullPoint p{};
                 p.position = glm::vec3(x, y, z);
                 vertices.push_back(p);
             }
 
             std::vector<uint32_t> indices;
-            numTriangles += ch.m_nTriangles;
-            totalVertices += ch.m_nPoints;
-            auto numIndices = ch.m_nTriangles * 3;
-            for(int j = 0; j < numIndices; j+=3){
-                auto i0 = ch.m_triangles[j + 0];
-                auto i1 = ch.m_triangles[j + 1];
-                auto i2 = ch.m_triangles[j + 2];
+            const auto chTriangleCount = ch.m_triangles.size();
+            numTriangles += chTriangleCount;
+            totalVertices += ch.m_points.size();
+            for(int j = 0; j < chTriangleCount; j++){
+                auto i0 = ch.m_triangles[j].mI0;
+                auto i1 = ch.m_triangles[j].mI1;
+                auto i2 = ch.m_triangles[j].mI2;
 
                 auto& v0 = vertices[i0];
                 auto& v1 = vertices[i1];
@@ -308,7 +262,11 @@ void LoggingAdaptor::Log(const char *const msg) {
 }
 
 
-void Callback::Update(const double overallProgress, const double stageProgress, const double operationProgress,
-                      const char *const stage, const char *const operation) {
+void Callback::Update(const double overallProgress,
+                            const double stageProgress,
+                            const char* const stage,
+                            const char* operation) {
+
+    spdlog::info("overallProgress: {}, stageProgress: {}, stage: {}, operation: {}"
+                 , overallProgress, stageProgress, stage, operation);
 }
-#endif // OPENCL_AVAILABLE

@@ -1,13 +1,11 @@
 #pragma once
 
-#ifdef OPENCL_AVAILABLE
-
 #include "ThreadPool.hpp"
 #include "oclHelper.h"
 #include "Vertex.h"
 #include "VulkanDevice.h"
 #include "VulkanCommandBuffer.h"
-#include <vhacd/VHACD.h>
+#include "VHACD.h"
 #include <vector>
 #include <future>
 
@@ -24,19 +22,15 @@ struct ConvexHulls{
     std::vector<uint32_t> triangles;
 };
 
-struct OpenCLParams{
-    int oclAcceleration{1};
-    int oclPlatformID{0};
-    int oclDeviceID{0};
-};
-
 
 class Callback final : public VHACD::IVHACD::IUserCallback{
 public:
     ~Callback() final = default;
 
-    void Update(const double overallProgress, const double stageProgress, const double operationProgress,
-                const char *const stage, const char *const operation) final;
+    void Update(const double overallProgress,
+                                const double stageProgress,
+                                const char* const stage,
+                                const char* operation) final;
 };
 
 class LoggingAdaptor final : public VHACD::IVHACD::IUserLogger{
@@ -50,7 +44,7 @@ class ConvexHullBuilder{
 public:
     ConvexHullBuilder() = default;
 
-    ConvexHullBuilder(VulkanDevice* device);
+    ConvexHullBuilder(VulkanDevice* device, bool async = true);
 
     ConvexHullBuilder& setData(const VulkanBuffer& vertices, const VulkanBuffer& sourceIndexBuffer);
 
@@ -67,19 +61,14 @@ public:
     std::future<ConvexHulls> build();
 
 protected:
-    void initOpenCL();
-    void initVHACD();
     void createCommandPool();
 private:
     ConvexHulls m_convexHulls;
     OCLHelper m_oclHelper;
     VHACD::IVHACD* m_interfaceVHACD{nullptr};
-    LoggingAdaptor m_loggerVHACD;
+    LoggingAdaptor m_loggerVHACD{};
     VHACD::IVHACD::Parameters m_params{};
-    OpenCLParams m_openClParams{};
     VulkanDevice* m_device{nullptr};
     VulkanCommandPool m_commandPool;
-    bool m_openCLOnline = false;
+    Callback n_defaultCallback{};
 };
-
-#endif // OPENCL_AVAILABLE
