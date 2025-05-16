@@ -9,8 +9,11 @@ private:
 public:
 
     static void gpuToCpu(VkCommandBuffer commandBuffer);
-    
+
+    [[deprecated("user version without buffer specification")]]
     static void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+
+    static void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer);
 
     [[deprecated("user version without buffer specification")]]
     static void computeWriteToFragmentRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
@@ -54,6 +57,7 @@ public:
 
     static void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
+    [[deprecated("user version without buffer specification")]]
     static void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
     static void computeWriteToFragmentRead(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);

@@ -922,6 +922,7 @@ namespace eular {
         solver->options.vorticityConfinementScale = _vorticityConfinementScale;
         solver->options.density = _density;
         solver->options.timeStep = _dt;
+        solver->linearSolverStrategy = _linearSolverStrategy;
         solver->_gridSize = glm::vec3(_gridSize, 1);
 
         solver->init();
