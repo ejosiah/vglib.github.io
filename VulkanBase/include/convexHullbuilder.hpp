@@ -64,7 +64,6 @@ protected:
     void createCommandPool();
 private:
     ConvexHulls m_convexHulls;
-    OCLHelper m_oclHelper;
     VHACD::IVHACD* m_interfaceVHACD{nullptr};
     LoggingAdaptor m_loggerVHACD{};
     VHACD::IVHACD::Parameters m_params{};

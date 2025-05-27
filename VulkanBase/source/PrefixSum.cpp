@@ -41,27 +41,27 @@ std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
     return {
             {
                     "prefix_scan",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\scan.comp.spv)",
+                    R"(C:\Users\joebh\CLionProjects\vglib\data\shaders\prefix_scan\scan.comp.spv)",
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
 
             },
             {
                     "add",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\add.comp.spv)",
+                    R"(C:\Users\joebh\CLionProjects\vglib\data\shaders\prefix_scan\add.comp.spv)",
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
             },
             {
                     "prefix_scan_float",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\scan_float.comp.spv)",
+                    R"(C:\Users\joebh\CLionProjects\vglib\data\shaders\prefix_scan\scan_float.comp.spv)",
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
 
             },
             {
                     "add_float",
-                    R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\prefix_scan\add_float.comp.spv)",
+                    R"(C:\Users\joebh\CLionProjects\vglib\data\shaders\prefix_scan\add_float.comp.spv)",
                     { &setLayout },
                     { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants)} }
             }

@@ -34,6 +34,8 @@ public:
 
     static void computeWriteToVertexDraw(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
+    static void computeWriteToDrawIndirect(VkCommandBuffer commandBuffer);
+
     static void transferWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
     [[deprecated("user version without buffer specification")]]
