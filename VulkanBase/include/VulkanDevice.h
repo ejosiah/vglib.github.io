@@ -32,6 +32,8 @@ struct VulkanDevice{
         std::optional<uint32_t> graphics;
         std::optional<uint32_t> compute;
         std::optional<uint32_t> transfer;
+        std::optional<uint32_t> video_encode;
+        std::optional<uint32_t> video_decode;
         std::optional<uint32_t> present;
     } queueFamilyIndex;
 
@@ -39,6 +41,8 @@ struct VulkanDevice{
         VkQueue graphics;
         VkQueue compute;
         VkQueue transfer;
+        VkQueue video_encode;
+        VkQueue video_decode;
         VkQueue present;
     } queues{};
 
@@ -124,7 +128,12 @@ struct VulkanDevice{
                     queueFamilyIndex.transfer = *queueIndex;
                     uniqueQueueIndices.insert(*queueIndex);
                 }
-
+            }
+            if(settings.uniqueQueueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR){
+                if(auto queueIndex = findQueueFamily(VK_QUEUE_VIDEO_DECODE_BIT_KHR)){
+                    queueFamilyIndex.video_decode = *queueIndex;
+                    uniqueQueueIndices.insert(*queueIndex);
+                }
             }
         }
     }
@@ -156,13 +165,17 @@ struct VulkanDevice{
                                     void* pNext = VK_NULL_HANDLE){
                 initQueueFamilies(queueFlags, surface);
 
+
+
+
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        auto queueFamilies = getQueueFamilyProperties();
         for(auto queueIndex : uniqueQueueIndices){
             std::array<float, 2> priorities{ 1.0f, 1.0f};
             VkDeviceQueueCreateInfo qCreateInfo{};
             qCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             qCreateInfo.queueFamilyIndex = queueIndex;
-            qCreateInfo.queueCount = 2;
+            qCreateInfo.queueCount = std::min(2u, queueFamilies[queueIndex].queueCount);
             qCreateInfo.pQueuePriorities = priorities.data();
             queueCreateInfos.push_back((qCreateInfo));
         }
@@ -228,21 +241,35 @@ struct VulkanDevice{
             commandPool = createCommandPool(*queueFamilyIndex.transfer, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
             commandPools.emplace(std::make_pair(*queueFamilyIndex.transfer, std::move(commandPool)));
         }
+
+        if(queueFamilyIndex.video_decode) {
+            commandPool = createCommandPool(*queueFamilyIndex.video_decode, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+            commandPools.emplace(std::make_pair(*queueFamilyIndex.video_decode, std::move(commandPool)));
+        }
+
         assert(!commandPools.empty());
     }
 
     inline void initQueues(){
         if(queueFamilyIndex.graphics.has_value()){
             vkGetDeviceQueue(logicalDevice, *queueFamilyIndex.graphics, 0, &queues.graphics);
+            setName<VK_OBJECT_TYPE_QUEUE>("graphics_queue_0", queues.graphics);
         }
         if(queueFamilyIndex.compute.has_value()) {
             vkGetDeviceQueue(logicalDevice, *queueFamilyIndex.compute, 0, &queues.compute);
+            setName<VK_OBJECT_TYPE_QUEUE>("compute_queue_0", queues.compute);
         }
         if(queueFamilyIndex.transfer.has_value()) {
             vkGetDeviceQueue(logicalDevice, *queueFamilyIndex.transfer, 0, &queues.transfer);
+            setName<VK_OBJECT_TYPE_QUEUE>("transfer_queue_0", queues.transfer);
+        }
+        if(queueFamilyIndex.video_decode.has_value()) {
+            vkGetDeviceQueue(logicalDevice, *queueFamilyIndex.video_decode, 0, &queues.video_decode);
+            setName<VK_OBJECT_TYPE_QUEUE>("video_decode_queue_0", queues.video_decode);
         }
         if(queueFamilyIndex.present.has_value()) {
             vkGetDeviceQueue(logicalDevice, *queueFamilyIndex.present, 0, &queues.present);
+            setName<VK_OBJECT_TYPE_QUEUE>("present_queue_0", queues.present);
         }
     }
 
@@ -417,6 +444,19 @@ struct VulkanDevice{
         return createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, size, "StagingBuffer", queueIndices);
     }
 
+    inline VulkanBuffer createBuffer(const VkBufferCreateInfo& bufferInfo, VmaMemoryUsage memoryUsage) const {
+        VkBuffer buffer;
+
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.usage = memoryUsage;
+        VmaAllocation allocation;
+
+        ERR_GUARD_VULKAN(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr));
+
+        bool mappable = memoryUsage == VMA_MEMORY_USAGE_CPU_ONLY || memoryUsage == VMA_MEMORY_USAGE_CPU_TO_GPU  || memoryUsage == VMA_MEMORY_USAGE_GPU_TO_CPU;
+        return VulkanBuffer{ allocator, buffer, allocation, bufferInfo.size, "", mappable };
+    }
+
     [[nodiscard]]
     inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name, std::set<uint32_t> queueIndices, VmaAllocator allocator, void* next = VK_NULL_HANDLE) const {
         VkBufferCreateInfo bufferInfo{};
@@ -453,8 +493,8 @@ struct VulkanDevice{
     }
 
     [[nodiscard]]
-    inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name = "", std::set<uint32_t> queueIndices = {}) const {
-        return createBuffer(usage, memoryUsage, size, name, queueIndices, allocator);
+    inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name = "", std::set<uint32_t> queueIndices = {}, void* next = VK_NULL_HANDLE) const {
+        return createBuffer(usage, memoryUsage, size, name, queueIndices, allocator, next);
     }
 
     [[nodiscard]]
@@ -577,6 +617,13 @@ struct VulkanDevice{
 
     }
 
+    [[nodiscard]] inline VulkanImageView createImageView(const VkImageViewCreateInfo& createInfo) {
+        VkImageView view;
+        ERR_GUARD_VULKAN(vkCreateImageView(logicalDevice, &createInfo, nullptr, &view));
+
+        return VulkanImageView{ logicalDevice, view };
+    }
+
     [[nodiscard]] inline VulkanImage createExportableImage(const VkImageCreateInfo& createInfo, VmaMemoryUsage usage = VMA_MEMORY_USAGE_GPU_ONLY) const {
         assert(logicalDevice);
         VmaAllocationCreateInfo allocInfo{};
@@ -695,13 +742,17 @@ struct VulkanDevice{
         return commandPools[*queueFamilyIndex.transfer];
     }
 
+    inline const VulkanCommandPool& videoDecodeCommandPool() const {
+        return commandPools[*queueFamilyIndex.video_decode];
+    }
+
     [[nodiscard]]
     inline uint32_t getMemoryTypeIndex(uint32_t memoryTypeBitsReq, VkMemoryPropertyFlags requiredProperties) const{
         VkPhysicalDeviceMemoryProperties memoryProperties;
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
         for(uint32_t memoryIndex = 0; memoryIndex < memoryProperties.memoryTypeCount; memoryIndex++){
             const uint32_t memoryTypeBits = (1u << memoryIndex);
-            const bool isRequiredMemoryType = memoryTypeBits & memoryTypeBitsReq;
+            const bool isRequiredMemoryType = static_cast<bool>(memoryTypeBits & memoryTypeBitsReq);
 
             const bool hasRequiredMemoryProperties = memoryProperties.memoryTypes[memoryIndex].propertyFlags & requiredProperties;
 

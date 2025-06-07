@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VulkanBuffer.h"
+#include "VulkanImage.h"
 #include <initializer_list>
 
 class Barrier {
@@ -77,4 +78,33 @@ public:
 
     static void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
+};
+
+class Barriers {
+public:
+    static void push(const VulkanImage& image, VkImageSubresourceRange subresourceRange,
+                        VkPipelineStageFlags2 srcStageMask,VkPipelineStageFlags2 dstStageMask,
+                        VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
+                        VkImageLayout oldLayout, VkImageLayout newLayout);
+
+    static void release(const VulkanImage& image, VkImageSubresourceRange subresourceRange,
+                        VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask,
+                        VkImageLayout oldLayout, VkImageLayout newLayout,
+                        uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex);
+
+    static void acquire(const VulkanImage& image, VkImageSubresourceRange subresourceRange,
+                        VkImageLayout oldLayout, VkImageLayout newLayout,
+                        uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex);
+
+    static void flush(VkCommandBuffer commandBuffer);
+
+    static bool flushed();
+
+private:
+    Barriers() = default;
+
+    static std::vector<VkImageMemoryBarrier2> imageMemoryBarriers;
+    static std::vector<VkBufferMemoryBarrier2> bufferMemoryBarriers;
+    static std::vector<VkMemoryBarrier2> memoryBarriers;
+    static VkDependencyInfo dependencyInfo;
 };

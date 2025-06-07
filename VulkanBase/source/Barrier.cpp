@@ -445,3 +445,82 @@ void Barrier::computeWriteToDrawIndirect(VkCommandBuffer commandBuffer) {
                          &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 }
 
+std::vector<VkImageMemoryBarrier2> Barriers::imageMemoryBarriers = { };
+std::vector<VkBufferMemoryBarrier2> Barriers::bufferMemoryBarriers = { };
+std::vector<VkMemoryBarrier2> Barriers::memoryBarriers = { };
+VkDependencyInfo Barriers::dependencyInfo = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+
+void Barriers::push(const VulkanImage& image, VkImageSubresourceRange subresourceRange,
+                 VkPipelineStageFlags2 srcStageMask,VkPipelineStageFlags2 dstStageMask,
+                 VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
+                 VkImageLayout oldLayout, VkImageLayout newLayout) {
+    imageMemoryBarriers.push_back({
+          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+          .srcStageMask = srcStageMask,
+          .srcAccessMask = srcAccessMask,
+          .dstStageMask = dstStageMask,
+          .dstAccessMask = dstAccessMask,
+          .oldLayout = oldLayout,
+          .newLayout = newLayout,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .image = image.image,
+          .subresourceRange = subresourceRange,
+    });
+}
+
+void Barriers::release(const VulkanImage &image, VkImageSubresourceRange subresourceRange,
+                       VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask, VkImageLayout oldLayout,
+                       VkImageLayout newLayout, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+
+    imageMemoryBarriers.push_back({
+          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+          .srcStageMask = srcStageMask,
+          .srcAccessMask = srcAccessMask,
+          .dstStageMask = VK_PIPELINE_STAGE_NONE,
+          .dstAccessMask = VK_ACCESS_NONE,
+          .oldLayout = oldLayout,
+          .newLayout = newLayout,
+          .srcQueueFamilyIndex = srcQueueFamilyIndex,
+          .dstQueueFamilyIndex = dstQueueFamilyIndex,
+          .image = image.image,
+          .subresourceRange = subresourceRange,
+    });
+}
+
+void Barriers::acquire(const VulkanImage &image, VkImageSubresourceRange subresourceRange, VkImageLayout oldLayout,
+                       VkImageLayout newLayout, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+
+    imageMemoryBarriers.push_back({
+          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_NONE,
+          .srcAccessMask = VK_PIPELINE_STAGE_NONE,
+          .dstStageMask = VK_PIPELINE_STAGE_NONE,
+          .dstAccessMask = VK_ACCESS_NONE,
+          .oldLayout = oldLayout,
+          .newLayout = newLayout,
+          .srcQueueFamilyIndex = srcQueueFamilyIndex,
+          .dstQueueFamilyIndex = dstQueueFamilyIndex,
+          .image = image.image,
+          .subresourceRange = subresourceRange,
+    });
+}
+
+void Barriers::flush(VkCommandBuffer commandBuffer) {
+    dependencyInfo.imageMemoryBarrierCount = COUNT(imageMemoryBarriers);
+    dependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
+    dependencyInfo.bufferMemoryBarrierCount = COUNT(bufferMemoryBarriers);
+    dependencyInfo.pBufferMemoryBarriers = bufferMemoryBarriers.data();
+    dependencyInfo.memoryBarrierCount = COUNT(memoryBarriers);
+    dependencyInfo.pMemoryBarriers = memoryBarriers.data();
+
+    vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+
+    imageMemoryBarriers.clear();
+    bufferMemoryBarriers.clear();
+    memoryBarriers.clear();
+}
+
+bool Barriers::flushed() {
+    return imageMemoryBarriers.empty() && bufferMemoryBarriers.empty() && memoryBarriers.empty();
+}

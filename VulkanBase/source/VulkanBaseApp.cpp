@@ -508,17 +508,17 @@ void VulkanBaseApp::drawFrame() {
         for(int i = 0; i < waitSemaphores.size(); i++){
             const auto& stages = waitStages[i];
             const auto& semaphores = waitSemaphores[i];
-            ASSERT(semaphores.size() == swapChainImageCount);
-            waitStages_.push_back(stages[imageIndex]);
-            waitSemaphores_.push_back(semaphores[imageIndex]);
+            ASSERT(semaphores.size() == MAX_IN_FLIGHT_FRAMES);
+            waitStages_.push_back(stages[currentFrame]);
+            waitSemaphores_.push_back(semaphores[currentFrame]);
         }
     }
 
     if(!signalSemaphores.empty()) {
         for(int i = 0; i < waitSemaphores.size(); i++){
             const auto& semaphores = signalSemaphores[i];
-            ASSERT(semaphores.size() == swapChainImageCount);
-            signalSemaphores_.push_back(semaphores[imageIndex]);
+            ASSERT(semaphores.size() == MAX_IN_FLIGHT_FRAMES);
+            signalSemaphores_.push_back(semaphores[currentFrame]);
         }
     }
 

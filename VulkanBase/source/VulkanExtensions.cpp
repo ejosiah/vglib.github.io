@@ -17,6 +17,18 @@ static PFN_vkGetSemaphoreWin32HandleKHR pfn_vkGetSemaphoreWin32HandleKHR = nullp
 static PFN_vkCmdDrawMeshTasksEXT pfn_vkCmdDrawMeshTasksEXT = nullptr;
 static PFN_vkCmdSetPolygonModeEXT pfn_vkCmdSetPolygonModeEXT = nullptr;
 static PFN_vkCmdSetColorBlendEnableEXT pfn_vkCmdSetColorBlendEnableEXT = nullptr;
+static PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR pfn_vkGetPhysicalDeviceVideoCapabilitiesKHR = nullptr;
+static PFN_vkGetPhysicalDeviceVideoFormatPropertiesKHR pfn_vkGetPhysicalDeviceVideoFormatPropertiesKHR = nullptr;
+static PFN_vkCreateVideoSessionKHR pfn_vkCreateVideoSessionKHR = nullptr;
+static PFN_vkDestroyVideoSessionKHR pfn_vkDestroyVideoSessionKHR = nullptr;
+static PFN_vkGetVideoSessionMemoryRequirementsKHR pfn_vkGetVideoSessionMemoryRequirementsKHR = nullptr;
+static PFN_vkBindVideoSessionMemoryKHR pfn_vkBindVideoSessionMemoryKHR = nullptr;
+static PFN_vkCreateVideoSessionParametersKHR pfn_vkCreateVideoSessionParametersKHR = nullptr;
+static PFN_vkDestroyVideoSessionParametersKHR pfn_vkDestroyVideoSessionParametersKHR = nullptr;
+static PFN_vkCmdBeginVideoCodingKHR pfn_vkCmdBeginVideoCodingKHR = nullptr;
+static PFN_vkCmdEndVideoCodingKHR pfn_vkCmdEndVideoCodingKHR = nullptr;
+static PFN_vkCmdControlVideoCodingKHR pfn_vkCmdControlVideoCodingKHR = nullptr;
+static PFN_vkCmdDecodeVideoKHR pfn_vkCmdDecodeVideoKHR = nullptr;
 
 #ifdef WIN32
 static PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR = nullptr;
@@ -43,6 +55,18 @@ namespace ext {
         pfn_vkCmdDrawMeshTasksEXT = procAddress<PFN_vkCmdDrawMeshTasksEXT>(instance, "vkCmdDrawMeshTasksEXT");
         pfn_vkCmdSetPolygonModeEXT = procAddress<PFN_vkCmdSetPolygonModeEXT>(instance, "vkCmdSetPolygonModeEXT");
         pfn_vkCmdSetColorBlendEnableEXT = procAddress<PFN_vkCmdSetColorBlendEnableEXT>(instance, "vkCmdSetColorBlendEnableEXT");
+        pfn_vkGetPhysicalDeviceVideoCapabilitiesKHR = procAddress<PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR>(instance, "vkGetPhysicalDeviceVideoCapabilitiesKHR");
+        pfn_vkGetPhysicalDeviceVideoFormatPropertiesKHR = procAddress<PFN_vkGetPhysicalDeviceVideoFormatPropertiesKHR>(instance, "vkGetPhysicalDeviceVideoFormatPropertiesKHR");
+        pfn_vkCreateVideoSessionKHR = procAddress<PFN_vkCreateVideoSessionKHR>(instance, "vkCreateVideoSessionKHR");
+        pfn_vkDestroyVideoSessionKHR = procAddress<PFN_vkDestroyVideoSessionKHR>(instance, "vkDestroyVideoSessionKHR");
+        pfn_vkGetVideoSessionMemoryRequirementsKHR = procAddress<PFN_vkGetVideoSessionMemoryRequirementsKHR>(instance, "vkGetVideoSessionMemoryRequirementsKHR");
+        pfn_vkBindVideoSessionMemoryKHR = procAddress<PFN_vkBindVideoSessionMemoryKHR>(instance, "vkBindVideoSessionMemoryKHR");
+        pfn_vkCreateVideoSessionParametersKHR = procAddress<PFN_vkCreateVideoSessionParametersKHR>(instance, "vkCreateVideoSessionParametersKHR");
+        pfn_vkDestroyVideoSessionParametersKHR = procAddress<PFN_vkDestroyVideoSessionParametersKHR>(instance, "vkDestroyVideoSessionParametersKHR");
+        pfn_vkCmdBeginVideoCodingKHR = procAddress<PFN_vkCmdBeginVideoCodingKHR>(instance, "vkCmdBeginVideoCodingKHR");
+        pfn_vkCmdEndVideoCodingKHR = procAddress<PFN_vkCmdEndVideoCodingKHR>(instance, "vkCmdEndVideoCodingKHR");
+        pfn_vkCmdControlVideoCodingKHR = procAddress<PFN_vkCmdControlVideoCodingKHR>(instance, "vkCmdControlVideoCodingKHR");
+        pfn_vkCmdDecodeVideoKHR = procAddress<PFN_vkCmdDecodeVideoKHR>(instance, "vkCmdDecodeVideoKHR");
 
 #ifdef WIN32
         pfn_vkGetMemoryWin32HandleKHR = procAddress<PFN_vkGetMemoryWin32HandleKHR>(instance, "vkGetMemoryWin32HandleKHR");
@@ -192,4 +216,102 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetColorBlendEnableEXT(
         const VkBool32*                             pColorBlendEnables) {
     assert(pfn_vkCmdSetColorBlendEnableEXT);
     return pfn_vkCmdSetColorBlendEnableEXT(commandBuffer, firstAttachment, attachmentCount, pColorBlendEnables);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceVideoCapabilitiesKHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkVideoProfileInfoKHR*                pVideoProfile,
+        VkVideoCapabilitiesKHR*                     pCapabilities) {
+
+    assert(pfn_vkGetPhysicalDeviceVideoCapabilitiesKHR);
+    return pfn_vkGetPhysicalDeviceVideoCapabilitiesKHR(physicalDevice, pVideoProfile, pCapabilities);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceVideoFormatPropertiesKHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkPhysicalDeviceVideoFormatInfoKHR*   pVideoFormatInfo,
+        uint32_t*                                   pVideoFormatPropertyCount,
+        VkVideoFormatPropertiesKHR*                 pVideoFormatProperties) {
+    assert(pfn_vkGetPhysicalDeviceVideoFormatPropertiesKHR);
+    return pfn_vkGetPhysicalDeviceVideoFormatPropertiesKHR(physicalDevice, pVideoFormatInfo, pVideoFormatPropertyCount, pVideoFormatProperties);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateVideoSessionKHR(
+        VkDevice                                    device,
+        const VkVideoSessionCreateInfoKHR*          pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkVideoSessionKHR*                          pVideoSession) {
+    assert(pfn_vkCreateVideoSessionKHR);
+    return pfn_vkCreateVideoSessionKHR(device, pCreateInfo, pAllocator, pVideoSession);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkDestroyVideoSessionKHR(
+        VkDevice                                    device,
+        VkVideoSessionKHR                           videoSession,
+        const VkAllocationCallbacks*                pAllocator) {
+    assert(pfn_vkDestroyVideoSessionKHR);
+    pfn_vkDestroyVideoSessionKHR(device, videoSession, pAllocator);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetVideoSessionMemoryRequirementsKHR(
+        VkDevice                                    device,
+        VkVideoSessionKHR                           videoSession,
+        uint32_t*                                   pMemoryRequirementsCount,
+        VkVideoSessionMemoryRequirementsKHR*        pMemoryRequirements) {
+    assert(pfn_vkGetVideoSessionMemoryRequirementsKHR);
+    return pfn_vkGetVideoSessionMemoryRequirementsKHR(device, videoSession, pMemoryRequirementsCount, pMemoryRequirements);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkBindVideoSessionMemoryKHR(
+        VkDevice                                    device,
+        VkVideoSessionKHR                           videoSession,
+        uint32_t                                    bindSessionMemoryInfoCount,
+        const VkBindVideoSessionMemoryInfoKHR*      pBindSessionMemoryInfos) {
+    assert(pfn_vkBindVideoSessionMemoryKHR);
+    return pfn_vkBindVideoSessionMemoryKHR(device, videoSession, bindSessionMemoryInfoCount, pBindSessionMemoryInfos);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateVideoSessionParametersKHR(
+        VkDevice                                    device,
+        const VkVideoSessionParametersCreateInfoKHR* pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkVideoSessionParametersKHR*                pVideoSessionParameters) {
+    assert(pfn_vkCreateVideoSessionParametersKHR);
+    return pfn_vkCreateVideoSessionParametersKHR(device, pCreateInfo, pAllocator, pVideoSessionParameters);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkDestroyVideoSessionParametersKHR(
+        VkDevice                                    device,
+        VkVideoSessionParametersKHR                 videoSessionParameters,
+        const VkAllocationCallbacks*                pAllocator) {
+    assert(pfn_vkDestroyVideoSessionParametersKHR);
+    pfn_vkDestroyVideoSessionParametersKHR(device, videoSessionParameters, pAllocator);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdBeginVideoCodingKHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkVideoBeginCodingInfoKHR*            pBeginInfo) {
+    assert(pfn_vkCmdBeginVideoCodingKHR);
+    return pfn_vkCmdBeginVideoCodingKHR(commandBuffer, pBeginInfo);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdEndVideoCodingKHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkVideoEndCodingInfoKHR*              pEndCodingInfo) {
+    assert(pfn_vkCmdEndVideoCodingKHR);
+    pfn_vkCmdEndVideoCodingKHR(commandBuffer, pEndCodingInfo);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdControlVideoCodingKHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkVideoCodingControlInfoKHR*          pCodingControlInfo) {
+    assert(pfn_vkCmdControlVideoCodingKHR);
+    return pfn_vkCmdControlVideoCodingKHR(commandBuffer, pCodingControlInfo);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdDecodeVideoKHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkVideoDecodeInfoKHR*                 pDecodeInfo) {
+    assert(pfn_vkCmdDecodeVideoKHR);
+    pfn_vkCmdDecodeVideoKHR(commandBuffer, pDecodeInfo);
 }
