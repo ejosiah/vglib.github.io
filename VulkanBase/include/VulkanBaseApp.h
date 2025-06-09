@@ -49,7 +49,7 @@ constexpr bool enableValidation = false;
 #endif
 
 #ifndef MAX_IN_FLIGHT_FRAMES
-#define MAX_IN_FLIGHT_FRAMES 1
+#define MAX_IN_FLIGHT_FRAMES 2
 #endif // MAX_IN_FLIGHT_FRAMES
 
 struct FramebufferAttachment{
@@ -199,8 +199,6 @@ protected:
     virtual void newFrame();
 
     virtual void endFrame();
-
-    void postConditionChecks();
 
     void waitForNextFrame();
 
