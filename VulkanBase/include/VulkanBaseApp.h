@@ -200,6 +200,8 @@ protected:
 
     virtual void endFrame();
 
+    void postConditionChecks();
+
     void waitForNextFrame();
 
     /**

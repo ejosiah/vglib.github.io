@@ -23,4 +23,10 @@ struct Synchronization {
     VkFence fence() const {
         return _fence.fence ? _fence.fence : VK_NULL_HANDLE;
     }
+
+    void clear() {
+        waitSemaphores.stages.clear();
+        waitSemaphores.semaphores.clear();
+        signalSemaphores.clear();
+    }
 };

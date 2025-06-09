@@ -19,7 +19,7 @@
 #include "gpu/algorithm.h"
 #include "ExtensionChain.hpp"
 #include "plugins/BindLessDescriptorPlugin.hpp"
-
+#include "Barrier.hpp"
 
 
 VkDevice vkDevice = VK_NULL_HANDLE;
@@ -320,6 +320,7 @@ void VulkanBaseApp::mainLoop() {
             notifyPluginsOfEndFrame();
             processIdleProcs();
             endFrame();
+            postConditionChecks();
             nextFrame();
         }else{
             glfwSetTime(elapsedTime);
@@ -667,6 +668,12 @@ void VulkanBaseApp::newFrame() {
 
 void VulkanBaseApp::endFrame() {
 
+}
+
+void VulkanBaseApp::postConditionChecks() {
+    if(!Barriers::flushed()) {
+        spdlog::warn("Barriers have yet to be flushed");
+    }
 }
 
 void VulkanBaseApp::copyToSwapChain(VkCommandBuffer commandBuffer, VkImage srcImage, int swapChainImageIndex) {
