@@ -609,9 +609,9 @@ struct VulkanDevice{
         assert(logicalDevice);
         VmaAllocationCreateInfo allocInfo{};
         allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        VkImage image;
+        VkImage image{};
         VmaAllocation allocation;
-        vmaCreateImage(allocator, &createInfo, &allocInfo, &image, &allocation, nullptr);
+        ERR_GUARD_VULKAN(vmaCreateImage(allocator, &createInfo, &allocInfo, &image, &allocation, nullptr));
 
         return VulkanImage{ logicalDevice, allocator, image, createInfo.format, allocation, createInfo.initialLayout, createInfo.extent };
 
@@ -628,7 +628,7 @@ struct VulkanDevice{
         assert(logicalDevice);
         VmaAllocationCreateInfo allocInfo{};
         allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        VkImage image;
+        VkImage image{};
         VmaAllocation allocation;
         vmaCreateImage(exportableMemoryAllocator, &createInfo, &allocInfo, &image, &allocation, nullptr);
 
@@ -638,7 +638,7 @@ struct VulkanDevice{
 
     inline VulkanSampler createSampler(const VkSamplerCreateInfo& createInfo) const {
         assert(logicalDevice);
-        VkSampler sampler;
+        VkSampler sampler{};
         ERR_GUARD_VULKAN(vkCreateSampler(logicalDevice, &createInfo, nullptr, &sampler));
         return VulkanSampler { logicalDevice, sampler};
     }

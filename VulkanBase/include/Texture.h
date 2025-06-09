@@ -27,6 +27,10 @@ struct Texture{
     bool lod{};
     bool flipped{};
     std::string path;
+
+    bool isValid() const {
+        return image.image != VK_NULL_HANDLE;
+    }
 };
 
 struct Distribution1DTexture {
