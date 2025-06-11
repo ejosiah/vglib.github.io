@@ -313,6 +313,27 @@ protected:
 
     void clear(VkCommandBuffer commandBuffer, const Texture& texture, const glm::vec4& color, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
+    void renderToSwapChain(auto body, VkCommandBuffer commandBuffer) {
+        static std::array<VkClearValue, 2> clearValues;
+        clearValues[0].color = backgroundColor;
+        clearValues[1].depthStencil = depthStencilValue;
+
+        rPassInfo.clearValueCount = COUNT(clearValues);
+        rPassInfo.pClearValues = clearValues.data();
+        rPassInfo.framebuffer = framebuffers[currentImageIndex];
+        rPassInfo.renderArea.offset = {0u, 0u};
+        rPassInfo.renderArea.extent = swapChain.extent;
+        rPassInfo.renderPass = renderPass;
+
+        vkCmdBeginRenderPass(commandBuffer, &rPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        body();
+        vkCmdEndRenderPass(commandBuffer);
+    }
+
+    void clearColor(float r, float g, float b, float a = 1);
+
+    void depthValue(float d);
+
 private:
     void setPaused(bool flag);
 
@@ -385,5 +406,8 @@ protected:
     VulkanBuffer emptyVertexBuffer;
 
 private:
+    VkRenderPassBeginInfo rPassInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+    VkClearColorValue backgroundColor{0.4, 0.4, 0.4, 1};
+    VkClearDepthStencilValue depthStencilValue{1.0, 0u};
     static VulkanBaseApp* appInstance;
 };

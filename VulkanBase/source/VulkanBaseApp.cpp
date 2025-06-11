@@ -1042,3 +1042,11 @@ void VulkanBaseApp::clear(VkCommandBuffer commandBuffer, const Texture &texture,
     vkCmdPipelineBarrier2(commandBuffer, &info);
 
 }
+
+void VulkanBaseApp::clearColor(float r, float g, float b, float a) {
+    backgroundColor = {r, g, b, a};
+}
+
+void VulkanBaseApp::depthValue(float d) {
+    depthStencilValue.depth = d;
+}
