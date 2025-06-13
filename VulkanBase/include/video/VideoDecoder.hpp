@@ -2,17 +2,19 @@
 
 #include "Video.hpp"
 #include "VulkanDevice.h"
+#include "ComputePipelins.hpp"
 
 /*
- * TODO implement decode cabability for VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_DISTINCT_BIT_KHR
+ * TODO implement decode capability for VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_DISTINCT_BIT_KHR
  * TODO make YUV sampler private and resolve picture to RGB
+ * FIXME video stutter
  */
 
-class VideoDecoder {
+class VideoDecoder : public ComputePipelines {
 public:
     VideoDecoder() = default;
 
-    VideoDecoder(VulkanDevice& device);
+    explicit VideoDecoder(VulkanDevice& device);
 
     ~VideoDecoder();
 
@@ -20,10 +22,16 @@ public:
 
     void decode(std::shared_ptr<VideoInstance>& instance);
 
-    [[nodiscard]] VulkanSampler getSampler() const;
-
 private:
     VulkanDevice& device();
+
+    void createDescriptorPool();
+
+    void createDescriptorSetLayout();
+
+    void updateDescriptors(OutputTexture& output);
+
+    void updateSrcDescriptor(OutputTexture& output);
 
     void createDpbOutputTexture(OutputTexture& output, const std::string& name);
 
@@ -34,6 +42,8 @@ private:
     void decode(const std::shared_ptr<VideoInstance>& instance, VkCommandBuffer commandBuffer);
 
     void decode(const VideoDecodeOperation& decodeOperation, VkCommandBuffer commandBuffer);
+
+    void resolveToRGB(const std::shared_ptr<VideoInstance>& instance, VkCommandBuffer commandBuffer);
 
     void getVideoCapabilities();
 
@@ -47,9 +57,12 @@ private:
 
     void createDpbResources(std::shared_ptr<VideoInstance>& instance);
 
+protected:
+    std::vector<PipelineMetaData> pipelineMetaData() override;
+
 private:
     uint64_t VIDEO_DECODE_BITSTREAM_ALIGNMENT = 1u;
-    VulkanDevice* _device;
+    VulkanDevice* _device{};
     VideoCapabilities cb;
     VulkanSampler yuvSampler;
     VkSamplerYcbcrConversion ycbcrConversion{};
@@ -58,4 +71,8 @@ private:
         VulkanSemaphore frameDecoded;
     } semaphores;
     std::vector<VideoSession*> activeSessions;
+    VulkanDescriptorPool descriptorPool;
+    VulkanDescriptorSetLayout rgbResolveDescriptorSetLayout;
+    VkDescriptorSet rgbResolveDescriptorSet{};
+    static constexpr uint32_t MaxDescriptorResources = 128;
 };

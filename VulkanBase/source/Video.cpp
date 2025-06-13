@@ -89,78 +89,6 @@ void VideoInstance::updateDisplayOrderOutput() {
     }
 }
 
-void VideoInstance::resolveToDisplay(VkCommandBuffer commandBuffer, VulkanDevice& device) {
-    if(!video) return;
-
-    if(!has_flag(flags, Flags::NeedsResolve)) return;
-
-//    flags &= ~Flags::NeedsResolve;
-    std::vector<std::string> released{};
-    for(auto resolveId : output_textures_resolve_request) {
-        auto& out = output_textures_used[resolveId];
-
-        Barriers::push(out.src.texture->image, out.src.subresource_luminance, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-        Barriers::push(out.src.texture->image, out.src.subresource_chrominance, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-        Barriers::flush(commandBuffer);
-
-        std::vector<VkImageCopy> regions {
-                {
-                        .srcSubresource = {
-                                .aspectMask = VK_IMAGE_ASPECT_PLANE_0_BIT,
-                                .baseArrayLayer = out.src.subresource_luminance.baseArrayLayer,
-                                .layerCount = 1,
-                        },
-                        .srcOffset = {0, 0, 0},
-                        .dstSubresource = {
-                                .aspectMask = VK_IMAGE_ASPECT_PLANE_0_BIT,
-                                .baseArrayLayer = 0,
-                                .layerCount = 1
-                        },
-                        .dstOffset = {0, 0, 0},
-                        .extent = { video->width, video->height, 1 }
-                },
-                {
-                        .srcSubresource = {
-                                .aspectMask = VK_IMAGE_ASPECT_PLANE_1_BIT,
-                                .baseArrayLayer = out.src.subresource_chrominance.baseArrayLayer,
-                                .layerCount = 1,
-                        },
-                        .srcOffset = {0, 0, 0},
-                        .dstSubresource = {
-                                .aspectMask = VK_IMAGE_ASPECT_PLANE_1_BIT,
-                                .baseArrayLayer = 0,
-                                .layerCount = 1
-                        },
-                        .dstOffset = {0, 0, 0},
-                        .extent = { video->width/2, video->height/2, 1 }
-                },
-        };
-
-        vkCmdCopyImage(commandBuffer, out.src.texture->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
-                , out.display.texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, COUNT(regions), regions.data());
-
-        Barriers::push(out.src.texture->image, out.src.subresource_luminance, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,
-                       VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR);
-
-        Barriers::push(out.src.texture->image, out.src.subresource_chrominance, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,
-                       VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR);
-
-        Barriers::release(out.display.texture.image, out.display.subresource_luminance, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, *device.queueFamilyIndex.video_decode, *device.queueFamilyIndex.graphics);
-
-        Barriers::release(out.display.texture.image, out.display.subresource_chrominance, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, *device.queueFamilyIndex.video_decode, *device.queueFamilyIndex.graphics);
-
-        Barriers::flush(commandBuffer);
-        released.push_back(out.name);
-    }
-//    output_textures_resolve_request.clear();
-}
-
 bool VideoInstance::isDecodingRequired(VulkanDevice &device) {
     // TODO check which profile is supported
     if (!video) return false;
@@ -172,7 +100,7 @@ bool VideoInstance::isDecodingRequired(VulkanDevice &device) {
 
 OutputTexture* VideoInstance::findNextDisplayableOutput() {
     auto itr = std::find_if(output_textures_used.begin(), output_textures_used.end(), [this](const auto& out){
-        return out.display_order == target_display_order + 1;
+        return out.display_order == target_display_order + bufferSize;
     });
     return itr != output_textures_used.end() ? &(*itr) : nullptr;
 }

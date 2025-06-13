@@ -90,8 +90,7 @@ struct ResourceState {
 struct OutputTexture{
     struct {
         Texture texture; // resolved RGB image
-        VkImageSubresourceRange subresource_luminance{};
-        VkImageSubresourceRange subresource_chrominance{};
+        VkImageSubresourceRange subresource{};
         ResourceState state;
     } display{};
     // Below can be either point to DPB in coincide mode, or separate decoder output in non-coincide mode:
@@ -99,8 +98,10 @@ struct OutputTexture{
         Texture* texture;
         VkImageSubresourceRange subresource_luminance{};
         VkImageSubresourceRange subresource_chrominance{};
+        VkImageView imageview{};
         ResourceState state;
     } src;
+    int textureId{-1};
     std::string name;
     int display_order{-1};
 };
@@ -109,6 +110,7 @@ struct DPB{
     Texture texture; // raw decoder image array (only can be sampled when device supports coincide mode decoder)
     std::array<VkImageSubresourceRange, 17> subresources_luminance;
     std::array<VkImageSubresourceRange, 17> subresources_chrominance;
+    std::array<VulkanImageView, 17> image_views;
     std::array<int, 17> poc_status;
     std::array<int, 17> framenum_status;
     std::array<ResourceState, 17> resource_states;
@@ -141,6 +143,7 @@ struct VideoInstance{
     size_t maxFrames = std::numeric_limits<size_t>::max();
     float current_time = 0; // tracking the absolute time of the playback in seconds
     Flags flags = Flags::Empty;
+    uint32_t bufferSize{1};
     VideoSession session;
 
     void seek(float timeInSeconds);
@@ -148,8 +151,6 @@ struct VideoInstance{
     void update(float timeInSeconds);
 
     void updateDisplayOrderOutput();
-
-    void resolveToDisplay(VkCommandBuffer commandBuffer,VulkanDevice& device);
 
     bool isDecodingRequired(VulkanDevice& device);
 

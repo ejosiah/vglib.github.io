@@ -1,8 +1,12 @@
 #include "video/VideoDecoder.hpp"
 #include "Barrier.hpp"
+#include "filemanager.hpp"
+#include <algorithm>
 
 
-VideoDecoder::VideoDecoder(VulkanDevice &device) : _device(&device){}
+VideoDecoder::VideoDecoder(VulkanDevice &device)
+: ComputePipelines(&device)
+, _device(&device){}
 
 VideoDecoder::~VideoDecoder() {
     for(auto session : activeSessions) {
@@ -19,64 +23,35 @@ void VideoDecoder::init() {
     createSemaphores();
     getVideoCapabilities();
     createYUVSampler();
+    createDescriptorPool();
+    createDescriptorSetLayout();
+    createPipelines();
 }
 
 void VideoDecoder::decode(std::shared_ptr<VideoInstance> &instance) {
-    if(!(cb.decodeCapabilities.flags & VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_COINCIDE_BIT_KHR)){
+    if (!(cb.decodeCapabilities.flags & VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_COINCIDE_BIT_KHR)) {
         spdlog::error("VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_DISTINCT_BIT_KHR not yet implemented");
         std::exit(500);
     }
     initialize(instance);
 
     static Synchronization sync{};
-    sync.clear();
-
-    static int frame = 0;
-    ++frame;
-    std::vector<std::string> free;
-    std::vector<std::string> used;
-    for(auto& it : instance->output_textures_free) free.push_back(it.name);
-    for(auto& it : instance->output_textures_used) used.push_back(it.name);
-
-    if(!instance->output_textures_free.empty()) {
-        sync.signalSemaphores.push_back(semaphores.renderingFinished);
-        device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer) {
-            std::vector<std::string> released;
-            for(auto& output : instance->output_textures_free) {
-                if(output.display.state.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) continue;
-
-                Barriers::release(output.display.texture.image, output.display.subresource_luminance, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, *device().queueFamilyIndex.graphics, *device().queueFamilyIndex.video_decode);
-
-                Barriers::release(output.display.texture.image, output.display.subresource_chrominance, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, *device().queueFamilyIndex.graphics, *device().queueFamilyIndex.video_decode);
-
-                released.push_back(output.name);
-            }
-            Barriers::flush(commandBuffer);
-        }, sync);
-
-        sync.clear();
-        sync.waitSemaphores.semaphores.push_back(semaphores.renderingFinished);
-        sync.waitSemaphores.stages.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-    }
 
     sync.signalSemaphores.push_back(semaphores.frameDecoded);
     device().videoDecodeCommandPool().oneTimeCommand([&](auto commandBuffer) {
-        std::vector<std::string> acquired;
-        for(auto& output : instance->output_textures_free) {
-            if(output.display.state.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) continue;
-            Barriers::acquire(output.display.texture.image, output.display.subresource_luminance,
-                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        for (auto &output: instance->output_textures_free) {
+            if (output.src.state.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) continue;
+            Barriers::acquire(output.src.texture->image, output.src.subresource_luminance,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
                               *device().queueFamilyIndex.graphics, *device().queueFamilyIndex.video_decode);
 
-            Barriers::acquire(output.display.texture.image, output.display.subresource_chrominance,
-                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            Barriers::acquire(output.src.texture->image, output.src.subresource_chrominance,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
                               *device().queueFamilyIndex.graphics, *device().queueFamilyIndex.video_decode);
 
-            output.display.state = { VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT };
+            output.src.state = {VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,
+                                VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR};
 
-            acquired.push_back(output.name);
         }
         Barriers::flush(commandBuffer);
         decode(instance, commandBuffer);
@@ -85,34 +60,16 @@ void VideoDecoder::decode(std::shared_ptr<VideoInstance> &instance) {
 
     sync.clear();
     sync.waitSemaphores.semaphores.push_back(semaphores.frameDecoded);
-    sync.waitSemaphores.stages.push_back(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    sync.waitSemaphores.stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    sync.signalSemaphores.push_back(semaphores.renderingFinished);
+
     device().graphicsCommandPool().oneTimeCommand([&](auto commandBuffer) {
-        if(has_flag(instance->flags, VideoInstance::Flags::NeedsResolve)) {
-            instance->flags &= ~VideoInstance::Flags::NeedsResolve;
-
-            std::vector<std::string> acquired;
-            for (auto id: instance->output_textures_resolve_request) {
-                auto &out = instance->output_textures_used[id];
-
-                Barriers::acquire(out.display.texture.image, out.display.subresource_luminance,
-                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, *device().queueFamilyIndex.video_decode,
-                                  *device().queueFamilyIndex.graphics);
-
-                Barriers::acquire(out.display.texture.image, out.display.subresource_chrominance,
-                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, *device().queueFamilyIndex.video_decode,
-                                  *device().queueFamilyIndex.graphics);
-
-                out.display.state = { VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT };
-
-                acquired.push_back(out.name);
-            }
-            Barriers::flush(commandBuffer);
-            instance->updateDisplayOrderOutput();
-            instance->output_textures_resolve_request.clear();
-        }
+        resolveToRGB(instance, commandBuffer);
     }, sync);
+
+    sync.clear();
+    sync.waitSemaphores.semaphores.push_back(semaphores.renderingFinished);
+    sync.waitSemaphores.stages.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 }
 
 
@@ -120,45 +77,31 @@ VulkanDevice &VideoDecoder::device() {
     return *_device;
 }
 
-VulkanSampler VideoDecoder::getSampler() const {
-    return yuvSampler;
-}
-
 void VideoDecoder::createDpbOutputTexture(OutputTexture &output, const std::string &name) {
-    assert(ycbcrConversion);
-
     output.name = name;
     auto& texture = output.display.texture;
-    const auto videoFormat = cb.formats.front();
 
     VkImageCreateInfo imageCreateInfo{};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageCreateInfo.imageType = videoFormat.imageType;
-    imageCreateInfo.format = videoFormat.format;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;  // TODO confirm if converter converts so linear or srgb
     imageCreateInfo.extent = {texture.width, texture.height, 1};
     imageCreateInfo.mipLevels = 1;
     imageCreateInfo.arrayLayers = 1;
     imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageCreateInfo.tiling = videoFormat.imageTiling;
-    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     texture.image = device().createImage(imageCreateInfo);
     device().setName<VK_OBJECT_TYPE_IMAGE>(name, texture.image.image);
 
-
-    VkSamplerYcbcrConversionInfo  conversionInfo {
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO,
-            .conversion = ycbcrConversion
-    };
-
     VkImageViewCreateInfo  createInfo{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .pNext = &conversionInfo,
             .image = texture.image,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = videoFormat.format,
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
             .subresourceRange = {
                     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                     .baseMipLevel = 0,
@@ -170,21 +113,15 @@ void VideoDecoder::createDpbOutputTexture(OutputTexture &output, const std::stri
     texture.imageView = device().createImageView(createInfo);
     device().setName<VK_OBJECT_TYPE_IMAGE_VIEW>(fmt::format("{}_image_view", name), texture.imageView.handle);
 
-    output.display.subresource_luminance = VkImageSubresourceRange{
-            .aspectMask = VK_IMAGE_ASPECT_PLANE_0_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1
+    output.display.subresource = VkImageSubresourceRange{
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1
     };
 
-    output.display.subresource_chrominance = VkImageSubresourceRange{
-            .aspectMask = VK_IMAGE_ASPECT_PLANE_1_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1
-    };
+    updateDescriptors(output);
 }
 
 void VideoDecoder::createSemaphores() {
@@ -223,9 +160,9 @@ void VideoDecoder::createYUVSampler() {
     VkSamplerCreateInfo samplerCreateInfo{
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .pNext = &conversionInfo,
-            .magFilter = VK_FILTER_LINEAR,
-            .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .magFilter = VK_FILTER_NEAREST,
+            .minFilter = VK_FILTER_NEAREST,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
             .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
@@ -241,7 +178,6 @@ void VideoDecoder::getVideoCapabilities() {
     Video::getCapabilities(device(), cb);
     VIDEO_DECODE_BITSTREAM_ALIGNMENT = cb.capabilities.minBitstreamBufferOffsetAlignment;
 }
-
 
 void VideoDecoder::createVideoSession(std::shared_ptr<VideoInstance> &instance) {
     if(instance->session.handle) return;
@@ -539,7 +475,6 @@ void VideoDecoder::translate(const h264::PPS &pps, StdVideoH264PictureParameterS
 
 void VideoDecoder::decode(const std::shared_ptr<VideoInstance> &instance, VkCommandBuffer commandBuffer) {
     auto& dpb = instance->dpb;
-    const auto firstSlot = dpb.next_slot;
     const auto& video = instance->video;
 
     static int sequence = 0;
@@ -549,14 +484,15 @@ void VideoDecoder::decode(const std::shared_ptr<VideoInstance> &instance, VkComm
             auto& output = instance->output_textures_free.emplace_back();
             output.display.texture.width = instance->width();
             output.display.texture.height = instance->height();
-            createDpbOutputTexture(output, fmt::format("dpb_output_{}", sequence++));
-            Barriers::push(output.display.texture.image, output.display.subresource_luminance, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                           VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            output.textureId = sequence++;
+            createDpbOutputTexture(output, fmt::format("dpb_output_{}", output.textureId));
+            Barriers::push(output.display.texture.image, output.display.subresource, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-            Barriers::push(output.display.texture.image, output.display.subresource_chrominance, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                           VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            Barriers::push(output.display.texture.image, output.display.subresource, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-            output.display.state = { VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  VK_PIPELINE_STAGE_TRANSFER_BIT,  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL };
+            output.display.state = { VK_IMAGE_LAYOUT_GENERAL,  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  VK_ACCESS_SHADER_WRITE_BIT };
         }
 
         auto oDecode = std::move(instance->output_textures_free.back());
@@ -566,6 +502,7 @@ void VideoDecoder::decode(const std::shared_ptr<VideoInstance> &instance, VkComm
         oDecode.src.texture = &instance->dpb.texture;
         oDecode.src.subresource_luminance = instance->dpb.subresources_luminance[instance->dpb.next_slot];
         oDecode.src.subresource_chrominance = instance->dpb.subresources_chrominance[instance->dpb.next_slot];
+        oDecode.src.imageview = instance->dpb.image_views[instance->dpb.next_slot].handle;
 
         if(oDecode.display_order < instance->target_display_order) {
             // next decoded is lower display order than we will need, it can be immediately freed after decode
@@ -662,7 +599,18 @@ void VideoDecoder::decode(const std::shared_ptr<VideoInstance> &instance, VkComm
         instance->flags |= VideoInstance::Flags::FirstFrameDecoded;
         instance->current_decode_frame++;
     }
-    instance->resolveToDisplay(commandBuffer, device());
+
+    for(auto& rid : instance->output_textures_resolve_request) {
+        auto& out = instance->output_textures_used[rid];
+        Barriers::release(out.src.texture->image, out.src.subresource_luminance, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,
+                          VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                          *device().queueFamilyIndex.video_decode, *device().queueFamilyIndex.graphics);
+
+        Barriers::release(out.src.texture->image, out.src.subresource_chrominance, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,
+                          VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                          *device().queueFamilyIndex.video_decode, *device().queueFamilyIndex.graphics);
+    }
+    Barriers::flush(commandBuffer);
 }
 
 void VideoDecoder::decode(const VideoDecodeOperation &decodeOperation, VkCommandBuffer commandBuffer) {
@@ -807,7 +755,8 @@ void VideoDecoder::createDpbResources(std::shared_ptr<VideoInstance> &instance) 
             VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR
             | VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR
             | VK_IMAGE_USAGE_SAMPLED_BIT
-            | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+            | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+            | VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -857,6 +806,14 @@ void VideoDecoder::createDpbResources(std::shared_ptr<VideoInstance> &instance) 
         };
     }
 
+    createImageviewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    for(auto i = 0; i < num_dpb_slots; ++i) {
+        createImageviewInfo.subresourceRange = dpb.subresources_luminance[i];
+        createImageviewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        dpb.image_views[i] = device().createImageView(createImageviewInfo);
+        device().setName<VK_OBJECT_TYPE_IMAGE_VIEW>(fmt::format("video_dpb_image_view_{}", i), dpb.image_views[i].handle);
+    }
+
     device().videoDecodeCommandPool().oneTimeCommand([&](auto commandBuffer) {
         const auto numBarriers = num_dpb_slots * 2;
         std::vector<VkImageMemoryBarrier2> barriers(
@@ -900,4 +857,120 @@ void VideoDecoder::createDpbResources(std::shared_ptr<VideoInstance> &instance) 
 void VideoDecoder::initialize(std::shared_ptr<VideoInstance> &instance) {
     createDpbResources(instance);
     createVideoSession(instance);
+}
+
+std::vector<PipelineMetaData> VideoDecoder::pipelineMetaData() {
+    return {
+            {
+                .name = "resolve_rgb",
+                .shadePath = FileManager::resource("rgb_resolve.comp.spv"),
+                .layouts = { &rgbResolveDescriptorSetLayout },
+                .ranges = { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int) * 2} }
+            }
+    };
+}
+
+void VideoDecoder::resolveToRGB(const std::shared_ptr<VideoInstance> &instance, VkCommandBuffer commandBuffer) {
+    if(!instance->video) return;
+    if(!has_flag(instance->flags, VideoInstance::Flags::NeedsResolve)) return;
+    instance->flags &= ~VideoInstance::Flags::NeedsResolve;
+    
+    auto decode_queue = device().queueFamilyIndex.video_decode.value();
+    auto graphics_queue = device().queueFamilyIndex.graphics.value();
+    auto gx = to<uint32_t>(std::ceil((instance->video->width + 32u)/32u));
+    auto gy = to<uint32_t>(std::ceil((instance->video->height + 32u)/32u));
+
+    for(auto resolveId : instance->output_textures_resolve_request) {
+        auto& out = instance->output_textures_used[resolveId];
+        Barriers::acquire(out.src.texture->image, out.src.subresource_luminance, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, decode_queue, graphics_queue);
+        Barriers::acquire(out.src.texture->image, out.src.subresource_chrominance, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, decode_queue, graphics_queue);
+
+        instance->dpb.resource_states[out.src.subresource_luminance.baseArrayLayer].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        instance->dpb.resource_states[out.src.subresource_chrominance.baseArrayLayer].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        Barriers::flush(commandBuffer);
+
+        updateSrcDescriptor(out);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("resolve_rgb"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("resolve_rgb"), 0, 1, &rgbResolveDescriptorSet, 0, nullptr);
+        vkCmdPushConstants(commandBuffer, layout("resolve_rgb"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int), &out.textureId);
+        vkCmdDispatch(commandBuffer, gx, gy, 1);
+        
+        Barrier::computeWriteToFragmentRead(commandBuffer);
+
+        Barriers::release(out.src.texture->image, out.src.subresource_luminance, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                          graphics_queue, decode_queue);
+
+        Barriers::release(out.src.texture->image, out.src.subresource_chrominance, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                          graphics_queue, decode_queue);
+    }
+    instance->output_textures_resolve_request.clear();
+}
+
+void VideoDecoder::createDescriptorPool() {
+    constexpr uint32_t maxSets = MaxDescriptorResources;
+    std::array<VkDescriptorPoolSize, 2> poolSizes{
+            {
+                {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  maxSets},
+                {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, maxSets},
+            }
+    };
+    descriptorPool = device().createDescriptorPool(maxSets, poolSizes, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
+}
+
+void VideoDecoder::createDescriptorSetLayout() {
+    std::vector<VkSampler> samplers(MaxDescriptorResources);
+    std::generate(samplers.begin(), samplers.end(), [&]{ return yuvSampler.handle; });
+
+    rgbResolveDescriptorSetLayout =
+            device().descriptorSetLayoutBuilder()
+                .name("rgb_resolve_descriptor_set_layout")
+                .bindless()
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(MaxDescriptorResources)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .immutableSamplers(samplers.data())
+                .binding(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                    .descriptorCount(MaxDescriptorResources)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+            .createLayout();
+    auto sets = descriptorPool.allocate( { rgbResolveDescriptorSetLayout } );
+    rgbResolveDescriptorSet = sets[0];
+}
+
+void VideoDecoder::updateSrcDescriptor(OutputTexture &output) {
+    
+    static auto writes = initializers::writeDescriptorSets<1>();
+    writes[0].dstSet = rgbResolveDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].descriptorCount = 1;
+    writes[0].dstArrayElement = output.textureId;
+    VkDescriptorImageInfo srcImageInfo{nullptr, output.src.imageview, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[0].pImageInfo = &srcImageInfo;
+
+
+    device().updateDescriptorSets(writes);
+}
+
+
+void VideoDecoder::updateDescriptors(OutputTexture &output) {
+    static auto writes = initializers::writeDescriptorSets<1>();
+
+    writes[0].dstSet = rgbResolveDescriptorSet;
+    writes[0].dstBinding = 1;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writes[0].descriptorCount = 1;
+    writes[0].dstArrayElement = output.textureId;
+    VkDescriptorImageInfo dstImageInfo{nullptr, output.display.texture.imageView.handle, VK_IMAGE_LAYOUT_GENERAL};
+    writes[0].pImageInfo = &dstImageInfo;
+
+    device().updateDescriptorSets(writes);
 }
