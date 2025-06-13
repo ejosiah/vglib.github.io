@@ -36,10 +36,14 @@ struct Settings{
     bool stencilTest = false;
 
     /**
-     * sets if draw calls should be synchronized with minotrs
-     * refresh rate
+     * sets if draw calls should be synchronized with monitor's refresh rate
      */
     bool vSync = false;
+
+    /**
+     *  set present mode, note vSync takes priority over this
+     */
+    VkPresentModeKHR presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
     bool enableResize = true;
 
