@@ -919,9 +919,13 @@ void VideoDecoder::resolveToRGB(const std::shared_ptr<VideoInstance> &instance, 
 
         updateSrcDescriptor(out);
 
+        static std::array<int, 2> constants;
+        constants[0] = to<int>(out.src.subresource_luminance.baseArrayLayer);
+        constants[1] = out.textureId;
+
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("resolve_rgb"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("resolve_rgb"), 0, 1, &rgbResolveDescriptorSet, 0, nullptr);
-        vkCmdPushConstants(commandBuffer, layout("resolve_rgb"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int), &out.textureId);
+        vkCmdPushConstants(commandBuffer, layout("resolve_rgb"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(int) * 2, constants.data());
         vkCmdDispatch(commandBuffer, gx, gy, 1);
         
         Barrier::computeWriteToFragmentRead(commandBuffer);
@@ -968,7 +972,7 @@ void VideoDecoder::createDescriptorSetLayout() {
                 .bindless()
                 .binding(0)
                     .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(MaxDescriptorResources)
+                    .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
                     .immutableSamplers(samplers.data())
                 .binding(1)
@@ -987,8 +991,7 @@ void VideoDecoder::updateSrcDescriptor(OutputTexture &output) {
     writes[0].dstBinding = 0;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writes[0].descriptorCount = 1;
-    writes[0].dstArrayElement = output.textureId;
-    VkDescriptorImageInfo srcImageInfo{nullptr, output.src.imageview, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkDescriptorImageInfo srcImageInfo{nullptr, output.src.texture->imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     writes[0].pImageInfo = &srcImageInfo;
 
 
