@@ -98,7 +98,6 @@ struct OutputTexture{
         Texture* texture;
         VkImageSubresourceRange subresource_luminance{};
         VkImageSubresourceRange subresource_chrominance{};
-        VkImageView imageview{};
         ResourceState state;
     } src;
     int textureId{-1};
@@ -110,7 +109,6 @@ struct DPB{
     Texture texture; // raw decoder image array (only can be sampled when device supports coincide mode decoder)
     std::array<VkImageSubresourceRange, 17> subresources_luminance;
     std::array<VkImageSubresourceRange, 17> subresources_chrominance;
-    std::array<VulkanImageView, 17> image_views;
     std::array<int, 17> poc_status;
     std::array<int, 17> framenum_status;
     std::array<ResourceState, 17> resource_states;

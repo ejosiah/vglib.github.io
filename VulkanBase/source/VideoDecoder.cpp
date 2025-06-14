@@ -505,7 +505,6 @@ void VideoDecoder::decode(const std::shared_ptr<VideoInstance> &instance, VkComm
         oDecode.src.texture = &instance->dpb.texture;
         oDecode.src.subresource_luminance = instance->dpb.subresources_luminance[instance->dpb.next_slot];
         oDecode.src.subresource_chrominance = instance->dpb.subresources_chrominance[instance->dpb.next_slot];
-        oDecode.src.imageview = instance->dpb.image_views[instance->dpb.next_slot].handle;
 
         if(oDecode.display_order < instance->target_display_order) {
             // next decoded is lower display order than we will need, it can be immediately freed after decode
@@ -798,9 +797,6 @@ void VideoDecoder::createDpbResources(std::shared_ptr<VideoInstance> &instance) 
                 .baseArrayLayer = i,
                 .layerCount = 1
         };
-    }
-
-    for(auto i = 0u; i < num_dpb_slots; ++i) {
         dpb.subresources_chrominance[i] = {
                 .aspectMask = VK_IMAGE_ASPECT_PLANE_1_BIT,
                 .baseMipLevel = 0,
@@ -809,46 +805,6 @@ void VideoDecoder::createDpbResources(std::shared_ptr<VideoInstance> &instance) 
                 .layerCount = 1
         };
     }
-
-    createImageviewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    for(auto i = 0; i < num_dpb_slots; ++i) {
-        createImageviewInfo.subresourceRange = dpb.subresources_luminance[i];
-        createImageviewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        dpb.image_views[i] = device().createImageView(createImageviewInfo);
-        device().setName<VK_OBJECT_TYPE_IMAGE_VIEW>(fmt::format("video_dpb_image_view_{}", i), dpb.image_views[i].handle);
-    }
-
-    device().videoDecodeCommandPool().oneTimeCommand([&](auto commandBuffer) {
-        const auto numBarriers = num_dpb_slots * 2;
-        std::vector<VkImageMemoryBarrier2> barriers(
-                numBarriers, {
-                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                        .srcStageMask = VK_PIPELINE_STAGE_NONE,
-                        .srcAccessMask = VK_ACCESS_NONE,
-                        .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                        .image = dpb.texture.image.image,
-                        .subresourceRange = subresourceRange
-                }
-        );
-        for(auto i = 0; i < numBarriers;  ++i) {
-            if(i < num_dpb_slots) {
-                barriers[i].subresourceRange = dpb.subresources_luminance[i];
-            }else {
-                barriers[i].subresourceRange = dpb.subresources_chrominance[i % num_dpb_slots];
-            }
-        }
-
-        VkDependencyInfo info {
-                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                .imageMemoryBarrierCount = COUNT(barriers),
-                .pImageMemoryBarriers = barriers.data()
-        };
-
-        vkCmdPipelineBarrier2(commandBuffer, &info);
-    });
 
     dpb.texture.format = videoFormat.format;
     dpb.texture.width = video->width;
