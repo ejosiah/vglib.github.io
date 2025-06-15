@@ -6,7 +6,6 @@
 
 /*
  * TODO implement decode capability for VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_DISTINCT_BIT_KHR
- * TODO make YUV sampler private and resolve picture to RGB
  * FIXME video stutter
  */
 
@@ -20,7 +19,13 @@ public:
 
     void init();
 
+    void initialize(std::shared_ptr<VideoInstance>& instance);
+
     void decode(std::shared_ptr<VideoInstance>& instance);
+
+    void decode(const std::shared_ptr<VideoInstance>& instance, VkCommandBuffer commandBuffer);
+
+    void resolveToRGB(const std::shared_ptr<VideoInstance>& instance, VkCommandBuffer commandBuffer);
 
 private:
     VulkanDevice& device();
@@ -39,19 +44,13 @@ private:
 
     void translate(const h264::PPS& pps, StdVideoH264PictureParameterSet& vk_pps, StdVideoH264ScalingLists& vk_scalinglist);
 
-    void decode(const std::shared_ptr<VideoInstance>& instance, VkCommandBuffer commandBuffer);
-
     void decode(const VideoDecodeOperation& decodeOperation, VkCommandBuffer commandBuffer);
-
-    void resolveToRGB(const std::shared_ptr<VideoInstance>& instance, VkCommandBuffer commandBuffer);
 
     void getVideoCapabilities();
 
     void createSemaphores();
 
     void createYUVSampler();
-
-    void initialize(std::shared_ptr<VideoInstance>& instance);
 
     void createVideoSession(std::shared_ptr<VideoInstance>& instance);
 

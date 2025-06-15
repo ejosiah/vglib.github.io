@@ -33,6 +33,9 @@ void VideoInstance::update(float dt) {
     if (has_flag(flags, Flags::Looped) && current_time > video->duration_seconds) {
         current_time = 0;
         current_decode_frame = 0;
+        dpb.reference_usage.clear();
+        dpb.next_ref = 0;
+        dpb.next_slot = 0;
     }
     const auto numFrames = video->frame_infos.size();
     for (auto i = 0; i < numFrames; ++i) {

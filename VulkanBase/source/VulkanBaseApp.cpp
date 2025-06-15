@@ -81,6 +81,7 @@ void VulkanBaseApp::init() {
     initPlugins();
     prototypes = std::make_unique<Prototypes>( device, swapChain, renderPass);
     emptyVertexBuffer = device.createBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, sizeof(int), "empty_vertex_buffer");
+    initVideoDecoder();
     initApp();
     ready = true;
 
@@ -320,6 +321,7 @@ void VulkanBaseApp::mainLoop() {
             notifyPluginsOfEndFrame();
             processIdleProcs();
             endFrame();
+            decodeVideos();
             nextFrame();
         }else{
             glfwSetTime(elapsedTime);
@@ -492,6 +494,7 @@ void VulkanBaseApp::drawFrame() {
     inFlightImages[imageIndex] = &inFlightFences[currentFrame];
 
     auto time = getTime();
+
     updatePlugins(time);
     update(time);
     calculateFPS(time);
@@ -499,6 +502,16 @@ void VulkanBaseApp::drawFrame() {
     static std::vector<VkPipelineStageFlags> waitStages_;
     static std::vector<VkSemaphore> waitSemaphores_;
     static std::vector<VkSemaphore> signalSemaphores_;
+
+    if(video.decodeEnabled && !video.instances.empty()) {
+        if(!video.sync.waitSemaphores.semaphores.empty()) {
+            waitSemaphores_.push_back(video.sync.waitSemaphores.semaphores.front());
+            waitStages_.push_back(video.sync.waitSemaphores.stages.front());
+        }
+        if(!video.sync.signalSemaphores.empty()) {
+            signalSemaphores_.push_back(video.sync.signalSemaphores.front());
+        }
+    }
 
     waitStages_.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     waitSemaphores_.push_back(imageAcquired[currentFrame].semaphore);
@@ -522,17 +535,26 @@ void VulkanBaseApp::drawFrame() {
         }
     }
 
-    uint32_t commandBufferCount;
-    auto commandBuffers = buildCommandBuffers(imageIndex, commandBufferCount);
+    resolveDecodedVideos();
 
+    uint32_t commandBufferCount;
+    auto drawCommandBuffers = buildCommandBuffers(imageIndex, commandBufferCount);
+
+    static std::vector<VkCommandBuffer> commandBuffers;
+    commandBuffers.clear();
+    commandBuffers.insert(commandBuffers.begin(), drawCommandBuffers, drawCommandBuffers + commandBufferCount);
+
+    if(!video.instances.empty()) {
+        commandBuffers.push_back(video.resolveCommandBuffers.front());
+    }
 
     VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO };
     submitInfo.pNext = queueSubmitNextChain;
     submitInfo.waitSemaphoreCount = COUNT(waitSemaphores_);
     submitInfo.pWaitSemaphores = waitSemaphores_.data();
     submitInfo.pWaitDstStageMask = waitStages_.data();
-    submitInfo.commandBufferCount = commandBufferCount;
-    submitInfo.pCommandBuffers = commandBuffers;
+    submitInfo.commandBufferCount = COUNT(commandBuffers);
+    submitInfo.pCommandBuffers = commandBuffers.data();
     submitInfo.signalSemaphoreCount = COUNT(signalSemaphores_);
     submitInfo.pSignalSemaphores = signalSemaphores_.data();
 
@@ -543,6 +565,15 @@ void VulkanBaseApp::drawFrame() {
     waitStages_.clear();
     waitSemaphores_.clear();
     signalSemaphores_.clear();
+
+    if(video.decodeEnabled && !video.instances.empty() && video.firstDecodeRun) {
+        video.sync.clear();
+        video.sync.waitSemaphores.semaphores.push_back(video.renderingFinished);
+        video.sync.waitSemaphores.stages.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+    }
+
+    advanceVideos(time);
+
 }
 
 void VulkanBaseApp::presentFrame() {
@@ -1049,4 +1080,116 @@ void VulkanBaseApp::clearColor(float r, float g, float b, float a) {
 
 void VulkanBaseApp::depthValue(float d) {
     depthStencilValue.depth = d;
+}
+
+void VulkanBaseApp::add(std::shared_ptr<VideoInstance> videoInstance) {
+    video.decoder->initialize(videoInstance);
+    video.instances.push_back(std::move(videoInstance));
+}
+
+void VulkanBaseApp::initVideoDecoder() {
+    if(!device.extensionSupported(VK_KHR_VIDEO_DECODE_H264_EXTENSION_NAME)) return;
+
+    auto e0 = VK_KHR_VIDEO_DECODE_H264_EXTENSION_NAME;
+    auto itr = std::find_if(deviceExtensions.begin(), deviceExtensions.end(), [=](auto e1){ return strcmp(e1, e0) == 0;});
+    if(itr == deviceExtensions.end()) return;
+
+    video.commandPool = device.createCommandPool(*device.queueFamilyIndex.video_decode, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    video.commandBuffers = video.commandPool.allocateCommandBuffers(MAX_IN_FLIGHT_FRAMES);
+
+    video.resolveCommandPool = device.createCommandPool(*device.queueFamilyIndex.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    video.resolveCommandBuffers = video.resolveCommandPool.allocateCommandBuffers(MAX_IN_FLIGHT_FRAMES);
+    video.decodeEnabled = true;
+    video.decoder = std::make_unique<VideoDecoder>(device);
+    video.decoder->init();
+
+    video.frameDecoded = device.createSemaphore();
+    video.renderingFinished = device.createSemaphore();
+
+    device.setName<VK_OBJECT_TYPE_SEMAPHORE>("app_frameDecoded", video.frameDecoded.semaphore);
+    device.setName<VK_OBJECT_TYPE_SEMAPHORE>("app_vdc_renderingFinished", video.renderingFinished.semaphore);
+
+    spdlog::info("video decoding enabled");
+}
+
+void VulkanBaseApp::decodeVideos() {
+    if(!video.decodeEnabled || video.instances.empty()) return;
+
+    auto commandBuffer = video.commandBuffers[currentFrame];
+    VkCommandBufferBeginInfo beginInfo = initializers::commandBufferBeginInfo();
+    beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    for(auto& instance : video.instances) {
+        for (auto &out: instance->output_textures_free) {
+            if (out.src.state.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) continue;
+            Barriers::acquire(out.src.texture->image, out.src.subresource_luminance,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                              *device.queueFamilyIndex.graphics, *device.queueFamilyIndex.video_decode);
+
+            Barriers::acquire(out.src.texture->image, out.src.subresource_chrominance,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                              *device.queueFamilyIndex.graphics, *device.queueFamilyIndex.video_decode);
+
+            out.src.state = { VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR, VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR };
+        }
+        for (auto &out: instance->output_textures_used) {
+            if (out.src.state.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) continue;
+            Barriers::acquire(out.src.texture->image, out.src.subresource_luminance,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                              *device.queueFamilyIndex.graphics, *device.queueFamilyIndex.video_decode);
+
+            Barriers::acquire(out.src.texture->image, out.src.subresource_chrominance,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,
+                              *device.queueFamilyIndex.graphics, *device.queueFamilyIndex.video_decode);
+
+            out.src.state = { VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR, VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR, VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR };
+        }
+        Barriers::flush(commandBuffer);
+        video.decoder->decode(instance, commandBuffer);
+    }
+
+    vkEndCommandBuffer(commandBuffer);
+
+    video.sync.signalSemaphores.push_back(video.frameDecoded);
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    submitInfo.pNext = queueSubmitNextChain;
+    submitInfo.waitSemaphoreCount = COUNT(video.sync.waitSemaphores.semaphores);
+    submitInfo.pWaitSemaphores = video.sync.waitSemaphores.semaphores.data();
+    submitInfo.pWaitDstStageMask = video.sync.waitSemaphores.stages.data();
+    submitInfo.commandBufferCount = 1;  // TODO use commandBuffer per video
+    submitInfo.pCommandBuffers = &commandBuffer;
+    submitInfo.signalSemaphoreCount = COUNT(video.sync.signalSemaphores);
+    submitInfo.pSignalSemaphores = video.sync.signalSemaphores.data();
+
+
+    ERR_GUARD_VULKAN(vkQueueSubmit(device.queues.video_decode, 1, &submitInfo, nullptr));
+
+    video.sync.clear();
+    video.sync.waitSemaphores.semaphores.push_back(video.frameDecoded);
+    video.sync.waitSemaphores.stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    video.sync.signalSemaphores.push_back(video.renderingFinished);
+    video.firstDecodeRun = true;
+}
+
+void VulkanBaseApp::resolveDecodedVideos() {
+    if(!video.decodeEnabled || video.instances.empty()) return;
+
+    auto commandBuffer = video.resolveCommandBuffers[0];
+    VkCommandBufferBeginInfo beginInfo = initializers::commandBufferBeginInfo();
+    beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    for(auto& instance : video.instances) {
+        video.decoder->resolveToRGB(instance, commandBuffer);
+    }
+    vkEndCommandBuffer(commandBuffer);
+}
+
+void VulkanBaseApp::advanceVideos(float dt) {
+    if(!video.decodeEnabled) return;
+
+    for(auto& video : video.instances) {
+        video->update(dt);
+    }
 }

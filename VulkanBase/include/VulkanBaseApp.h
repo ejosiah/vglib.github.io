@@ -41,6 +41,7 @@
 #include "components.h"
 #include "ThreadPool.hpp"
 #include "Prototypes.hpp"
+#include "video/VideoDecoder.hpp"
 
 #ifndef NDEBUG
 constexpr bool enableValidation = true;
@@ -112,6 +113,8 @@ protected:
     void initWindow() override;
 
     void initVulkan();
+
+    void initVideoDecoder();
 
     void addPluginInstanceExtensions();
 
@@ -288,7 +291,6 @@ protected:
 
     void runInBackground(Proc&& proc);
 
-
     void addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer> &buffers
                                         ,VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
                                         , VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
@@ -334,10 +336,18 @@ protected:
 
     void depthValue(float d);
 
+    void add(std::shared_ptr<VideoInstance> videoInstance);
+
 private:
     void setPaused(bool flag);
 
     void cleanup0();
+
+    void decodeVideos();
+
+    void resolveDecodedVideos();
+
+    void advanceVideos(float dt);
 
     uint32_t tick{0};
 
@@ -410,4 +420,18 @@ private:
     VkClearColorValue backgroundColor{0.4, 0.4, 0.4, 1};
     VkClearDepthStencilValue depthStencilValue{1.0, 0u};
     static VulkanBaseApp* appInstance;
+
+    struct {
+        std::unique_ptr<VideoDecoder> decoder;
+        std::vector<std::shared_ptr<VideoInstance>> instances;
+        VulkanCommandPool commandPool;
+        VulkanCommandPool resolveCommandPool;
+        std::vector<VkCommandBuffer> commandBuffers;
+        std::vector<VkCommandBuffer> resolveCommandBuffers;
+        Synchronization sync;
+        VulkanSemaphore renderingFinished;
+        VulkanSemaphore frameDecoded;
+        bool decodeEnabled{};
+        bool firstDecodeRun{};
+    } video;
 };
