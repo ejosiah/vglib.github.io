@@ -39,12 +39,6 @@ protected:
     std::vector<rt::InstanceGroup> sceneObjects;
 
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR  rayTracingPipelineProperties{};
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
-
-    VkPhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddressFeatures{};
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
-    VkPhysicalDeviceDescriptorIndexingFeatures enabledDescriptorIndexingFeatures{};
 
     VulkanBuffer sceneObjectBuffer;
 

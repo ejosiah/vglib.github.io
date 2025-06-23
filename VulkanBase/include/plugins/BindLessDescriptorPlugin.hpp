@@ -7,6 +7,7 @@
 #include "VulkanBuffer.h"
 #include "SequenceGenerator.hpp"
 #include "VulkanInitializers.h"
+#include "ExtensionChain.hpp"
 #include <spdlog/spdlog.h>
 
 #include <atomic>
@@ -151,26 +152,7 @@ public:
     static constexpr uint32_t TextureResourceBindingPoint = 10u;
     static constexpr uint32_t DescriptorPoolSize = 6;
 
-    BindLessDescriptorPlugin()
-    {
-        m_Vulkan11Features.shaderDrawParameters = VK_TRUE;
-        m_Vulkan11Features.pNext = &m_Vulkan12Features;
-
-        m_Vulkan12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-        m_Vulkan12Features.shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
-        m_Vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
-        m_Vulkan12Features.descriptorIndexing = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
-        m_Vulkan12Features.runtimeDescriptorArray = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE;
-        m_Vulkan12Features.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE;
-
-    }
+    BindLessDescriptorPlugin() = default;
 
     ~BindLessDescriptorPlugin() override = default;
 
@@ -179,9 +161,25 @@ public:
         return { VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME };
     }
 
-    void *appendTo(void *nextChain) const override {
-        m_Vulkan12Features.pNext = nextChain;
-        return &m_Vulkan11Features;
+    void addExtensions(void*& nextChain) const override {
+        auto features11 = findExtension<VkPhysicalDeviceVulkan11Features>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES, nextChain);
+        features11->shaderDrawParameters = VK_TRUE;
+
+        auto features12 = findExtension<VkPhysicalDeviceVulkan12Features>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, nextChain);
+        features12->shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+        features12->shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
+        features12->shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
+        features12->descriptorIndexing = VK_TRUE;
+        features12->descriptorBindingPartiallyBound = VK_TRUE;
+        features12->descriptorBindingPartiallyBound = VK_TRUE;
+        features12->runtimeDescriptorArray = VK_TRUE;
+        features12->descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+        features12->descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+        features12->descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+        features12->descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
+        features12->descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE;
+        features12->descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE;
+
     }
 
     void preInit() override {
@@ -354,8 +352,6 @@ protected:
     }
 
 private:
-    mutable VkPhysicalDeviceVulkan11Features  m_Vulkan11Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
-    mutable VkPhysicalDeviceVulkan12Features  m_Vulkan12Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
     std::map<VkDescriptorType, int> bindings;
     mutable VulkanSampler m_defaultSampler;
     VulkanDescriptorPool m_descriptorPool{};

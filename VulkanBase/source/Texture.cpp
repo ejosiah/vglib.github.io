@@ -234,6 +234,7 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, std::strin
     if(!pixels){
         throw std::runtime_error{fmt::format("failed to load texture image {}!", path)};
     }
+    levelCount = std::max(levelCount, texture.levels);
     create(device, texture, VK_IMAGE_TYPE_2D, format, pixels, {texWidth, texHeight, 1u}, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1, VK_IMAGE_TILING_OPTIMAL, levelCount);
     stbi_image_free(pixels);
 }
@@ -357,6 +358,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
                       Dimension3D<uint32_t> dimensions, VkSamplerAddressMode addressMode, uint32_t sizeMultiplier,
                       VkImageTiling tiling, uint32_t levelCount) {
 
+    levelCount = std::max(texture.levels, levelCount);
     texture.format = format;
     VkDeviceSize imageSize = dimensions.x * dimensions.y * dimensions.z * nunChannels(format) * byteSize(format);
 
@@ -390,6 +392,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
     texture.width = dimensions.x;
     texture.height = dimensions.y;
     texture.depth = dimensions.z;
+    texture.levels = levelCount;
 
     auto subResource = DEFAULT_SUB_RANGE;
     subResource.baseMipLevel = 0;

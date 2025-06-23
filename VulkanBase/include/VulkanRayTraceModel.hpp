@@ -157,10 +157,10 @@ namespace rt{
                 auto& mesh = drawable.meshes[i];
                 VkAccelerationStructureGeometryDataKHR gData{};
                 gData.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-                gData.triangles.vertexFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+                gData.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
                 gData.triangles.vertexData = vertexAddress;
                 gData.triangles.vertexStride = sizeof(Vertex);
-                gData.triangles.maxVertex = mesh.maxVertex();
+                gData.triangles.maxVertex = mesh.maxVertex() - 1;
                 gData.triangles.indexType = VK_INDEX_TYPE_UINT32;
                 gData.triangles.indexData = indicesAddress;
                 gData.triangles.transformData.deviceAddress = 0;

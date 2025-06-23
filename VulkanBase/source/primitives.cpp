@@ -473,7 +473,7 @@ std::vector<Vertices> primitives::cornellBox() {
     xform = glm::translate(glm::mat4(1), glm::vec3(10, (16.6 - w) * 0.5, 12));
     xform = glm::rotate(xform, glm::radians(-18.f), {0, 1, 0});
     xform = glm::scale(xform, glm::vec3(16.5));
-    auto shortBox = primitives::cube(white);
+    auto shortBox = primitives::cube(white, glm::scale(glm::mat4{1}, glm::vec3(0.5)));
 
     auto nxForm = glm::inverseTranspose(glm::mat3(xform));
     for(auto& vertex : shortBox.vertices){
@@ -487,7 +487,7 @@ std::vector<Vertices> primitives::cornellBox() {
     xform = glm::translate(glm::mat4(1), glm::vec3(-10.5, (33.1 - w) * 0.5, -5));
     xform = glm::rotate(xform, glm::radians(15.f), {0, 1, 0});
     xform = glm::scale(xform, glm::vec3(16.5, 33, 16.5));
-    auto tallBox = primitives::cube(white);
+    auto tallBox = primitives::cube(white, glm::scale(glm::mat4{1}, glm::vec3(0.5)));
 
     nxForm = glm::inverseTranspose(glm::mat3(xform));
     for(auto& vertex : tallBox.vertices){

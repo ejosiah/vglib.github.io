@@ -164,7 +164,7 @@ void VulkanBaseApp::addPluginDeviceExtensions() {
         for(auto extension : plugin->deviceExtensions()){
             deviceExtensions.push_back(extension);
         }
-        deviceCreateNextChain = plugin->appendTo(deviceCreateNextChain);
+        plugin->addExtensions(deviceCreateNextChain);
     }
 }
 
@@ -260,6 +260,8 @@ VkFormat VulkanBaseApp::findDepthFormat() {
 }
 
 void VulkanBaseApp::createLogicalDevice() {
+    enabledFeatures.vertexPipelineStoresAndAtomics = VK_TRUE;
+    enabledFeatures.fragmentStoresAndAtomics = VK_TRUE;
     device.createLogicalDevice(enabledFeatures, deviceExtensions, validationLayers, surface, settings.queueFlags, deviceCreateNextChain);
 }
 
@@ -521,17 +523,17 @@ void VulkanBaseApp::drawFrame() {
         for(int i = 0; i < waitSemaphores.size(); i++){
             const auto& stages = waitStages[i];
             const auto& semaphores = waitSemaphores[i];
-            ASSERT(semaphores.size() == MAX_IN_FLIGHT_FRAMES);
-            waitStages_.push_back(stages[currentFrame]);
-            waitSemaphores_.push_back(semaphores[currentFrame]);
+            ASSERT(semaphores.size() == swapChainImageCount); // TODO should these be pair frame or swap chain image
+            waitStages_.push_back(stages[imageIndex]);
+            waitSemaphores_.push_back(semaphores[imageIndex]);
         }
     }
 
     if(!signalSemaphores.empty()) {
         for(int i = 0; i < waitSemaphores.size(); i++){
             const auto& semaphores = signalSemaphores[i];
-            ASSERT(semaphores.size() == MAX_IN_FLIGHT_FRAMES);
-            signalSemaphores_.push_back(semaphores[currentFrame]);
+            ASSERT(semaphores.size() == swapChainImageCount);
+            signalSemaphores_.push_back(semaphores[imageIndex]);
         }
     }
 
@@ -1095,10 +1097,10 @@ void VulkanBaseApp::initVideoDecoder() {
     if(itr == deviceExtensions.end()) return;
 
     video.commandPool = device.createCommandPool(*device.queueFamilyIndex.video_decode, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    video.commandBuffers = video.commandPool.allocateCommandBuffers(MAX_IN_FLIGHT_FRAMES);
+    video.commandBuffers = video.commandPool.allocateCommandBuffers(MAX_IN_FLIGHT_FRAMES + 1);
 
     video.resolveCommandPool = device.createCommandPool(*device.queueFamilyIndex.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    video.resolveCommandBuffers = video.resolveCommandPool.allocateCommandBuffers(MAX_IN_FLIGHT_FRAMES);
+    video.resolveCommandBuffers = video.resolveCommandPool.allocateCommandBuffers(MAX_IN_FLIGHT_FRAMES + 1);
     video.decodeEnabled = true;
     video.decoder = std::make_unique<VideoDecoder>(device);
     video.decoder->init();

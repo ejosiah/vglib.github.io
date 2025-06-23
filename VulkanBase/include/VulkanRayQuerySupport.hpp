@@ -9,8 +9,4 @@ public:
 protected:
     virtual void foo(){}    // needed to make polymorphic
 
-private:
-    VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures{};
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
-    VkPhysicalDeviceRayQueryFeaturesKHR  rayQueryFeatures{};
 };

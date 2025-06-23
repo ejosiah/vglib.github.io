@@ -1,4 +1,5 @@
 #include "VulkanRayTraceBaseApp.hpp"
+#include "ExtensionChain.hpp"
 
 VulkanRayTraceBaseApp::VulkanRayTraceBaseApp(std::string_view name, const Settings &settings, std::vector<std::unique_ptr<Plugin>> plugins)
     : VulkanBaseApp(name, settings, std::move(plugins))
@@ -12,24 +13,18 @@ VulkanRayTraceBaseApp::VulkanRayTraceBaseApp(std::string_view name, const Settin
     deviceExtensions.push_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
     deviceExtensions.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 
-    // Enable features required for ray tracing using feature chaining via pNext
-    enabledBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-    enabledBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
+    auto enabledRayTracingPipelineFeatures = findExtension<VkPhysicalDeviceRayTracingPipelineFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR, deviceCreateNextChain);
+    enabledRayTracingPipelineFeatures->rayTracingPipeline = VK_TRUE;
 
-    enabledRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    enabledRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
-    enabledRayTracingPipelineFeatures.pNext = &enabledBufferDeviceAddressFeatures;
+    auto enabledAccelerationStructureFeatures = findExtension<VkPhysicalDeviceAccelerationStructureFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, deviceCreateNextChain);
+    enabledAccelerationStructureFeatures->accelerationStructure = VK_TRUE;
 
-    enabledAccelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    enabledAccelerationStructureFeatures.accelerationStructure = VK_TRUE;
-    enabledAccelerationStructureFeatures.pNext = &enabledRayTracingPipelineFeatures;
-
-    enabledDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    enabledDescriptorIndexingFeatures.pNext = &enabledAccelerationStructureFeatures;
-    enabledDescriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
-    enabledDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-
-    deviceCreateNextChain = &enabledDescriptorIndexingFeatures;
+    auto features12 = findExtension<VkPhysicalDeviceVulkan12Features>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, deviceCreateNextChain);
+    features12->scalarBlockLayout = VK_TRUE;
+    features12->descriptorIndexing = VK_TRUE;
+    features12->runtimeDescriptorArray = VK_TRUE;
+    features12->bufferDeviceAddress = VK_TRUE;
+    features12->shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 }
 
 void VulkanRayTraceBaseApp::postVulkanInit() {

@@ -27,15 +27,9 @@ inline bool containsExtension(VkStructureType structType, const void* chain) {
     return false;
 }
 
-template<typename Extension>
-inline void* addExtension(void* chain, const Extension& extension) {
-    auto head = reinterpret_cast<ExtensionChain*>(const_cast<Extension*>(&extension));
-    head->pNext = chain;
-    return head;
-}
 
 template<typename Extension>
-inline std::optional<Extension*> findExtension(VkStructureType type, void* chain) {
+inline Extension* findExtension(VkStructureType type, void*& chain) {
     auto next = chain;
     while(next) {
         auto extension = reinterpret_cast<ExtensionChain*>(next);
@@ -44,5 +38,25 @@ inline std::optional<Extension*> findExtension(VkStructureType type, void* chain
         }
         next = extension->pNext;
     }
-    return {};
+    auto extension = new Extension{ type, chain };
+    chain = extension;
+
+    return extension;
+}
+
+inline void destroyExtensionChain(void* chain) {
+    auto next = chain;
+    while(next) {
+        auto extension = reinterpret_cast<ExtensionChain*>(next);
+        next = extension->pNext;
+        delete extension;
+    }
+}
+
+inline void logExtensions(void* chain) {
+    auto next = chain;
+    while(next) {
+        auto extension = reinterpret_cast<ExtensionChain*>(next);
+        next = extension->pNext;
+    }
 }

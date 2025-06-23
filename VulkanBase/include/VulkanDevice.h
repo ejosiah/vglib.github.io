@@ -16,6 +16,7 @@
 #include "builder_forwards.hpp"
 #include <bitset>
 #include "VulkanShaderModule.h"
+#include "ExtensionChain.hpp"
 
 #include <span>
 
@@ -166,7 +167,7 @@ struct VulkanDevice{
                 initQueueFamilies(queueFlags, surface);
 
 
-
+    logExtensions(pNext);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         auto queueFamilies = getQueueFamilyProperties();

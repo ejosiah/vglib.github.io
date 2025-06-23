@@ -42,9 +42,7 @@ public:
     }
 
     [[nodiscard]]
-    virtual void *appendTo(void *nextChain) const {
-        return nextChain;
-    }
+    virtual void addExtensions(void*& nextChain) const {}
 
     virtual void preInit() {
 
