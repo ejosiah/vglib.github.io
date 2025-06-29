@@ -78,6 +78,10 @@ public:
 
     static void transferReadToWrite(VkCommandBuffer commandBuffer, std::initializer_list<BufferRegion> regions);
 
+    static void accelerationStructureUpdateToRayTraceRead(VkCommandBuffer commandBuffer);
+
+    static void rayTraceReadToAccelerationStructureUpdate(VkCommandBuffer commandBuffer);
+
 };
 
 class Barriers {

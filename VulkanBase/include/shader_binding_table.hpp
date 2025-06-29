@@ -12,11 +12,11 @@
 #include <map>
 #include <tuple>
 
-struct ShaderRecord{
+struct ShaderRecord {
     std::vector<unsigned char> record{};
 
     template<typename T>
-    void addData(const T& data){
+    void addData(const T& data) {
         const auto src = reinterpret_cast<const unsigned char*>(&data);
         for(int i = 0; i < sizeof(T); i++){
             const auto byte = src[i];
@@ -88,7 +88,7 @@ inline std::string groupToString(GroupType type){
     }
 }
 
-struct ShaderGroups{
+struct ShaderGroups {
     
     GroupType type{NONE};
     std::vector<ShaderGroup> groups{};
@@ -168,10 +168,10 @@ struct ShaderGroups{
 
 struct ShaderBindingTable{
     VulkanBuffer buffer;
-    VkStridedDeviceAddressRegionKHR stridedDeviceAddressRegion{};
+    VkStridedDeviceAddressRegionKHR strideDeviceAddressRegion{};
 
     operator VkStridedDeviceAddressRegionKHR*()  {
-        return &stridedDeviceAddressRegion;
+        return &strideDeviceAddressRegion;
     }
 };
 
@@ -288,7 +288,7 @@ struct ShaderTablesDescription{
     ShaderBindingTables compile(const VulkanDevice& device, const VulkanPipeline& pipeline){
         initHandleSizeInfo(device);
         uint32_t sbtSize = numGroups * handleSizeAligned;
-        spdlog::info("handleSize: {}, handleSizeAligned {}, sbtSize: {}", handleSize, handleSizeAligned, sbtSize);
+        spdlog::debug("handleSize: {}, handleSizeAligned {}, sbtSize: {}", handleSize, handleSizeAligned, sbtSize);
 
         std::vector<uint8_t> shaderHandleStorage(sbtSize);
 
@@ -364,12 +364,12 @@ struct ShaderTablesDescription{
 
         groups.transferRecords(buffer, stride);
         stagingBuffer.unmap();
-        spdlog::info("{} size: {}", groupToString(groups.type), stagingBuffer.size);
+        spdlog::debug("{} size: {}", groupToString(groups.type), stagingBuffer.size);
 
         shaderBindingTable.buffer = device.createBuffer(usageFlags | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memoryUsage, size);
         device.copy(stagingBuffer, shaderBindingTable.buffer, size, 0, 0);
 
-        shaderBindingTable.stridedDeviceAddressRegion =
+        shaderBindingTable.strideDeviceAddressRegion =
                 groups.getStridedDeviceAddressRegionKHR(device.getAddress(shaderBindingTable.buffer));
     }
 

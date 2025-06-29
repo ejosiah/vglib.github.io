@@ -805,10 +805,10 @@ void textures::color(const VulkanDevice &device, Texture &texture, const glm::ve
 
 
 void textures::checkerboard(unsigned char* data, const Dimension2D<uint32_t>& dimensions, const glm::vec3& colorA, const glm::vec3& colorB){
-    for(int i = 0; i < 256; i++){
-        for(int j = 0; j < 256; j++){
+    for(int i = 0; i < dimensions.y; i++){
+        for(int j = 0; j < dimensions.x; j++){
             auto color = (((i / 8) % 2) && ((j / 8) % 2)) || (!((i / 8) % 2) && !((j / 8) % 2)) ? colorB : colorA;
-            auto idx = (i * 256 + j) * 4;
+            auto idx = (i * dimensions.x + j) * 4;
             data[idx + 0]  = static_cast<unsigned char>(color.r * 255);
             data[idx + 1]  = static_cast<unsigned char>(color.b * 255);
             data[idx + 2]  = static_cast<unsigned char>(color.g * 255);

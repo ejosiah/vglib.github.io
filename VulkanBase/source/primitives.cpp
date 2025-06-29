@@ -1,4 +1,5 @@
 #include "primitives.h"
+#include "teapot.hpp"
 
 static constexpr auto PI = glm::pi<float>();
 
@@ -500,4 +501,39 @@ std::vector<Vertices> primitives::cornellBox() {
     return {
         light, ceiling, rightWall, floor, leftWall, tallBox, shortBox, backWall
     };
+}
+
+Vertices primitives::teapot(int resolution, glm::mat4 xform, glm::mat4 lidXform, const glm::vec4 &color) {
+    int num_vertices = 32 * (resolution + 1) * (resolution + 1);
+    int num_indices = resolution * resolution * 32;
+
+    auto positions = std::vector<glm::vec3>(num_vertices);
+    auto normals = std::vector<glm::vec3>(num_vertices);
+    auto uvs = std::vector<glm::vec2>(num_vertices);
+    auto indices = std::vector<uint32_t>(num_indices * 6);
+    auto colors = std::vector<glm::vec4>(num_vertices, color);
+
+    Teapot::generatePatches((float*)&positions[0], (float*)&normals[0], (float*)&uvs[0], (uint32_t*)&indices[0], resolution);
+
+    glm::mat3 rotMat = glm::mat3(glm::rotate(glm::mat4(1), glm::radians(-90.0f), glm::vec3(1, 0, 0)));
+    for (int i = 0; i < num_vertices; ++i) {
+        positions[i] = rotMat * positions[i];
+        normals[i] = glm::inverseTranspose(rotMat) * normals[i];
+    }
+
+    Teapot::moveLid(resolution, (float*)&positions[0], lidXform);
+
+    for(auto i = 0; i < num_vertices; ++i) {
+        positions[i] = (xform * glm::vec4(positions[i], 1)).xyz();
+        normals[i] = glm::inverseTranspose(glm::mat3(xform)) * normals[i];
+    }
+
+    Vertices rtVal{};
+    for(auto i = 0; i < num_vertices; ++i) {
+        rtVal.vertices.emplace_back(glm::vec4(positions[i], 1), color, normals[i], glm::vec3(1, 0, 0), glm::vec3(0, 0, 1), uvs[i]);
+    }
+    rtVal.indices = indices;
+
+
+    return rtVal;
 }

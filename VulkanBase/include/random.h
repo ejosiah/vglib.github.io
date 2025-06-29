@@ -1,6 +1,10 @@
 #pragma once
 #include "common.h"
 
+template<typename real_t>
+static constexpr real_t golden_ratio_conjugate() {
+    return static_cast<real_t>(0.618033988749895);
+}
 
 inline uint32_t randomSeed(){
     static std::random_device rnd;

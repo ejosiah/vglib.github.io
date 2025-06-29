@@ -29,7 +29,7 @@ namespace primitives{
     Vertices cubeOutline(const glm::vec4& color = randomColor(), const glm::mat4& transform = glm::mat4{1});
 
 
-    Vertices teapot(glm::mat4 xform = glm::mat4{1}, glm::mat4 lidXform = glm::mat4{1}, const glm::vec4& color = randomColor());
+    Vertices teapot(int resolution = 32, glm::mat4 xform = glm::mat4{1}, glm::mat4 lidXform = glm::mat4{1}, const glm::vec4& color = randomColor());
 
     /**
      * Generates Vertices for a sphere

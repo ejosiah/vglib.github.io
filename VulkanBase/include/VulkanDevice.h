@@ -29,6 +29,8 @@ struct VulkanDevice{
 
     std::vector<DeviceDisposeListener> disposeListeners;
 
+    mutable std::map<uint64_t, std::string> objectNames;
+
     struct {
         std::optional<uint32_t> graphics;
         std::optional<uint32_t> compute;
@@ -798,13 +800,24 @@ struct VulkanDevice{
     template<VkObjectType objectType>
     inline void setName(const std::string& objectName, void* ptr) const {
 #ifdef DEBUG_MODE
+        auto objectHandle = (uint64_t)ptr;
         VkDebugUtilsObjectNameInfoEXT nameInfo{};
         nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
         nameInfo.pObjectName = objectName.c_str();
         nameInfo.objectType = objectType;
-        nameInfo.objectHandle = (uint64_t)ptr;
+        nameInfo.objectHandle = objectHandle;
         vkSetDebugUtilsObjectNameEXT(logicalDevice, &nameInfo);
+        objectNames[objectHandle] = objectName;
 #endif
+    }
+
+    template <typename Pointer>
+    inline std::string_view  getName(Pointer ptr) const {
+        auto handle = (uint64_t)ptr;
+        if(objectNames.contains(handle)) {
+            return objectNames.at(handle);
+        }
+        return "object has no name defined";
     }
 
     inline float timestampPeriod(){

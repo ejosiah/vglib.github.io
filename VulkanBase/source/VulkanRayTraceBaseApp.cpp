@@ -78,7 +78,7 @@ VulkanRayTraceBaseApp::createShaderBindingTable(ShaderBindingTable &shaderBindin
     shaderBindingTable.buffer = device.createBuffer(usageFlags | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memoryUsage, size);
     device.copy(stagingBuffer, shaderBindingTable.buffer, size, 0, 0);
 
-    shaderBindingTable.stridedDeviceAddressRegion = getSbtEntryStridedDeviceAddressRegion(shaderBindingTable.buffer, handleCount);
+    shaderBindingTable.strideDeviceAddressRegion = getSbtEntryStridedDeviceAddressRegion(shaderBindingTable.buffer, handleCount);
 
 }
 

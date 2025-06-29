@@ -50,7 +50,7 @@ constexpr bool enableValidation = false;
 #endif
 
 #ifndef MAX_IN_FLIGHT_FRAMES
-#define MAX_IN_FLIGHT_FRAMES 2
+#define MAX_IN_FLIGHT_FRAMES 1
 #endif // MAX_IN_FLIGHT_FRAMES
 
 struct FramebufferAttachment{

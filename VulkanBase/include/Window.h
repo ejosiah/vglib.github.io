@@ -3,18 +3,19 @@
 #include "common.h"
 #include "keys.h"
 #include "events.h"
+#include "Settings.hpp"
 #include <string_view>
 
 class Window {
 public:
     friend class Plugin;
-    Window(std::string_view title, int width, int height, bool fullscreen = false, bool enableResize = true, int screen = 0)
+    Window(std::string_view title, const Settings& settings)
     : title(title)
-    , width(width)
-    , height(height)
-    , fullscreen(fullscreen)
-    , screen(screen)
-    , enableResize(enableResize)
+    , width(to<int>(settings.width))
+    , height(to<int>(settings.height))
+    , fullscreen(settings.fullscreen)
+    , screen(settings.screen)
+    , enableResize(settings.enableResize)
     {}
 
     inline void addMouseClickListener(MouseClickListener&& listener){

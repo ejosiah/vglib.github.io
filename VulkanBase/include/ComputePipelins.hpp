@@ -28,15 +28,15 @@ struct Pipeline{
 
 class ComputePipelines {
 public:
-    explicit ComputePipelines(VulkanDevice* device = nullptr);
+    explicit ComputePipelines(VulkanDevice* device = nullptr, const std::vector<PipelineMetaData>& metadata = {});
 
     VkPipeline pipeline(const std::string& name) const;
 
     VkPipelineLayout layout(const std::string& name) const;
 
-protected:
     void createPipelines();
 
+protected:
     virtual std::vector<PipelineMetaData> pipelineMetaData();
 
     static VulkanShaderModule get(std::variant<std::string, std::vector<uint32_t>>& shaderPath, VulkanDevice* device);
@@ -44,4 +44,5 @@ protected:
 protected:
     VulkanDevice* device{};
     mutable std::map<std::string, Pipeline> pipelines{};
+    std::vector<PipelineMetaData> _metadata;
 };

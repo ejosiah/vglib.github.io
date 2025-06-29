@@ -31,7 +31,7 @@ const std::string VulkanBaseApp::kAttachment_MSAA =  "MSAA_BUFFER_INDEX";
 const std::string VulkanBaseApp::kAttachment_DEPTH = "DEPTH_BUFFER_INDEX";
 
 VulkanBaseApp::VulkanBaseApp(std::string_view name, const Settings& settings, std::vector<std::unique_ptr<Plugin>> plugins)
-        : Window(name, settings.width, settings.height, settings.fullscreen, settings.enableResize, settings.screen)
+        : Window(name, settings)
         , InputManager(settings.relativeMouseMode)
         , enabledFeatures(settings.enabledFeatures)
         , settings(settings)
@@ -473,9 +473,9 @@ void VulkanBaseApp::createSyncObjects() {
         renderingFinished[i] = device.createSemaphore();
         inFlightFences[i] = device.createFence();
 
-        device.setName<VK_OBJECT_TYPE_SEMAPHORE>("renderer_image_acquired", imageAcquired[i].semaphore);
-        device.setName<VK_OBJECT_TYPE_SEMAPHORE>("renderer_rendering_finished", renderingFinished[i].semaphore);
-        device.setName<VK_OBJECT_TYPE_FENCE>("renderer_in_flight_frames", inFlightFences[i].fence);
+        device.setName<VK_OBJECT_TYPE_SEMAPHORE>(fmt::format("renderer_image_acquired_{}", i), imageAcquired[i].semaphore);
+        device.setName<VK_OBJECT_TYPE_SEMAPHORE>(fmt::format("renderer_rendering_finished_{}", i), renderingFinished[i].semaphore);
+        device.setName<VK_OBJECT_TYPE_FENCE>(fmt::format("renderer_in_flight_frames_{}", i), inFlightFences[i].fence);
     }
 }
 
@@ -629,8 +629,6 @@ void VulkanBaseApp::recreateSwapChain() {
     notifyPluginsOfSwapChainRecreation();
     onSwapChainRecreation();
 }
-
-
 
 void VulkanBaseApp::update(float time) {
 

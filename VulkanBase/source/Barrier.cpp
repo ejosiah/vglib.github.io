@@ -445,6 +445,36 @@ void Barrier::computeWriteToDrawIndirect(VkCommandBuffer commandBuffer) {
                          &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 }
 
+void Barrier::accelerationStructureUpdateToRayTraceRead(VkCommandBuffer commandBuffer) {
+    static VkMemoryBarrier2 barrier{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+        .srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+        .dstStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+        .dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR
+    };
+
+    static VkDependencyInfo info { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    info.memoryBarrierCount = 1;
+    info.pMemoryBarriers = &barrier;
+    vkCmdPipelineBarrier2(commandBuffer, &info);
+}
+
+void Barrier::rayTraceReadToAccelerationStructureUpdate(VkCommandBuffer commandBuffer) {
+    static VkMemoryBarrier2 barrier{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+        .srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR,
+        .dstStageMask = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+        .dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
+    };
+
+    static VkDependencyInfo info { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    info.memoryBarrierCount = 1;
+    info.pMemoryBarriers = &barrier;
+    vkCmdPipelineBarrier2(commandBuffer, &info);
+}
+
 std::vector<VkImageMemoryBarrier2> Barriers::imageMemoryBarriers = { };
 std::vector<VkBufferMemoryBarrier2> Barriers::bufferMemoryBarriers = { };
 std::vector<VkMemoryBarrier2> Barriers::memoryBarriers = { };

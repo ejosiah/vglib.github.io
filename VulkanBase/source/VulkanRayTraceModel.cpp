@@ -1,4 +1,5 @@
 #include "VulkanRayTraceModel.hpp"
+#include "Barrier.hpp"
 
 rt::AccelerationStructureBuilder::AccelerationStructureBuilder(const VulkanDevice *device)
     :m_device{device}
@@ -196,7 +197,6 @@ std::vector<rt::BlasId> rt::AccelerationStructureBuilder::buildBlas(const std::v
 std::vector<rt::BlasId> rt::AccelerationStructureBuilder::buildBlas(const std::vector<BlasInput> &inputs,
                                                  VkBuildAccelerationStructureFlagsKHR flags) {
 
-    std::vector<uint32_t> offsets;
     std::vector<rt::BlasId> blasIds;
     blasIds.reserve(inputs.size());
 
@@ -341,7 +341,9 @@ std::vector<rt::Instance> rt::AccelerationStructureBuilder::buildTlas(VkBuildAcc
     std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
 
     m_device->commandPoolFor(*m_device->queueFamilyIndex.graphics).oneTimeCommand( [&](auto commandBuffer){
+        Barrier::rayTraceReadToAccelerationStructureUpdate(commandBuffer);
         vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &accelerationStructureBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
+        Barrier::accelerationStructureUpdateToRayTraceRead(commandBuffer);
     });
 
     VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo{};
@@ -403,6 +405,7 @@ void rt::AccelerationStructureBuilder::ensureAlignmentScratchBufferSize(
         VkAccelerationStructureBuildSizesInfoKHR &info) const {
     auto props = getAccelerationStructureProperties();
     info.buildScratchSize = alignedSize(info.buildScratchSize, props.minAccelerationStructureScratchOffsetAlignment);
+    info.buildScratchSize = nearestPowerOfTwo(info.buildScratchSize);
 }
 
 const rt::AccelerationStructure &rt::AccelerationStructureBuilder::topLevelAs() const {

@@ -6,6 +6,7 @@
 #include "Phong.h"
 
 
+// FIXME every material has its own instance of textures, we end up duplicating textures, instead reference textures by id from materials
 struct VulkanDrawable{
     std::vector<phong::Mesh> meshes;
 
@@ -58,6 +59,22 @@ struct VulkanDrawable{
         }else{
             spdlog::warn("mesh with name {} not found", meshName);
         }
+    }
+
+    void apply(const VulkanDevice& device, glm::mat4 transform) {
+        auto copyBuffer = device.createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                VMA_MEMORY_USAGE_CPU_ONLY, vertexBuffer.size);
+
+        device.copy(vertexBuffer, copyBuffer, vertexBuffer.size, 0, 0);
+        auto nMat = glm::mat3(glm::inverseTranspose(transform));
+        auto vertices = copyBuffer.span<Vertex>();
+
+        for(auto& vertex : vertices) {
+            vertex.position = transform * vertex.position;
+            vertex.normal = nMat * vertex.normal;
+        }
+        copyBuffer.unmap();
+        device.copy(copyBuffer, vertexBuffer, copyBuffer.size);
     }
 
     [[nodiscard]]

@@ -1,8 +1,8 @@
 #include "ComputePipelins.hpp"
 
-ComputePipelines::ComputePipelines(VulkanDevice *device): device(device) {
-
-}
+ComputePipelines::ComputePipelines(VulkanDevice *device, const std::vector<PipelineMetaData>& metadata)
+: device(device)
+, _metadata(metadata){}
 
 void ComputePipelines::createPipelines() {
     for(auto& metaData : pipelineMetaData()){
@@ -29,7 +29,7 @@ void ComputePipelines::createPipelines() {
 }
 
 std::vector<PipelineMetaData> ComputePipelines::pipelineMetaData() {
-    return {};
+    return _metadata;
 }
 
 

@@ -99,7 +99,7 @@ struct Mouse{
     } right;
 };
 
-class InputManager{
+class InputManager {
 public:
     InputManager(bool relativeMouseMode = false)
     : relativeMouseMode(relativeMouseMode)

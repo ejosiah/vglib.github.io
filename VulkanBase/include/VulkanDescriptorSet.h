@@ -85,6 +85,24 @@ struct VulkanDescriptorPool : RefCounted {
         allocationCount += layouts.size();
     }
 
+    inline std::vector<VkDescriptorSet> allocateN(const VulkanDescriptorSetLayout& layout, size_t count) {
+
+        std::vector<VkDescriptorSetLayout> handles{};
+        for(auto i = 0; i < count; ++i) handles.push_back(layout.handle);
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = pool;
+        allocInfo.descriptorSetCount = count;
+        allocInfo.pSetLayouts = handles.data();
+
+        std::vector<VkDescriptorSet> descriptorSets(count);
+        vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data());
+
+        allocationCount += count;
+
+        return descriptorSets;
+    }
+
     inline void free(VkDescriptorSet set) const {
        vkFreeDescriptorSets(device, pool, 1, &set);
        --allocationCount;

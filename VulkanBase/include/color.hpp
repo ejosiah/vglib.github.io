@@ -16,21 +16,42 @@ namespace color{
         return glm::vec4(r, g, b, a) * 0.0039215686274509803921568627451f;
     }
 
+    inline constexpr glm::vec4 rgb(uint32_t hexCode) {
+        glm::vec4 c{1};
+
+        c.r = static_cast<float>((hexCode >> 16) & 0xFF)/255.f;
+        c.g = static_cast<float>((hexCode >> 8) & 0xFF)/255.f;
+        c.b = static_cast<float>(hexCode & 0xFF)/255.f;
+
+        return c;
+    }
+
 //    inline constexpr glm::vec4 rgb(float r, float g, float b, float a = 1){
-//        auto c = [](auto x){ return glm::clamp(x, 0.f, 1.f); };
-//        return {c(r), c(g), c(b), c(a)};
+//        auto c = [](auto x){ return glm::clamp(x, 0.f, 1.f); };4//        return {c(r, 1), c(g), c(b), c(a)};
 //    }
 
-    inline constexpr glm::vec4 rgb(const std::string& hexRep);
-
-    inline constexpr glm::vec4 rgb(uint32_t hexRep){
-        uint8_t r = (hexRep >> 16) & 0xFF;
-        uint8_t g = (hexRep >> 8) & 0xFF;
-        uint8_t b = hexRep & 0xFF;
-        return rgb(r, g, b);
-    }
 
     inline float luminance(glm::vec3 rgb){
         return glm::dot(rgb, {0.2126f, 0.7152f, 0.0722f});
     }
+
+    inline glm::vec4 hsv_to_rgb(float h, float s, float v) {
+        auto h_i = static_cast<int>(h*6);
+        auto f = glm::fract(h*6.);
+        auto p = v * (1. - s);
+        auto q = v * (1. - f*s);
+        auto t = v * (1. - (1. - f) * s);
+
+        switch(h_i) {
+            case 0 : return {v, t, p, 1};
+            case 1 : return {q, v, p, 1};
+            case 2 : return {p, v, t, 1};
+            case 3 : return {p, q, v, 1};
+            case 4 : return {t, p, v, 1};
+            default: return {v, p, q, 1};
+        }
+
+    }
+
+
 }

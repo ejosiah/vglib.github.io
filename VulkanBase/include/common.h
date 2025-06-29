@@ -60,6 +60,7 @@ constexpr bool debugMode = false;
 #include <filesystem>
 #include <fstream>
 #include "color.hpp"
+#include <ranges>
 
 namespace chrono = std::chrono;
 namespace fs = std::filesystem;
@@ -266,3 +267,9 @@ T* as(auto u) { return reinterpret_cast<T*>(u); }
 
 template<typename T>
 constexpr T to(auto u){ return static_cast<T>(u); }
+
+template <typename R, typename Func>
+auto map_range(R&& range, Func&& func) {
+    auto view = std::forward<R>(range) | std::views::transform(std::forward<Func>(func));
+    return std::vector(view.begin(), view.end());
+}
