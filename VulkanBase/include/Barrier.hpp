@@ -80,7 +80,11 @@ public:
 
     static void accelerationStructureUpdateToRayTraceRead(VkCommandBuffer commandBuffer);
 
+    static void accelerationStructureUpdateToRayQueryRead(VkCommandBuffer commandBuffer);
+
     static void rayTraceReadToAccelerationStructureUpdate(VkCommandBuffer commandBuffer);
+
+    static void rayQueryReadToAccelerationStructureUpdate(VkCommandBuffer commandBuffer);
 
 };
 
@@ -90,6 +94,9 @@ public:
                         VkPipelineStageFlags2 srcStageMask,VkPipelineStageFlags2 dstStageMask,
                         VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                         VkImageLayout oldLayout, VkImageLayout newLayout);
+
+    static void push(VkPipelineStageFlags2 srcStageMask,VkPipelineStageFlags2 dstStageMask,
+                        VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask);
 
     static void release(const VulkanImage& image, VkImageSubresourceRange subresourceRange,
                         VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask,

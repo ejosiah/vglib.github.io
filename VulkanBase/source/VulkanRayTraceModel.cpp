@@ -341,9 +341,21 @@ std::vector<rt::Instance> rt::AccelerationStructureBuilder::buildTlas(VkBuildAcc
     std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
 
     m_device->commandPoolFor(*m_device->queueFamilyIndex.graphics).oneTimeCommand( [&](auto commandBuffer){
-        Barrier::rayTraceReadToAccelerationStructureUpdate(commandBuffer);
+        if(has_flag(usage, AsUsage::RayTracing)) {
+            Barrier::rayTraceReadToAccelerationStructureUpdate(commandBuffer);
+        }
+        if(has_flag(usage, AsUsage::RayQuery)) {
+            Barrier::rayQueryReadToAccelerationStructureUpdate(commandBuffer);
+        }
+
         vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &accelerationStructureBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-        Barrier::accelerationStructureUpdateToRayTraceRead(commandBuffer);
+
+        if(has_flag(usage, AsUsage::RayTracing)) {
+            Barrier::accelerationStructureUpdateToRayTraceRead(commandBuffer);
+        }
+        if(has_flag(usage, AsUsage::RayQuery)) {
+            Barrier::accelerationStructureUpdateToRayQueryRead(commandBuffer);
+        }
     });
 
     VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo{};

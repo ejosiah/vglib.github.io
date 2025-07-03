@@ -8,11 +8,16 @@
 #include "VulkanModel.h"
 #include "VulkanExtensions.h"
 #include "implicit_shapes.hpp"
+#include "EnumBitFlags.hpp"
 
 namespace rt{
 
     using BlasId = uint32_t;
     using Normal = glm::vec3;
+    enum class AsUsage : int {
+        RayTracing = 1 << 0,
+        RayQuery = 1 << 1
+    };
 
     struct AccelerationStructure{
         VkAccelerationStructureKHR handle = VK_NULL_HANDLE;
@@ -296,6 +301,7 @@ namespace rt{
 
         const AccelerationStructure& topLevelAs() const;
 
+        AsUsage usage = AsUsage::RayTracing;
 
     private:
         struct Tlas{
@@ -314,3 +320,8 @@ namespace rt{
     };
 
 }
+
+template<>
+struct enable_bitmask_operators<rt::AsUsage> {
+    static const bool enable = true;
+};

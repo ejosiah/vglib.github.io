@@ -15,16 +15,17 @@ void VulkanRayQuerySupport::enableRayQuery() {
     app.deviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     app.deviceExtensions.push_back(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
 
-    auto bufferDeviceAddressFeatures = findExtension<VkPhysicalDeviceBufferDeviceAddressFeatures>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, app.deviceCreateNextChain);
-    bufferDeviceAddressFeatures->bufferDeviceAddress = VK_TRUE;
-    bufferDeviceAddressFeatures->pNext = app.deviceCreateNextChain;
+    auto features12 = findExtension<VkPhysicalDeviceVulkan12Features>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, app.deviceCreateNextChain);
+    features12->scalarBlockLayout = VK_TRUE;
+    features12->descriptorIndexing = VK_TRUE;
+    features12->runtimeDescriptorArray = VK_TRUE;
+    features12->bufferDeviceAddress = VK_TRUE;
+    features12->shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 
     auto accelerationStructureFeatures = findExtension<VkPhysicalDeviceAccelerationStructureFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, app.deviceCreateNextChain);
     accelerationStructureFeatures->accelerationStructure = VK_TRUE;
-    accelerationStructureFeatures->pNext = &bufferDeviceAddressFeatures;
 
     auto rayQueryFeatures = findExtension<VkPhysicalDeviceRayQueryFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, app.deviceCreateNextChain);
     rayQueryFeatures->rayQuery = VK_TRUE;
-    rayQueryFeatures->pNext = &accelerationStructureFeatures;
 
 }

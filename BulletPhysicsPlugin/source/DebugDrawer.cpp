@@ -1,6 +1,7 @@
 #include <DebugDrawer.hpp>
 #include "VulkanShaderModule.h"
 #include "GraphicsPipelineBuilder.hpp"
+#include "filemanager.hpp"
 
 DebugDrawer::DebugDrawer(const PluginData &pluginData, int aDebugMode)
 : _pluginData{ pluginData }
@@ -82,8 +83,8 @@ void DebugDrawer::createGraphicsPipeline() {
     _pipelines.lines.pipeLine =
         device().graphicsPipelineBuilder()
             .shaderStage()
-                .vertexShader("../../data/shaders/bullet/debug.vert.spv")
-                .fragmentShader("../../data/shaders/bullet/debug.frag.spv")
+                .vertexShader(FileManager::resource("bullet/debug.vert.spv"))
+                .fragmentShader(FileManager::resource("bullet/debug.frag.spv"))
             .vertexInputState()
                 .addVertexBindingDescription(0, sizeof(glm::vec4), VK_VERTEX_INPUT_RATE_VERTEX)
                 .addVertexAttributeDescription(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0)

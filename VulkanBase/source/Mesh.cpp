@@ -182,7 +182,6 @@ int load(std::vector<mesh::Mesh>& meshes, const std::string& parent, const aiNod
 }
 
 int mesh::load(std::vector<Mesh> &meshes, const std::string& path, uint32_t flags) {
-
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(path.data(), flags);
     auto i = path.find_last_of("/") + 1;
