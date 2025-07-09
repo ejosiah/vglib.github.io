@@ -71,12 +71,9 @@ std::vector<rt::InstanceGroup> rt::AccelerationStructureBuilder::add(const std::
         for(int j = 0; j < meshes.size(); j++){
             Instance instance;
             instance.blasId = blasIds[offsets[*objId] + j];
-            instance.instanceCustomId = j;
-            if(dInstance.hitGroupId != ~0u){
-                instance.hitGroupId = dInstance.hitGroupId;
-            }else{
-                instance.hitGroupId = dInstance.object.metaData[j].hitGroupId;
-            }
+            instance.instanceCustomId = (dInstance.object.metaData[j].customIndex != ~0u) ? dInstance.object.metaData[j].customIndex : j;
+            instance.hitGroupId = (dInstance.hitGroupId != ~0u) ? dInstance.hitGroupId : dInstance.object.metaData[j].hitGroupId;
+
             instance.mask = dInstance.object.metaData[j].mask;
             instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
             instance.xform = dInstance.xform;
@@ -384,10 +381,12 @@ VkAccelerationStructureInstanceKHR rt::AccelerationStructureBuilder::toVkAccStru
 rt::ScratchBuffer rt::AccelerationStructureBuilder::createScratchBuffer(VkDeviceSize size) const {
     spdlog::info("scratch size after: {}", size);
     rt::ScratchBuffer scratchBuffer;
-    scratchBuffer.buffer = m_device->createBuffer(
+
+    auto minAlignment = getAccelerationStructureProperties().minAccelerationStructureScratchOffsetAlignment;
+    scratchBuffer.buffer = m_device->createAlignedBuffer(
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             VMA_MEMORY_USAGE_GPU_ONLY,
-            size, "acceleration_struct_scratch_buffer");
+            size, minAlignment, "acceleration_struct_scratch_buffer");
 
     VkBufferDeviceAddressInfo bufferDeviceAddressInfo{};
     bufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;

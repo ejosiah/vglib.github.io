@@ -47,6 +47,7 @@ namespace rt{
         struct MetaData {
             uint32_t hitGroupId{0};
             uint32_t mask{0xFF};
+            uint32_t customIndex{~0u};
         };
 
         TriangleMesh() = default;

@@ -461,7 +461,7 @@ struct VulkanDevice{
     }
 
     [[nodiscard]]
-    inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name, std::set<uint32_t> queueIndices, VmaAllocator allocator, void* next = VK_NULL_HANDLE) const {
+    inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name, std::set<uint32_t> queueIndices, VmaAllocator allocator, void* next = VK_NULL_HANDLE, VkDeviceSize minAlignment = 0) const {
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.pNext = next;
@@ -481,7 +481,11 @@ struct VulkanDevice{
         allocInfo.usage = memoryUsage;
         VmaAllocation allocation;
 
-        ERR_GUARD_VULKAN(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr));
+        if(minAlignment == 0) {
+            ERR_GUARD_VULKAN(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr));
+        }else {
+            ERR_GUARD_VULKAN(vmaCreateBufferWithAlignment(allocator, &bufferInfo, &allocInfo, minAlignment, &buffer, &allocation, nullptr));
+        }
 
 #ifdef DEBUG_MODE
         if(!name.empty()){
@@ -498,6 +502,10 @@ struct VulkanDevice{
     [[nodiscard]]
     inline VulkanBuffer createBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, const std::string name = "", std::set<uint32_t> queueIndices = {}, void* next = VK_NULL_HANDLE) const {
         return createBuffer(usage, memoryUsage, size, name, queueIndices, allocator, next);
+    }
+
+    inline VulkanBuffer createAlignedBuffer(VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkDeviceSize size, VkDeviceSize minAlignment, const std::string name = "", std::set<uint32_t> queueIndices = {}, void* next = VK_NULL_HANDLE) const {
+        return createBuffer(usage, memoryUsage, size, name, queueIndices, allocator, next, minAlignment);
     }
 
     [[nodiscard]]

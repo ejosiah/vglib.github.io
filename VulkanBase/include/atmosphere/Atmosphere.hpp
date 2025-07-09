@@ -13,8 +13,8 @@ constexpr uint32_t NUM_CHANNELS = 4;
 using Dim2 = glm::ivec2;
 using Dim3 = glm::ivec3;
 
-using float2 = glm::vec2;
-using float3 = glm::vec3;
+using vec2 = glm::vec2;
+using vec3 = glm::vec3;
 
 constexpr uint32_t COMP_SIZE = sizeof(float) * NUM_CHANNELS;
 
@@ -39,12 +39,12 @@ namespace Atmosphere {
         Dim2 transmittanceDimensions{TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT};
         Dim2 irradianceDimensions{IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT};
 
-        float3 solarIrradiance;
-        float3 rayleighScattering;
-        float3 mieScattering;
-        float3 mieExtinction;
-        float3 absorptionExtinction;
-        float3 groundAlbedo;
+        vec3 solarIrradiance;
+        vec3 rayleighScattering;
+        vec3 mieScattering;
+        vec3 mieExtinction;
+        vec3 absorptionExtinction;
+        vec3 groundAlbedo;
         float sunAngularRadius;
         float bottomRadius;
         float topRadius;
@@ -67,7 +67,7 @@ namespace Atmosphere {
         return in >> d.x >> d.y >> d.z;
     }
 
-    inline std::istream& operator>>(std::istream& in, float3& f) {
+    inline std::istream& operator>>(std::istream& in, vec3& f) {
         return in >> f.x >> f.y >> f.z;
     }
 
@@ -79,7 +79,7 @@ namespace Atmosphere {
         return out << d.x << d.y << d.z;
     }
 
-    inline std::ostream& operator<<(std::ostream& out, const float3& f) {
+    inline std::ostream& operator<<(std::ostream& out, const vec3& f) {
         return out << f.x << f.y << f.z;
     }
 

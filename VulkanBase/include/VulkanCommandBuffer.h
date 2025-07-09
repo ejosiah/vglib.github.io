@@ -144,7 +144,7 @@ struct VulkanCommandPool{
     }
 
     template<typename Command>
-    inline void oneTimeCommands(uint32_t size, Command&& command, const std::string& name = "") const {
+    inline void oneTimeCommands(uint32_t size, Command&& command, const Synchronization& synchronization = {}, const std::string& name = "") const {
         auto commandBuffers = allocateCommandBuffers(size);
         for(auto i = 0; i < size; i++){
 
@@ -171,8 +171,13 @@ struct VulkanCommandPool{
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = size;
         submitInfo.pCommandBuffers = commandBuffers.data();
+        submitInfo.waitSemaphoreCount = synchronization.waitSemaphores.size();
+        submitInfo.pWaitDstStageMask = synchronization.waitSemaphores.stages.data();
+        submitInfo.pWaitSemaphores = synchronization.waitSemaphores.semaphores.data();
+        submitInfo.signalSemaphoreCount = COUNT(synchronization.signalSemaphores);
+        submitInfo.pSignalSemaphores = synchronization.signalSemaphores.data();
 
-        ERR_GUARD_VULKAN(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+        ERR_GUARD_VULKAN(vkQueueSubmit(queue, 1, &submitInfo, synchronization.fence()));
         vkQueueWaitIdle(queue);
         vkFreeCommandBuffers(device, pool, size, commandBuffers.data());
     }

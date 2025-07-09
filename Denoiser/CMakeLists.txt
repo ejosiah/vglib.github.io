@@ -13,6 +13,6 @@ file(GLOB_RECURSE HPP_FILES ${CMAKE_CURRENT_LIST_DIR}/include/*.*)
 add_library(Denoiser ${CPP_FILES} ${HPP_FILES})
 
 
-target_include_directories(Denoiser PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+target_include_directories(Denoiser PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include ${OptiX_INCLUDE})
 
 target_link_libraries(Denoiser PRIVATE VulkanBase ${LIBRARIES_DEBUG})
