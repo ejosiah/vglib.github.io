@@ -136,3 +136,7 @@ void VulkanRayTraceBaseApp::accelerationStructureBuildBarrier(VkCommandBuffer co
                          0, 0, VK_NULL_HANDLE,
                          1, &barrier, 0, VK_NULL_HANDLE);
 }
+
+void VulkanRayTraceBaseApp::createAccelerationStructure() {
+    asInstances = rtBuilder.buildTlas();
+}

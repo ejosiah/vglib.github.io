@@ -24,6 +24,8 @@ protected:
 
     void createAccelerationStructure(const std::vector<rt::MeshObjectInstance>& drawableInstances);
 
+    void createAccelerationStructure();
+
     void createShaderBindingTable(ShaderBindingTable& shaderBindingTable,  void* shaderHandleStoragePtr, VkBufferUsageFlags usageFlags, VmaMemoryUsage memoryUsage, uint32_t handleCount);
 
     VkStridedDeviceAddressRegionKHR getSbtEntryStridedDeviceAddressRegion(const VulkanBuffer& buffer, uint32_t handleCount) const;
