@@ -785,7 +785,7 @@ void textures::allocate(const VulkanDevice& device, Texture &texture, VkImageTyp
 void textures::checkerboard(const VulkanDevice &device, Texture &texture, const glm::vec3 &colorA, const glm::vec3 &colorB) {
     texture.width = texture.height = 256;
     auto data = new unsigned char[256 * 256 * 4];
-    checkerboard(data, {256, 256 });
+    checkerboard(data, {256, 256 }, colorA, colorB);
     create(device, texture, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, data, {256, 256, 1}, VK_SAMPLER_ADDRESS_MODE_REPEAT);
     delete[] data;
 }
@@ -810,8 +810,8 @@ void textures::checkerboard(unsigned char* data, const Dimension2D<uint32_t>& di
             auto color = (((i / 8) % 2) && ((j / 8) % 2)) || (!((i / 8) % 2) && !((j / 8) % 2)) ? colorB : colorA;
             auto idx = (i * dimensions.x + j) * 4;
             data[idx + 0]  = static_cast<unsigned char>(color.r * 255);
-            data[idx + 1]  = static_cast<unsigned char>(color.b * 255);
-            data[idx + 2]  = static_cast<unsigned char>(color.g * 255);
+            data[idx + 1]  = static_cast<unsigned char>(color.g * 255);
+            data[idx + 2]  = static_cast<unsigned char>(color.b * 255);
             data[idx + 3] = 255;
         }
     }
@@ -827,8 +827,8 @@ void textures::checkerboard1(unsigned char* data, const Dimension2D<uint32_t>& d
             auto color = glm::mix(colorA, colorB, t);
             auto idx = (i * dimensions.x + j) * 4;
             data[idx + 0]  = static_cast<unsigned char>(color.r * 255);
-            data[idx + 1]  = static_cast<unsigned char>(color.b * 255);
-            data[idx + 2]  = static_cast<unsigned char>(color.g * 255);
+            data[idx + 1]  = static_cast<unsigned char>(color.g * 255);
+            data[idx + 2]  = static_cast<unsigned char>(color.b * 255);
             data[idx + 3] = 255;
         }
     }
