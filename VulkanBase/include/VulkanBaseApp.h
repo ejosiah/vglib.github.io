@@ -42,6 +42,7 @@
 #include "ThreadPool.hpp"
 #include "Prototypes.hpp"
 #include "video/VideoDecoder.hpp"
+#include "Barrier.hpp"
 
 #ifndef NDEBUG
 constexpr bool enableValidation = true;
