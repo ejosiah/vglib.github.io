@@ -61,6 +61,12 @@ namespace rt{
             }
         }
 
+        void ensureMetadata() {
+            if(metaData.empty()){
+                metaData.resize(drawable->meshes.size());
+            }
+        }
+
         VulkanDrawable* drawable{ nullptr };
         std::vector<MetaData> metaData;
     };

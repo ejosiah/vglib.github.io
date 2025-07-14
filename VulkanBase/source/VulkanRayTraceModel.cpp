@@ -42,6 +42,9 @@ void rt::AccelerationStructureBuilder::dispose() {
 
 std::vector<rt::InstanceGroup> rt::AccelerationStructureBuilder::add(const std::vector<MeshObjectInstance> &drawableInstances,
                                                VkBuildAccelerationStructureFlagsKHR flags) {
+
+    if(drawableInstances.empty()) return {};
+
     std::vector<VulkanDrawable*> drawables;
     for(auto& dInstance : drawableInstances){
         auto itr = std::find_if(begin(drawables), end(drawables), [&](auto drawable){ return dInstance.object.drawable == drawable;});
@@ -61,7 +64,7 @@ std::vector<rt::InstanceGroup> rt::AccelerationStructureBuilder::add(const std::
     };
 
 
-    for(const auto & dInstance : drawableInstances){
+    for(auto & dInstance : drawableInstances){
         auto objId = findObjId(dInstance.object.drawable);
         assert(objId.has_value());
         InstanceGroup instanceGroup{ dInstance, *objId };

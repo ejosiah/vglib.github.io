@@ -175,6 +175,11 @@ struct VulkanDrawable{
     uint32_t numVertices() const {
         return vertexBuffer.size / sizeof(Vertex);
     }
+
+    [[nodiscard]]
+    bool empty() const {
+        return numVertices() == 0;
+    }
 };
 
 
