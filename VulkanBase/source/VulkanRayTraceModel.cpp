@@ -71,10 +71,13 @@ std::vector<rt::InstanceGroup> rt::AccelerationStructureBuilder::add(const std::
 
 
         auto& meshes = dInstance.object.drawable->meshes;
+        auto customIndex = 0u;
         for(int j = 0; j < meshes.size(); j++){
+            if(dInstance.object.metaData[j].hitGroupId == ~0u) continue;
+
             Instance instance;
             instance.blasId = blasIds[offsets[*objId] + j];
-            instance.instanceCustomId = (dInstance.object.metaData[j].customIndex != ~0u) ? dInstance.object.metaData[j].customIndex : j;
+            instance.instanceCustomId = (dInstance.object.metaData[j].customIndex != ~0u) ? dInstance.object.metaData[j].customIndex : customIndex;
             instance.hitGroupId = (dInstance.hitGroupId != ~0u) ? dInstance.hitGroupId : dInstance.object.metaData[j].hitGroupId;
 
             instance.mask = dInstance.object.metaData[j].mask;
@@ -83,7 +86,7 @@ std::vector<rt::InstanceGroup> rt::AccelerationStructureBuilder::add(const std::
             instanceGroup.instanceIds[meshes[j].name] = m_instances.size();
             m_instances.push_back(instance);
             instanceGroup.add(&m_instances.back());
-
+            ++customIndex;
         }
         instanceGroups.push_back(std::move(instanceGroup));
     }
