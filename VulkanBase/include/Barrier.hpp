@@ -86,6 +86,8 @@ public:
 
     static void rayQueryReadToAccelerationStructureUpdate(VkCommandBuffer commandBuffer);
 
+    static void rayTraceWriteToComputeRead(VkCommandBuffer commandBuffer);
+
 };
 
 class Barriers {
