@@ -68,7 +68,7 @@ public:
 
     void loadFonts();
 
-    ImTextureID addTexture(Texture& texture);
+    ImTextureID addTexture(Texture& texture, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     ImTextureID addTexture(VulkanImageView& imageView);
 

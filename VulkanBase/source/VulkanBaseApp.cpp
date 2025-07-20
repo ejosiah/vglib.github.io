@@ -181,7 +181,7 @@ void VulkanBaseApp::initPlugins() {
 void VulkanBaseApp::createInstance() {
     VkApplicationInfo appInfo{};
     appInfo.sType  = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
+    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pApplicationName = title.data();
     appInfo.apiVersion = VK_API_VERSION_1_3;
     appInfo.pEngineName = "";

@@ -587,7 +587,7 @@ ImFont *ImGuiPlugin::font(const std::string& name, float pixelSize) {
     throw std::runtime_error{fmt::format("requested font: {}, size: {}, was not previously loaded", name, pixelSize)};
 }
 
-ImTextureID ImGuiPlugin::addTexture(Texture& texture) {
+ImTextureID ImGuiPlugin::addTexture(Texture& texture, VkImageLayout layout) {
     auto aDescriptorSet = descriptorPool.allocate({ descriptorSetLayout}).front();
     descriptorSets.push_back(aDescriptorSet);
 
@@ -597,7 +597,7 @@ ImTextureID ImGuiPlugin::addTexture(Texture& texture) {
     write.dstBinding = 0;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.descriptorCount = 1;
-    VkDescriptorImageInfo imageInfo{ texture.sampler.handle, texture.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo imageInfo{ texture.sampler.handle, texture.imageView.handle, layout };
     write.pImageInfo = &imageInfo;
 
     data.device->updateDescriptorSets(writes);
