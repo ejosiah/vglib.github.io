@@ -490,6 +490,21 @@ void Barrier::rayTraceWriteToComputeRead(VkCommandBuffer commandBuffer) {
     vkCmdPipelineBarrier2(commandBuffer, &info);
 }
 
+void Barrier::rayTraceWriteToFragmentRead(VkCommandBuffer commandBuffer) {
+    static VkMemoryBarrier2 barrier{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT
+    };
+
+    static VkDependencyInfo info { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    info.memoryBarrierCount = 1;
+    info.pMemoryBarriers = &barrier;
+    vkCmdPipelineBarrier2(commandBuffer, &info);
+}
+
 void Barrier::accelerationStructureUpdateToRayQueryRead(VkCommandBuffer commandBuffer) {
     static VkMemoryBarrier2 barrier{
             .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,

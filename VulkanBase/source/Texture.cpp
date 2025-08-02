@@ -280,10 +280,15 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, const std:
 }
 
 
-Texture textures::equirectangularToOctahedralMap(const VulkanDevice& device, const std::string& path, uint32_t size, VkImageLayout finalLayout){
+Texture textures::equirectangularToOctahedralMap(const VulkanDevice& device, const fs::path& path, uint32_t size, VkImageLayout finalLayout){
     Texture equiTexture;
     equiTexture.width = equiTexture.height = size;
-    textures::hdr(device, equiTexture, path);
+
+    if(path.extension() == ".exr"){
+        textures::exr(device, equiTexture, path.string());
+    }else {
+        textures::hdr(device, equiTexture, path.string());
+    }
     auto octahedralMap = equirectangularToOctahedralMap(device, equiTexture, size, finalLayout);
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

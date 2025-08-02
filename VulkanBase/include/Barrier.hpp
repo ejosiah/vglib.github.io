@@ -88,6 +88,8 @@ public:
 
     static void rayTraceWriteToComputeRead(VkCommandBuffer commandBuffer);
 
+    static void rayTraceWriteToFragmentRead(VkCommandBuffer commandBuffer);
+
 };
 
 class Barriers {

@@ -129,7 +129,7 @@ namespace textures{
 
     void normalMap(unsigned char* data, const Dimension2D<uint32_t>& dimensions);
 
-    Texture equirectangularToOctahedralMap(const VulkanDevice& device, const std::string& path, uint32_t size, VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    Texture equirectangularToOctahedralMap(const VulkanDevice& device, const fs::path& path, uint32_t size, VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     Texture equirectangularToOctahedralMap(const VulkanDevice& device, const Texture& equirectangularTexture, uint32_t size, VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 

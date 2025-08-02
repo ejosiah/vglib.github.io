@@ -123,8 +123,8 @@ namespace textures {
         pipeline.pipeline =
             device.graphicsPipelineBuilder()
                 .shaderStage()
-                    .vertexShader("../../data/shaders/equi_rectangular_to_octahedral_map.vert.spv")
-                    .fragmentShader("../../data/shaders/equi_rectangular_to_octahedral_map.frag.spv")
+                    .vertexShader("../data/shaders/equi_rectangular_to_octahedral_map.vert.spv")
+                    .fragmentShader("../data/shaders/equi_rectangular_to_octahedral_map.frag.spv")
                 .vertexInputState()
                     .addVertexBindingDescription(0, sizeof(glm::vec2), VK_VERTEX_INPUT_RATE_VERTEX)
                     .addVertexAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, 0)
