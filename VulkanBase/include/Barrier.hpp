@@ -99,6 +99,11 @@ public:
                         VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                         VkImageLayout oldLayout, VkImageLayout newLayout);
 
+    static void pushAndFlush(VkCommandBuffer commandBuffer, const VulkanImage& image, VkImageSubresourceRange subresourceRange,
+                             VkPipelineStageFlags2 srcStageMask,VkPipelineStageFlags2 dstStageMask,
+                             VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
+                             VkImageLayout oldLayout, VkImageLayout newLayout);
+
     static void push(VkPipelineStageFlags2 srcStageMask,VkPipelineStageFlags2 dstStageMask,
                         VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask);
 

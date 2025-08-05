@@ -559,6 +559,15 @@ void Barriers::push(const VulkanImage& image, VkImageSubresourceRange subresourc
     });
 }
 
+void Barriers::pushAndFlush(VkCommandBuffer commandBuffer, const VulkanImage &image,
+                            VkImageSubresourceRange subresourceRange, VkPipelineStageFlags2 srcStageMask,
+                            VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 srcAccessMask,
+                            VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout, VkImageLayout newLayout) {
+
+    push(image, subresourceRange, srcStageMask, dstStageMask, srcAccessMask, dstAccessMask, oldLayout, newLayout);
+    flush(commandBuffer);
+}
+
 void
 Barriers::push(VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 srcAccessMask,
                VkAccessFlags2 dstAccessMask) {

@@ -10,6 +10,9 @@
 #include <ImfTiledOutputFile.h>
 #include <ImfNamespace.h>
 #include <ImfRgbaFile.h>
+#include "Barrier.hpp"
+#include "ComputePipelins.hpp"
+#include "filemanager.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -1311,4 +1314,155 @@ void textures::generateLOD(VkCommandBuffer commandBuffer, VulkanImage &image, ui
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = layers;
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &barrier);
+}
+
+void textures::createDistribution(const VulkanDevice& device, const VulkanDescriptorPool& descriptorPool, const Texture& source, Texture& destination) {
+    
+    const auto width = std::max(source.width, source.height);
+    const auto levels = to<uint32_t>(std::log2(width) + 1);
+    
+    destination.levels = levels;
+    createNoTransition(device, destination, VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, {source.width, source.height, 1});
+    
+    VulkanDescriptorSetLayout luminanceDescriptorSetLayout =
+        device.descriptorSetLayoutBuilder()
+            .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+            .binding(1)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+        .createLayout();
+
+    VulkanDescriptorSetLayout descriptorSetLayout =
+        device.descriptorSetLayoutBuilder()
+            .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+            .binding(1)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                .descriptorCount(1)
+                .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+        .createLayout();
+        
+    auto luminanceDescriptorSet = descriptorPool.allocate({ luminanceDescriptorSetLayout }).front();
+    
+    auto writes = initializers::writeDescriptorSets<2>();
+    
+    writes[0].dstSet = luminanceDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorImageInfo srcImageInfo{ source.sampler.handle, source.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    writes[0].pImageInfo = &srcImageInfo;
+
+    writes[1].dstSet = luminanceDescriptorSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writes[1].descriptorCount = 1;
+    VkDescriptorImageInfo dstImageInfo{ nullptr, destination.imageView.handle, VK_IMAGE_LAYOUT_GENERAL };
+    writes[1].pImageInfo = &dstImageInfo;
+
+    device.updateDescriptorSets(writes);
+
+    std::vector<VkDescriptorSet> descriptorSets = descriptorPool.allocateN( descriptorSetLayout, levels - 1 );
+
+    std::vector<VkImageSubresourceRange> subresources;
+    std::vector<VulkanImageView> views;
+    std::vector<VkDescriptorImageInfo> imageInfos;
+    imageInfos.reserve(levels * 2);
+    views.reserve(levels * 2);
+    writes.clear();
+
+    for(auto i = 0; i < levels; ++i) {
+        auto& resource = subresources.emplace_back();
+        resource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        resource.baseMipLevel = i;
+        resource.levelCount = 1;
+        resource.baseArrayLayer = 0;
+        resource.layerCount = 1;
+
+        auto view = destination.image.createView(VK_FORMAT_R32_SFLOAT, VK_IMAGE_VIEW_TYPE_2D, resource);
+        views.push_back(std::move(view));
+
+        if(i > 0) {
+            auto& writeSrc = writes.emplace_back();
+            writeSrc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writeSrc.dstSet = descriptorSets[i-1];
+            writeSrc.dstBinding = 0;
+            writeSrc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            writeSrc.descriptorCount = 1;
+            auto& srcInfo = imageInfos.emplace_back();
+            srcInfo = {nullptr, views[views.size() - 2].handle, VK_IMAGE_LAYOUT_GENERAL };
+            writeSrc.pImageInfo = &srcInfo;
+
+            auto& writeDst = writes.emplace_back();
+            writeDst.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writeDst.dstSet = descriptorSets[i-1];
+            writeDst.dstBinding = 1;
+            writeDst.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            writeDst.descriptorCount = 1;
+            auto& dstInfo = imageInfos.emplace_back();
+            dstInfo = {nullptr, views[views.size() - 1].handle, VK_IMAGE_LAYOUT_GENERAL };
+            writeDst.pImageInfo = &dstInfo;
+        }
+    }
+
+    device.updateDescriptorSets(writes);
+
+    std::vector<PipelineMetaData> metadata {
+        {
+                .name = "compute_luminance",
+                .shadePath =  FileManager::resource("luminance.comp.spv"),
+                .layouts = { &luminanceDescriptorSetLayout },
+        },
+        {
+                .name = "downsample_2x2",
+                .shadePath = FileManager::resource("downsample_2x2.comp.spv"),
+                .layouts = { &descriptorSetLayout },
+        }
+    };
+
+    auto compute = ComputePipelines(const_cast<VulkanDevice*>(&device), metadata);
+    compute.createPipelines();
+
+    device.graphicsCommandPool().oneTimeCommand([&](auto commandBuffer) {
+        auto resource = DEFAULT_SUB_RANGE;
+        resource.levelCount = levels;
+
+        Barriers::pushAndFlush(commandBuffer, destination.image, resource, VK_PIPELINE_STAGE_NONE
+                               , VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_NONE
+                               , VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+        auto w = source.width;
+        auto h = source.height;
+        auto gx = (w + 7)/8;
+        auto gy = (h + 7)/8;
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline("compute_luminance"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.layout("compute_luminance"), 0, 1, &luminanceDescriptorSet, 0, nullptr);
+        vkCmdDispatch(commandBuffer, gx, gy, 1);
+
+        Barrier::computeWriteToRead(commandBuffer);
+
+        for(auto i = 0; i < levels - 1; ++i) {
+            gx = (w + 7)/8;
+            gy = (h + 7)/8;
+
+            Barriers::pushAndFlush(commandBuffer, destination.image, subresources[i+1], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+                    , VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT
+                    , VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline("downsample_2x2"));
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.layout("downsample_2x2"), 0, 1, &descriptorSets[i], 0, nullptr);
+            vkCmdDispatch(commandBuffer, gx, gy, 1);
+
+            w = std::max(1u, w >> 1);
+            h = std::max(1u, h >> 1);
+        }
+
+    });
 }

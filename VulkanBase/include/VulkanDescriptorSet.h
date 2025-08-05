@@ -85,7 +85,7 @@ struct VulkanDescriptorPool : RefCounted {
         allocationCount += layouts.size();
     }
 
-    inline std::vector<VkDescriptorSet> allocateN(const VulkanDescriptorSetLayout& layout, size_t count) {
+    inline std::vector<VkDescriptorSet> allocateN(const VulkanDescriptorSetLayout& layout, size_t count) const {
 
         std::vector<VkDescriptorSetLayout> handles{};
         for(auto i = 0; i < count; ++i) handles.push_back(layout.handle);

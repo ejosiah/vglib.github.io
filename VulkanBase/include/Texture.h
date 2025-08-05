@@ -147,6 +147,12 @@ namespace textures{
 
     void createDistribution(const VulkanDevice& device, Texture& source, Distribution2DTexture& distribution, float scale = 0.25f);
 
+    /**
+     * Create a 2D Distribution, using Hierarchical transformation, detailed in
+     *  Ray Tracing Gems, chapter 16.4.2.3
+     */
+    void createDistribution(const VulkanDevice& device, const VulkanDescriptorPool& descriptorPool, const Texture& source, Texture& destination);
+
     void save(const VulkanDevice& device, Texture& texture, FileFormat format, const std::string& path);
 
     void save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format, const std::string& path, int width, int height);
