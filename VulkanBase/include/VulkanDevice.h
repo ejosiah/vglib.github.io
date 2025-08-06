@@ -170,6 +170,7 @@ struct VulkanDevice{
 
 
     logExtensions(pNext);
+    _enabledExtensions = pNext;
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         auto queueFamilies = getQueueFamilyProperties();
@@ -883,6 +884,13 @@ struct VulkanDevice{
         vkDeviceWaitIdle(logicalDevice);
     }
 
+    inline bool rayTracingEnabled()  {
+        auto accelerationStructureFeatures = findExtension<VkPhysicalDeviceAccelerationStructureFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, _enabledExtensions);
+        return accelerationStructureFeatures->accelerationStructure == VK_TRUE;
+    }
+
+private:
+    void* _enabledExtensions{};
 };
 
 #include "DescriptorSetBuilder.hpp"
