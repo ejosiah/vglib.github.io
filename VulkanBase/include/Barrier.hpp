@@ -18,6 +18,8 @@ public:
 
     static void fragmentWriteToFragmentRead(VkCommandBuffer commandBuffer);
 
+    static void fragmentReadToFragmentWrite(VkCommandBuffer commandBuffer);
+
     [[deprecated("user version without buffer specification")]]
     static void computeWriteToFragmentRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
