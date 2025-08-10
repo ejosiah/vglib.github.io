@@ -49,6 +49,24 @@ namespace phong{
         void init(const mesh::Mesh& mesh, VulkanDevice& device, const VulkanDescriptorPool& descriptorPool, const VulkanDescriptorSetLayout& descriptorSetLayout, VkBufferUsageFlags usageFlags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     };
 
+    struct MaterialInfo {
+        glm::vec3 diffuse = glm::vec3(0.6f);
+        glm::vec3 ambient = glm::vec3(0.6f);
+        glm::vec3 specular = glm::vec3(1);
+        glm::vec3 emission = glm::vec3(0);
+        glm::vec3 transmittance = glm::vec3(0);
+        float shininess = 0;
+        float ior = 0;
+        float opacity = 1;
+        float illum = 1;
+
+        uint32_t diffuseTex{~0u};
+        uint32_t ambientTex{~0u};
+        uint32_t specularTex{~0u};
+        uint32_t normalTex{~0u};
+        uint32_t ambientOcclusionTex{~0u};
+    };
+
     struct Mesh : public vkn::Primitive{
         std::string name;
         Material material;
@@ -71,10 +89,251 @@ namespace phong{
         VkBufferUsageFlags materialUsage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         VkBufferUsageFlags  materialIdUsage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         VmaMemoryUsage materialBufferMemoryUsage = VMA_MEMORY_USAGE_GPU_ONLY;
+        glm::mat4 transform = glm::mat4{1};
         bool generateMaterialId = true;
         bool generateAdjacencyTriangles = false;
+        bool flipUv = false;
         float simplify = 0.f;
     };
+
+    template<typename Drawable>
+    inline void load2(const std::string& path, VulkanDevice &device, const VulkanDescriptorPool& pool,
+                     Drawable& drawable,
+                     const VulkanDrawableInfo info = {}, bool normalize = false, float size = 1, float unit = meter) {
+
+        std::vector<mesh::Mesh> meshes;
+        mesh::load(meshes, path, mesh::DEFAULT_PROCESS_FLAGS & ~aiProcess_FixInfacingNormals);
+
+        if(normalize) {
+            mesh::normalize(meshes, size);
+        } else if(unit != meter) {
+            for (auto &mesh: meshes) {
+                for (auto &vertex : mesh.vertices) {
+                    vertex.position = glm::vec4(vertex.position.xyz() * unit, 1);
+                }
+            }
+        }
+
+        static const auto id = glm::mat4{1};
+
+        if(info.transform != id) {
+            const auto vxform = info.transform;
+            const auto nxform = glm::inverseTranspose(glm::mat3(info.transform));
+            for(auto& mesh : meshes) {
+                for(auto& v : mesh.vertices) {
+                    v.position = vxform * v.position;
+                    v.normal = nxform * v.normal;
+                    v.tangent = nxform * v.tangent;
+                    v.bitangent = nxform * v.bitangent;
+                }
+            }
+        }
+
+        if(info.simplify > 0 && info.simplify < 1){
+            for(auto& mesh : meshes){
+                auto threshold = info.simplify;
+                const auto target_error = 1e-2f;
+                auto targetIndexCount = static_cast<size_t>(mesh.indices.size() * threshold);
+                std::vector<uint32_t> simplifiedIndices(mesh.indices.size());
+                auto indexCount = meshopt_simplify(simplifiedIndices.data(), mesh.indices.data(), mesh.indices.size(),
+                                                   reinterpret_cast<const float*>(mesh.vertices.data()), mesh.vertices.size(),
+                                                   sizeof(Vertex), targetIndexCount, target_error);
+                simplifiedIndices.resize(indexCount);
+                mesh.indices = simplifiedIndices;
+            }
+        }
+
+        if(info.generateAdjacencyTriangles){
+            for(auto& mesh : meshes){
+                decltype(mesh.indices) adjIndices;
+                adjIndices.resize(mesh.indices.size() * 2);
+                meshopt_generateAdjacencyIndexBuffer(adjIndices.data(), mesh.indices.data(), mesh.indices.size(),
+                                                     reinterpret_cast<const float*>(mesh.vertices.data()),
+                                                     mesh.vertices.size(), sizeof(Vertex));
+                mesh.indices = adjIndices;
+
+            }
+
+        }
+
+        int numIndices = 0;
+        int numVertices = 0;
+        glm::vec3 min{MAX_FLOAT};
+        glm::vec3 max{MIN_FLOAT};
+
+        // get Drawable bounds
+        for(auto& mesh : meshes){
+            numIndices += mesh.indices.size();
+            numVertices += mesh.vertices.size();
+
+            for(const auto& vertex : mesh.vertices){
+                mesh.bounds.min = glm::min(glm::vec3(vertex.position), mesh.bounds.min);
+                mesh.bounds.max = glm::max(glm::vec3(vertex.position), mesh.bounds.max);
+                drawable.bounds.min = glm::min(glm::vec3(vertex.position), drawable.bounds.min);
+                drawable.bounds.max = glm::max(glm::vec3(vertex.position), drawable.bounds.max);
+            }
+        }
+
+        // copy meshes into vertex/index buffers
+        drawable.meshes.resize(meshes.size());
+        uint32_t firstVertex = 0;
+        uint32_t firstIndex = 0;
+        uint32_t materialOffset = 0;
+        auto sizeOfInt = sizeof(uint32_t);
+        auto offset = 0;
+        std::vector<char> indexBuffer(numIndices * sizeof(uint32_t));
+        std::vector<char> vertexBuffer(numVertices * sizeof(Vertex));
+        std::vector<glm::ivec4> offsetBuffer;
+
+        std::map<std::string, std::pair<int, bool>> textureMap;
+        int diffuseTexId = 0;
+        int ambientTexId = 0;
+        int specularTexId = 0;
+        int normalTexId = 0;
+        int ambientOcclusionTexId = 0;
+
+        int numTextures = 0;
+        for(auto& mesh : meshes) {
+            if(!mesh.textureMaterial.diffuseMap.empty() && !textureMap.contains(mesh.textureMaterial.diffuseMap)) {
+                textureMap[mesh.textureMaterial.diffuseMap] = std::make_pair(numTextures++, true);
+            }
+            if(!mesh.textureMaterial.ambientMap.empty() && !textureMap.contains(mesh.textureMaterial.ambientMap)) {
+                textureMap[mesh.textureMaterial.ambientMap] = std::make_pair(numTextures++, false);
+            }
+            if(!mesh.textureMaterial.specularMap.empty() && !textureMap.contains(mesh.textureMaterial.specularMap)) {
+                textureMap[mesh.textureMaterial.specularMap] = std::make_pair(numTextures++, false);
+            }
+            if(!mesh.textureMaterial.normalMap.empty() && !textureMap.contains(mesh.textureMaterial.normalMap)) {
+                textureMap[mesh.textureMaterial.normalMap] = std::make_pair(numTextures++, false);
+            }
+            if(!mesh.textureMaterial.ambientOcclusionMap.empty() && !textureMap.contains(mesh.textureMaterial.ambientOcclusionMap)) {
+                textureMap[mesh.textureMaterial.ambientOcclusionMap] = std::make_pair(numTextures++, false);
+            }
+        }
+
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+
+        bindings[0].binding = 0;
+        bindings[0].descriptorCount = 1;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
+
+        bindings[1].binding = 1;
+        bindings[1].descriptorCount = numTextures;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[1].stageFlags = VK_SHADER_STAGE_ALL;
+        drawable.descriptorSetLayout = device.createDescriptorSetLayout(bindings);
+
+        drawable.textures.resize(numTextures);
+        for(auto& [ texPath, entry] : textureMap) {
+            // TODO generate mip maps
+            auto [index, anisotropyEnable] = entry;
+            auto& texture = drawable.textures[index];
+            texture.anisotropyEnable = anisotropyEnable;
+            textures::fromFile(device, texture, texPath, info.flipUv, VK_FORMAT_R8G8B8A8_SRGB);
+        }
+
+        auto imageInfos = map_range(drawable.textures, [](const auto& texture){
+            return VkDescriptorImageInfo{ texture.sampler.handle, texture.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }; });
+
+        VkDeviceSize materialBufferSize = sizeof(MaterialInfo);
+        drawable.materialBuffer = device.createBuffer(
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                info.materialBufferMemoryUsage,
+                materialBufferSize * meshes.size());
+        uint32_t numPrimitives = 0;
+        for(int i = 0; i < meshes.size(); i++){
+            auto& mesh = meshes[i];
+            auto numVertices = mesh.vertices.size();
+            auto size = numVertices * sizeof(Vertex);
+            void* dest = vertexBuffer.data() + firstVertex * sizeof(Vertex);
+            std::memcpy(dest, mesh.vertices.data(), size);
+
+            size = mesh.indices.size() * sizeof(mesh.indices[0]);
+            dest = indexBuffer.data() + firstIndex * sizeof(mesh.indices[0]);
+            std::memcpy(dest, mesh.indices.data(), size);
+
+            auto primitive = vkn::Primitive::indexed(mesh.indices.size(), firstIndex, numVertices, firstVertex);
+            drawable.meshes[i].name = mesh.name;
+            drawable.meshes[i].firstIndex = primitive.firstIndex;
+            drawable.meshes[i].indexCount = primitive.indexCount;
+            drawable.meshes[i].firstVertex = primitive.firstVertex;
+            drawable.meshes[i].vertexCount = primitive.vertexCount;
+            drawable.meshes[i].vertexOffset = primitive.vertexOffset;
+
+
+            MaterialInfo material{};
+            material.diffuse = mesh.material.diffuse;
+            material.ambient = mesh.material.ambient;
+            material.specular = mesh.material.specular;
+            material.emission = mesh.material.emission;
+            material.transmittance = mesh.material.transmittance;
+            material.shininess = mesh.material.shininess;
+            material.ior = mesh.material.ior;
+            material.opacity = mesh.material.opacity;
+            material.illum = mesh.material.illum;
+
+            material.diffuseTex = textureMap.contains(mesh.textureMaterial.diffuseMap) ? textureMap[mesh.textureMaterial.diffuseMap].first : ~0u;
+            material.ambientTex = textureMap.contains(mesh.textureMaterial.ambientMap) ? textureMap[mesh.textureMaterial.ambientMap].first : ~0u;
+            material.specularTex = textureMap.contains(mesh.textureMaterial.specularMap) ? textureMap[mesh.textureMaterial.specularMap].first : ~0u;
+            material.normalTex = textureMap.contains(mesh.textureMaterial.normalMap) ? textureMap[mesh.textureMaterial.normalMap].first : ~0u;
+            material.ambientOcclusionTex = textureMap.contains(mesh.textureMaterial.ambientOcclusionMap) ? textureMap[mesh.textureMaterial.ambientOcclusionMap].first : ~0u;
+
+            drawable.meshes[i].material.materialBuffer = device.createDeviceLocalBuffer(&material, sizeof(MaterialInfo), info.materialUsage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+            auto descriptorSet = pool.allocate({drawable.descriptorSetLayout}).front();
+            device.setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>(mesh.name, descriptorSet);
+
+            auto writes = initializers::writeDescriptorSets<2>();
+            writes[0].dstSet = descriptorSet;
+            writes[0].dstBinding = 0;
+            writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            writes[0].descriptorCount = 1;
+            VkDescriptorBufferInfo materialInfo{ drawable.meshes[i].material.materialBuffer, drawable.meshes[i].material.materialOffset, VK_WHOLE_SIZE };
+            writes[0].pBufferInfo = &materialInfo;
+
+            writes[1].dstSet = descriptorSet;
+            writes[1].dstBinding = 1;
+            writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[1].descriptorCount = COUNT(imageInfos);
+            writes[1].pImageInfo = imageInfos.data();
+
+            device.updateDescriptorSets(writes);
+            drawable.meshes[i].material.descriptorSet = descriptorSet;
+
+            device.copy(drawable.meshes[i].material.materialBuffer, drawable.materialBuffer, materialBufferSize, 0, i * materialBufferSize);
+
+//            std::memcpy(offsetBuffer.data() + offset, &firstIndex, sizeOfInt);
+//            offset += sizeOfInt;
+//            std::memcpy(offsetBuffer.data() + offset, &primitive.vertexOffset, sizeOfInt);
+//            offset += sizeOfInt;
+            offsetBuffer.emplace_back(firstIndex, primitive.vertexOffset, materialOffset, 0);
+
+            firstVertex += mesh.vertices.size();
+            firstIndex += mesh.indices.size();
+            materialOffset += mesh.indices.size()/3;
+            numPrimitives += drawable.meshes[i].numTriangles();
+        }
+
+        if(info.generateMaterialId){
+            std::vector<int> materialIds;
+            materialIds.reserve(numPrimitives);
+            int materialId = 0;
+            for(phong::Mesh& mesh : drawable.meshes){
+                for(int i = 0; i < mesh.numTriangles(); i++){
+                    materialIds.push_back(materialId);
+                }
+                materialId++;
+            }
+            drawable.materialIdBuffer = device.createDeviceLocalBuffer(materialIds.data(), numPrimitives * sizeof(int), info.materialIdUsage);
+        }
+
+        drawable.offsetBuffer = device.createDeviceLocalBuffer(offsetBuffer.data(), offsetBuffer.size() * sizeof(glm::ivec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        drawable.vertexBuffer = device.createDeviceLocalBuffer(vertexBuffer.data(), numVertices * sizeof(Vertex), info.vertexUsage);
+        drawable.indexBuffer = device.createDeviceLocalBuffer(indexBuffer.data(), numIndices * sizeof(uint32_t), info.indexUsage);
+    }
 
     /**
      * @brief loads a phong object

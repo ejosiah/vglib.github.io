@@ -5,6 +5,9 @@
 #include <glm/glm.hpp>
 #include <array>
 #include <vector>
+#include <string>
+#include <spdlog/spdlog.h>
+#include <fstream>
 
 struct ClipSpace{
 

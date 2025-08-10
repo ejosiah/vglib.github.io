@@ -23,9 +23,9 @@ namespace mesh {
         alignas(16) glm::vec3 ambient = glm::vec3(0.6f);
         alignas(16) glm::vec3 specular = glm::vec3(1);
         alignas(16) glm::vec3 emission = glm::vec3(0);
-        alignas(16) glm::vec3 transmittance = glm::vec3(0);
+        alignas(16) glm::vec3 transmittance = glm::vec3(1);
         float shininess = 0;
-        float ior = 0;
+        float ior = 1;
         float opacity = 1;
         float illum = 1;
     };
@@ -53,6 +53,8 @@ namespace mesh {
     };
 
     int load(std::vector<Mesh>& meshes, const std::string& path, uint32_t flags = DEFAULT_PROCESS_FLAGS);
+
+    void writeToObject(const std::vector<Mesh>& meshes, const std::string& filename);
 
     void transform(std::vector<Mesh>& meshes, glm::mat4 xform);
 

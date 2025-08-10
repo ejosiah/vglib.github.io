@@ -26,6 +26,7 @@ struct Texture{
     uint32_t bindingId = std::numeric_limits<uint32_t>::max();
     bool lod{};
     bool flipped{};
+    bool anisotropyEnable{};
     std::string path;
 
     bool isValid() const {
@@ -101,7 +102,7 @@ namespace textures{
 
     RawImage loadImage(std::string_view path, bool flipUv = false);
 
-    void fromFile(const VulkanDevice& device, Texture& texture, std::string_view path, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, uint32_t levelCount = 1);
+    void fromFile(const VulkanDevice& device, Texture& texture, std::string_view path, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, uint32_t levelCount = 1, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 
     void fromFile(const VulkanDevice& device, Texture& texture, const std::vector<std::string>& paths, bool flipUv = false, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, uint32_t levelCount = 1);
 

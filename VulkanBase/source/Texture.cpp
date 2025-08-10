@@ -229,7 +229,7 @@ RawImage textures::loadImage(std::string_view path, bool flipUv) {
     };
 }
 
-void textures::fromFile(const VulkanDevice &device, Texture &texture, std::string_view path, bool flipUv, VkFormat format, uint32_t levelCount) {
+void textures::fromFile(const VulkanDevice &device, Texture &texture, std::string_view path, bool flipUv, VkFormat format, uint32_t levelCount, VkSamplerAddressMode addressMode) {
     int texWidth, texHeight, texChannels;
     stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
     stbi_uc* pixels = stbi_load(path.data(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -239,7 +239,7 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, std::strin
         throw std::runtime_error{fmt::format("failed to load texture image {}!", path)};
     }
     levelCount = std::max(levelCount, texture.levels);
-    create(device, texture, VK_IMAGE_TYPE_2D, format, pixels, {texWidth, texHeight, 1u}, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1, VK_IMAGE_TILING_OPTIMAL, levelCount);
+    create(device, texture, VK_IMAGE_TYPE_2D, format, pixels, {texWidth, texHeight, 1u}, addressMode, 1, VK_IMAGE_TILING_OPTIMAL, levelCount);
     stbi_image_free(pixels);
 }
 
@@ -285,8 +285,6 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, const std:
 
 Texture textures::equirectangularToOctahedralMap(const VulkanDevice& device, const fs::path& path, uint32_t size, VkImageLayout finalLayout){
     Texture equiTexture;
-    equiTexture.width = equiTexture.height = size;
-
     if(path.extension() == ".exr"){
         textures::exr(device, equiTexture, path.string());
     }else {
@@ -447,6 +445,10 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.mipmapMode = isIntegral(format) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
         samplerInfo.maxLod = levelCount;
+        if(texture.anisotropyEnable) {
+            samplerInfo.anisotropyEnable = VK_TRUE;
+            samplerInfo.maxAnisotropy = device.getLimits().maxSamplerAnisotropy;
+        }
 
         texture.sampler = device.createSampler(samplerInfo);
     }

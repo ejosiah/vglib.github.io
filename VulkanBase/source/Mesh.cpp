@@ -1,5 +1,6 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "Mesh.h"
+#include <fstream>
 #include <meshoptimizer.h>
 
 VkPrimitiveTopology toVulkan(uint32_t MeshType){
@@ -163,7 +164,7 @@ mesh::Mesh loadMesh(const std::string& parent, const aiNode* node, const aiScene
     mesh.material = material;
     mesh.textureMaterial = texMaterial;
 
-    optimize(mesh);
+//    optimize(mesh);
 
     return mesh;
 }
@@ -214,4 +215,96 @@ void mesh::bounds(const std::vector<Mesh> &meshes, glm::vec3 &vMin, glm::vec3 &v
             vMax = glm::max(vMax, pos.xyz());
         }
     }
+}
+
+void writeMeshToObj(std::ofstream& objFile, const mesh::Mesh& mesh, size_t& vertexOffset) {
+    objFile << "# Mesh: " << mesh.name << std::endl;
+
+    // Write vertices to .obj file
+    for (const auto& vertex : mesh.vertices) {
+        objFile << "v "
+                << vertex.position.x << " "
+                << vertex.position.y << " "
+                << vertex.position.z << std::endl;
+
+        // Optional: Write colors (if needed)
+        objFile << "vc "
+                << vertex.color.r << " "
+                << vertex.color.g << " "
+                << vertex.color.b << std::endl;
+
+        // Write normals
+        objFile << "vn "
+                << vertex.normal.x << " "
+                << vertex.normal.y << " "
+                << vertex.normal.z << std::endl;
+
+        // Write texture coordinates (UVs)
+        objFile << "vt "
+                << vertex.uv.x << " "
+                << vertex.uv.y << std::endl;
+    }
+
+    // Write faces using indices
+    for (size_t i = 0; i < mesh.indices.size(); i += 3) {
+        uint32_t idx1 = mesh.indices[i] + vertexOffset;
+        uint32_t idx2 = mesh.indices[i + 1] + vertexOffset;
+        uint32_t idx3 = mesh.indices[i + 2] + vertexOffset;
+
+        objFile << "f "
+                << idx1 << "/" << idx1 << "/" << idx1 << " "
+                << idx2 << "/" << idx2 << "/" << idx2 << " "
+                << idx3 << "/" << idx3 << "/" << idx3 << std::endl;
+    }
+
+    // Update vertex offset for the next mesh
+    vertexOffset += mesh.vertices.size();
+}
+
+// Function to write material properties to an MTL file
+void writeMaterialToMtl(std::ofstream& mtlFile, const mesh::Material& material) {
+    mtlFile << "newmtl " << material.name << std::endl;
+    mtlFile << "Ka " << material.ambient.r << " " << material.ambient.g << " " << material.ambient.b << std::endl;
+    mtlFile << "Kd " << material.diffuse.r << " " << material.diffuse.g << " " << material.diffuse.b << std::endl;
+    mtlFile << "Ks " << material.specular.r << " " << material.specular.g << " " << material.specular.b << std::endl;
+    mtlFile << "Ke " << material.emission.r << " " << material.emission.g << " " << material.emission.b << std::endl;
+    mtlFile << "Ni " << material.ior << std::endl;
+    mtlFile << "d " << material.opacity << std::endl;
+    mtlFile << "illum " << material.illum << std::endl;
+    // Add texture maps if they exist (optional)
+    if (!material.name.empty()) {
+        mtlFile << "map_Kd " << material.name << "_diffuse.jpg" << std::endl;  // Assuming a diffuse map
+    }
+}
+
+
+void mesh::writeToObject(const std::vector<mesh::Mesh>& meshes, const std::string& filename) {
+    std::ofstream objFile(filename + ".obj");
+    std::ofstream mtlFile(filename + ".mtl");
+
+    if (!objFile.is_open() || !mtlFile.is_open()) {
+        spdlog::error("Failed to open files for writing!");
+        return;
+    }
+
+    // Write the material library reference at the top of the .obj file
+    objFile << "mtllib " << filename << ".mtl" << std::endl;
+
+    size_t vertexOffset = 1; // Wavefront .obj indices start at 1
+
+    // Write all meshes
+    for (const auto& mesh : meshes) {
+        objFile << "usemtl " << mesh.material.name << std::endl;
+
+        // Write mesh vertices and faces
+        writeMeshToObj(objFile, mesh, vertexOffset);
+
+        // Write the material for the mesh into the MTL file
+        writeMaterialToMtl(mtlFile, mesh.material);
+    }
+
+    objFile.close();
+    mtlFile.close();
+
+    spdlog::info("Successfully wrote meshes to {}.obj and materials to {}.mtl", filename, filename);
 }

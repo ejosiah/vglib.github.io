@@ -17,6 +17,8 @@ struct VulkanDrawable{
     VulkanBuffer materialBuffer;
     VulkanDescriptorSetLayout descriptorSetLayout;
 
+    std::vector<Texture> textures;
+
     struct {
         glm::vec3 min{MAX_FLOAT};
         glm::vec3 max{MIN_FLOAT};
@@ -24,17 +26,16 @@ struct VulkanDrawable{
 
     [[nodiscard]]
     float height() const {
-        auto diagonal = bounds.max - bounds.min;
-        return std::abs(diagonal.y);
+        return std::abs(bounds.max.y - bounds.min.y);
     }
 
-    void draw(VkCommandBuffer commandBuffer, VulkanPipelineLayout& layout) const {
+    void draw(VkCommandBuffer commandBuffer, VulkanPipelineLayout& layout, uint32_t firstSet = 0) const {
         auto numPrims = meshes.size();
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer.buffer, &offset);
         vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         for (auto i = 0; i < numPrims; i++) {
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout.handle, 0, 1, &meshes[i].material.descriptorSet, 0, VK_NULL_HANDLE);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout.handle, firstSet, 1, &meshes[i].material.descriptorSet, 0, VK_NULL_HANDLE);
             meshes[i].drawIndexed(commandBuffer);
         }
     }
