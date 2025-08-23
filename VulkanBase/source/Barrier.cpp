@@ -604,6 +604,15 @@ Barriers::push(VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStag
 }
 
 
+void
+Barriers::pushAndFlush(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 srcAccessMask,
+               VkAccessFlags2 dstAccessMask) {
+
+    push(srcStageMask, dstStageMask, srcAccessMask, dstAccessMask);
+    flush(commandBuffer);
+}
+
+
 void Barriers::release(const VulkanImage &image, VkImageSubresourceRange subresourceRange,
                        VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask, VkImageLayout oldLayout,
                        VkImageLayout newLayout, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
