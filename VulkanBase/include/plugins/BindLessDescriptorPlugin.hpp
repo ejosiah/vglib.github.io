@@ -67,6 +67,14 @@ struct BindlessDescriptor {
         return BindlessTexture{ &texture, type, nextIndex(type) };
     }
 
+    uint reserveTextureSlots(int numSlots) {
+        return to<uint>(reserveSlots(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numSlots));
+    }
+
+    uint reserveImageSlots(int numSlots) {
+        return to<uint>(reserveSlots(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, numSlots));
+    }
+
     int reserveSlots(VkDescriptorType type, int numSlots) {
         auto offset = bindingIds[type].load();
         bindingIds[type] += numSlots;
