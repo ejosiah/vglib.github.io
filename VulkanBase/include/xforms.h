@@ -1,5 +1,7 @@
 #pragma once
 
+#define GLM_FORCE_RIGHT_HANDED
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -22,9 +24,26 @@ namespace vkn {
         return GL_TO_VKN_CLIP * glm::ortho(left, right, bottom, top);
     }
     
-    inline glm::mat4 perspective(float fov, float aspect, float zNear, float zFar, bool horizontalFov = false){
-        auto projection = horizontalFov ? perspectiveHFov(fov, aspect, zNear, zFar) : perspectiveVFov(fov, aspect, zNear, zFar);
-        return  projection;
+//    inline glm::mat4 perspective(float fov, float aspect, float zNear, float zFar, bool horizontalFov = false){
+//        auto projection = horizontalFov ? perspectiveHFov(fov, aspect, zNear, zFar) : perspectiveVFov(fov, aspect, zNear, zFar);
+//        return  projection;
+//    }
+
+    inline glm::mat4 perspectiveVFov_VK(float fovy, float aspect, float zNear, float zFar) {
+        glm::mat4 P = glm::perspectiveRH_ZO(fovy, aspect, zNear, zFar); // RH, depth 0..1
+        P[1][1] *= -1.0f; // Vulkan framebuffer has inverted Y
+        return P;
+    }
+
+    inline glm::mat4 perspectiveHFov_VK(float fovx, float aspect, float zNear, float zFar) {
+        // fovx is horizontal FoV in radians; aspect = width/height
+        float fovy = 2.0f * atanf(tanf(fovx * 0.5f) / aspect);
+        return perspectiveVFov_VK(fovy, aspect, zNear, zFar);
+    }
+
+    inline glm::mat4 perspective(float fov, float aspect, float zNear, float zFar, bool horizontalFov=false) {
+        return horizontalFov ? perspectiveHFov_VK(fov, aspect, zNear, zFar)
+                             : perspectiveVFov_VK(fov, aspect, zNear, zFar);
     }
 
     inline glm::mat4 perspectiveHFov(float fovx, float aspect, float znear, float zfar){

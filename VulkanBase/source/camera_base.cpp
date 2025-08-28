@@ -570,4 +570,10 @@ void Frustum::extractFrustum(Frustum &frustum, const glm::mat4 M) {
     frustum.cp[FAR_PLANE].y = m4[1] - m3[1];
     frustum.cp[FAR_PLANE].z = m4[2] - m3[2];
     frustum.cp[FAR_PLANE].w = m4[3] - m3[3];
+
+    for(auto& p : frustum.cp) {
+        auto invLength = glm::inversesqrt(glm::dot(p.xyz(), p.xyz()));
+        p *= invLength;
+
+    }
 }
