@@ -53,31 +53,51 @@ function(compile_glsl_directory)
 
     cmake_parse_arguments(COMPILE "${noValues}" "${singleValues}" "${multiValues}" ${ARGN})
 
-    file(GLOB GLSL_SOURCE_FILES
-        "${COMPILE_SRC_DIR}/*.vert"
-        "${COMPILE_SRC_DIR}/*.frag"
-        "${COMPILE_SRC_DIR}/*.geom"
-        "${COMPILE_SRC_DIR}/*.comp"
-        "${COMPILE_SRC_DIR}/*.tese"
-        "${COMPILE_SRC_DIR}/*.tesc"
-        "${COMPILE_SRC_DIR}/*.rgen*"
-        "${COMPILE_SRC_DIR}/*.rmiss*"
-        "${COMPILE_SRC_DIR}/*.rchit*"
-        "${COMPILE_SRC_DIR}/*.rahit*"
-        "${COMPILE_SRC_DIR}/*.rint*"
-        "${COMPILE_SRC_DIR}/*.rcall*"
-        "${COMPILE_SRC_DIR}/*.mesh*"
-        "${COMPILE_SRC_DIR}/*.msh*"
-        "${COMPILE_SRC_DIR}/*.task*"
-        "${COMPILE_SRC_DIR}/*.tsk*"
+    # Normalize to absolute paths (avoids RELATIVE_PATH error)
+    get_filename_component(_SRC_ROOT "${COMPILE_SRC_DIR}" ABSOLUTE)
+    get_filename_component(_OUT_ROOT "${COMPILE_OUT_DIR}" ABSOLUTE)
+
+    file(GLOB_RECURSE GLSL_SOURCE_FILES CONFIGURE_DEPENDS
+            "${_SRC_ROOT}/*.vert"
+            "${_SRC_ROOT}/*.frag"
+            "${_SRC_ROOT}/*.geom"
+            "${_SRC_ROOT}/*.comp"
+            "${_SRC_ROOT}/*.tese"
+            "${_SRC_ROOT}/*.tesc"
+            "${_SRC_ROOT}/*.rgen*"
+            "${_SRC_ROOT}/*.rmiss*"
+            "${_SRC_ROOT}/*.rchit*"
+            "${_SRC_ROOT}/*.rahit*"
+            "${_SRC_ROOT}/*.rint*"
+            "${_SRC_ROOT}/*.rcall*"
+            "${_SRC_ROOT}/*.mesh*"
+            "${_SRC_ROOT}/*.msh*"
+            "${_SRC_ROOT}/*.task*"
+            "${_SRC_ROOT}/*.tsk*"
     )
 
-    file(MAKE_DIRECTORY ${COMPILE_OUT_DIR})
+    file(MAKE_DIRECTORY "${_OUT_ROOT}")
 
-    foreach(SHADER_SOURCE IN ITEMS ${GLSL_SOURCE_FILES})
-        get_filename_component(SHADER_FILE_NAME ${SHADER_SOURCE} NAME)
-        set(SPV_FILE "${COMPILE_OUT_DIR}/${SHADER_FILE_NAME}.spv")
-        compile_glsl(SRC_FILE ${SHADER_SOURCE} OUT_FILE ${SPV_FILE} INCLUDE_DIRS ${COMPILE_INCLUDE_DIRS})
+    foreach(SHADER_SOURCE IN LISTS GLSL_SOURCE_FILES)
+        get_filename_component(_SHADER_FILE "${SHADER_SOURCE}" NAME)
+        get_filename_component(_SHADER_DIR  "${SHADER_SOURCE}" DIRECTORY)
+
+        # Relative dir from the root of the shader source tree
+        file(RELATIVE_PATH _RELDIR "${_SRC_ROOT}" "${_SHADER_DIR}")
+
+        # Build snake_case prefix from parent dirs (excluding _SRC_ROOT)
+        set(_PREFIX "")
+        if (NOT _RELDIR STREQUAL "." AND NOT _RELDIR STREQUAL "")
+            string(REPLACE "\\" "/" _PREFIX "${_RELDIR}")                      # normalize slashes
+            string(REGEX REPLACE "([a-z0-9])([A-Z])" "\\1_\\2" _PREFIX "${_PREFIX}" ) # camel->snake
+            string(REGEX REPLACE "[^A-Za-z0-9]+" "_" _PREFIX "${_PREFIX}")     # non-alnum -> _
+            string(REGEX REPLACE "_+" "_" _PREFIX "${_PREFIX}")                 # collapse __
+            string(REGEX REPLACE "^_|_$" "" _PREFIX "${_PREFIX}")              # trim edges
+            string(TOLOWER "${_PREFIX}" _PREFIX)                                # lower-case
+            set(_PREFIX "${_PREFIX}_")
+        endif()
+
+        set(SPV_FILE "${_OUT_ROOT}/${_PREFIX}${_SHADER_FILE}.spv")
+        compile_glsl(SRC_FILE "${SHADER_SOURCE}" OUT_FILE "${SPV_FILE}" INCLUDE_DIRS ${COMPILE_INCLUDE_DIRS})
     endforeach()
-
 endfunction()
