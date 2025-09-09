@@ -123,7 +123,7 @@ public:
                         VkImageLayout oldLayout, VkImageLayout newLayout,
                         uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex);
 
-    static void flush(VkCommandBuffer commandBuffer);
+    static void flush(VkCommandBuffer commandBuffer, VkDependencyFlags dependencyFlag = 0);
 
     static bool flushed();
 

@@ -650,7 +650,7 @@ void Barriers::acquire(const VulkanImage &image, VkImageSubresourceRange subreso
     });
 }
 
-void Barriers::flush(VkCommandBuffer commandBuffer) {
+void Barriers::flush(VkCommandBuffer commandBuffer, VkDependencyFlags dependencyFlag) {
     dependencyInfo.imageMemoryBarrierCount = COUNT(imageMemoryBarriers);
     dependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
     dependencyInfo.bufferMemoryBarrierCount = COUNT(bufferMemoryBarriers);
@@ -658,6 +658,7 @@ void Barriers::flush(VkCommandBuffer commandBuffer) {
     dependencyInfo.memoryBarrierCount = COUNT(memoryBarriers);
     dependencyInfo.pMemoryBarriers = memoryBarriers.data();
 
+    dependencyInfo.dependencyFlags = dependencyFlag;
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 
     imageMemoryBarriers.clear();

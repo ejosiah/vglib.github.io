@@ -29,6 +29,7 @@ static PFN_vkCmdBeginVideoCodingKHR pfn_vkCmdBeginVideoCodingKHR = nullptr;
 static PFN_vkCmdEndVideoCodingKHR pfn_vkCmdEndVideoCodingKHR = nullptr;
 static PFN_vkCmdControlVideoCodingKHR pfn_vkCmdControlVideoCodingKHR = nullptr;
 static PFN_vkCmdDecodeVideoKHR pfn_vkCmdDecodeVideoKHR = nullptr;
+static PFN_vkCmdSetRenderingInputAttachmentIndicesKHR pfn_vkCmdSetRenderingInputAttachmentIndicesKHR = nullptr;
 
 #ifdef WIN32
 static PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR = nullptr;
@@ -67,6 +68,7 @@ namespace ext {
         pfn_vkCmdEndVideoCodingKHR = procAddress<PFN_vkCmdEndVideoCodingKHR>(instance, "vkCmdEndVideoCodingKHR");
         pfn_vkCmdControlVideoCodingKHR = procAddress<PFN_vkCmdControlVideoCodingKHR>(instance, "vkCmdControlVideoCodingKHR");
         pfn_vkCmdDecodeVideoKHR = procAddress<PFN_vkCmdDecodeVideoKHR>(instance, "vkCmdDecodeVideoKHR");
+        pfn_vkCmdSetRenderingInputAttachmentIndicesKHR = procAddress<PFN_vkCmdSetRenderingInputAttachmentIndicesKHR>(instance, "vkCmdSetRenderingInputAttachmentIndicesKHR");
 
 #ifdef WIN32
         pfn_vkGetMemoryWin32HandleKHR = procAddress<PFN_vkGetMemoryWin32HandleKHR>(instance, "vkGetMemoryWin32HandleKHR");
@@ -314,4 +316,11 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDecodeVideoKHR(
         const VkVideoDecodeInfoKHR*                 pDecodeInfo) {
     assert(pfn_vkCmdDecodeVideoKHR);
     pfn_vkCmdDecodeVideoKHR(commandBuffer, pDecodeInfo);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdSetRenderingInputAttachmentIndicesKHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkRenderingInputAttachmentIndexInfoKHR* pInputAttachmentIndexInfo) {
+    assert(pfn_vkCmdSetRenderingInputAttachmentIndicesKHR);
+    pfn_vkCmdSetRenderingInputAttachmentIndicesKHR(commandBuffer, pInputAttachmentIndexInfo);
 }
