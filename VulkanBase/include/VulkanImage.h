@@ -7,6 +7,7 @@
 #include "VulkanBuffer.h"
 
 static const VkImageSubresourceRange DEFAULT_SUB_RANGE{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+static const VkImageSubresourceRange DEFAULT_DEPTH_SUB_RANGE{VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
 
 struct VulkanImage : public Copyable{
     
