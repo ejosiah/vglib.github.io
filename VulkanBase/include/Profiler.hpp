@@ -7,6 +7,7 @@
 
 class Profiler{
 public:
+    bool externalReset{};
     struct MovingAverage{
         float value{};
         uint32_t count{};
@@ -76,7 +77,9 @@ public:
         }
         assert(queries.find(name) != end(queries));
         auto query = queries[name];
-        vkCmdResetQueryPool(commandBuffer, queryPool, query.startId, 2);
+        if(!externalReset) {
+            vkCmdResetQueryPool(commandBuffer, queryPool, query.startId, 2);
+        }
         vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, queryPool, query.startId);
         body();
         vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, queryPool, query.endId);
@@ -171,6 +174,23 @@ public:
             result.insert(std::make_pair(name, statistics));
         }
         return result;
+    }
+
+    inline void resetAll(VkCommandBuffer commandBuffer) {
+        for(auto [name, query] : queries) {
+            vkCmdResetQueryPool(commandBuffer, queryPool, query.startId, 2);
+        }
+    }
+
+    inline void reset(const std::string& name, VkCommandBuffer commandBuffer) {
+        assert(queries.find(name) != end(queries));
+        auto query = queries[name];
+        vkCmdResetQueryPool(commandBuffer, queryPool, query.startId, 2);
+    }
+
+    inline void clear(const std::string& name) {
+        assert(queries.find(name) != end(queries));
+        queries[name].movingAverage = {0, 0};
     }
 
     static constexpr float toMillis(uint64_t duration){
