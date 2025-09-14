@@ -18,7 +18,7 @@ static constexpr const char* PLUGIN_NAME_BINDLESS_DESCRIPTORS = "Bindless descri
 
 struct BindlessTexture {
     const Texture* texture{};
-    VkDescriptorType type{};
+    VkDescriptorType type{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER};
     uint32_t index{~0u};
     VkImageLayout imageLayout{VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 };
