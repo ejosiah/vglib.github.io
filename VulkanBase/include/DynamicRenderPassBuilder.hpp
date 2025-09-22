@@ -17,6 +17,8 @@ public:
 
     DynamicRenderPassBuilder& enable();
 
+    DynamicRenderPassBuilder& disable();
+
     [[nodiscard]]
     bool enabled() const;
 

@@ -31,6 +31,13 @@ DynamicRenderPassBuilder &DynamicRenderPassBuilder::enable() {
     return *this;
 }
 
+DynamicRenderPassBuilder &DynamicRenderPassBuilder::disable() {
+    m_enabled = false;
+    m_colorAttachments.clear();
+    m_renderingCreateInfo = VkPipelineRenderingCreateInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+    return *this;
+}
+
 bool DynamicRenderPassBuilder::enabled() const {
     return m_enabled;
 }
