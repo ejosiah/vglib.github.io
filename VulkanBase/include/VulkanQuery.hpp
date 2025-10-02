@@ -118,4 +118,5 @@ struct VulkanQueryPool{
     uint32_t queryCount = 0;
 };
 
+using PipelineStatsQueryPool = VulkanQueryPool<VK_QUERY_TYPE_PIPELINE_STATISTICS>;
 using TimestampQueryPool = VulkanQueryPool<VK_QUERY_TYPE_TIMESTAMP>;

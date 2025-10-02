@@ -36,6 +36,8 @@ public:
 
     void createPipelines();
 
+    void add(const PipelineMetaData& metadata);
+
 protected:
     virtual std::vector<PipelineMetaData> pipelineMetaData();
 

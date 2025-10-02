@@ -678,6 +678,12 @@ void textures::createNoTransition(const VulkanDevice &device, Texture &texture, 
     subresourceRange.layerCount = texture.layers;
 
     auto imageViewType = getImageViewType(imageType);
+    if(imageViewType == VK_IMAGE_VIEW_TYPE_1D && texture.layers > 1) {
+        imageViewType = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+    }else if (imageViewType == VK_IMAGE_VIEW_TYPE_2D && texture.layers > 1) {
+        imageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    }
+
     texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
 
     if(!texture.sampler.handle) {

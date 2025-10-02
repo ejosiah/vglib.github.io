@@ -49,3 +49,7 @@ VulkanShaderModule ComputePipelines::get(std::variant<std::string, std::vector<u
        [&](std::vector<uint32_t> data){ return device->createShaderModule( data ); }
     }, shaderPath);
 }
+
+void ComputePipelines::add(const PipelineMetaData &metadata) {
+    _metadata.push_back(metadata);
+}
