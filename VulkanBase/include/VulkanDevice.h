@@ -889,6 +889,11 @@ struct VulkanDevice{
         return accelerationStructureFeatures->accelerationStructure == VK_TRUE;
     }
 
+    inline void getPhysicalDeviceProperties(VkPhysicalDeviceProperties2& properties) {
+        assert(properties.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2);
+        vkGetPhysicalDeviceProperties2(physicalDevice, &properties);
+    }
+
 private:
     void* _enabledExtensions{};
 };
