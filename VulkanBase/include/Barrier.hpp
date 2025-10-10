@@ -27,10 +27,13 @@ public:
 
     static void computeWriteToRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
+
     [[deprecated("user version without buffer specification")]]
     static void computeWriteToRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffer);
 
     static void computeWriteToRead(VkCommandBuffer commandBuffer);
+
+    static void computeWriteToHostRead(VkCommandBuffer commandBuffer);
 
     [[deprecated("user version without buffer specification")]]
     static void computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
