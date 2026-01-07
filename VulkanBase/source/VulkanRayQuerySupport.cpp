@@ -11,6 +11,7 @@ void VulkanRayQuerySupport::enableRayQuery() {
     }
 
     app.deviceExtensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+    app.deviceExtensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
     app.deviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     app.deviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     app.deviceExtensions.push_back(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
@@ -28,4 +29,6 @@ void VulkanRayQuerySupport::enableRayQuery() {
     auto rayQueryFeatures = findExtension<VkPhysicalDeviceRayQueryFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, app.deviceCreateNextChain);
     rayQueryFeatures->rayQuery = VK_TRUE;
 
+    auto enabledRayTracingPipelineFeatures = findExtension<VkPhysicalDeviceRayTracingPipelineFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR, app.deviceCreateNextChain);
+    enabledRayTracingPipelineFeatures->rayTracingPipeline = VK_TRUE;
 }
