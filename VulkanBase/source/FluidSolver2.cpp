@@ -352,7 +352,7 @@ namespace eular {
         return {
                 {
                     .name = "advect",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout
@@ -361,7 +361,7 @@ namespace eular {
                 },
                 {
                     .name = "apply_force",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\apply_force.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\apply_force.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
@@ -369,7 +369,7 @@ namespace eular {
                 },
                 {
                         .name = "add_sources",
-                        .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
+                        .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
                         .layouts =  {
                                 &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                                 &_fieldDescriptorSetLayout
@@ -377,7 +377,7 @@ namespace eular {
                 },
                 {
                     .name = "jacobi",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\jacobi.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\jacobi.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
                     },
@@ -385,7 +385,7 @@ namespace eular {
                 },
                 {
                     .name = "rbgs",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\rbgs.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\rbgs.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout,
@@ -394,7 +394,7 @@ namespace eular {
                 },
                 {
                     .name = "divergence",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout
@@ -402,7 +402,7 @@ namespace eular {
                 },
                 {
                     .name = "divergence_free_field",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence_free_field.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence_free_field.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
@@ -410,7 +410,7 @@ namespace eular {
                 },
                 {
                     .name = "vorticity",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout
@@ -418,7 +418,7 @@ namespace eular {
                 },
                 {
                     .name = "vorticity_force",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity_force.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity_force.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout
@@ -427,7 +427,7 @@ namespace eular {
                 },
                 {
                     .name = "maccormack",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib_examples\dependencies\vglib.github.io\data\shaders\fluid_2d\maccormack_advection.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\maccormack_advection.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,

@@ -61,6 +61,7 @@ constexpr bool debugMode = false;
 #include <fstream>
 #include "color.hpp"
 #include <ranges>
+#include "utility/username.hpp"
 
 namespace chrono = std::chrono;
 namespace fs = std::filesystem;

@@ -135,7 +135,7 @@ protected:
         return {
                 {
                     .name = "vector_field",
-                    .shadePath = R"(C:\Users\Josiah Ebhomenye\CLionProjects\vglib\data\shaders\test\vector_field_at_center.comp.spv)",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\data\shaders\test\vector_field_at_center.comp.spv)",
                     .layouts = { &descriptorSetLayout },
                     .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(glm::vec4) } }
                 }
