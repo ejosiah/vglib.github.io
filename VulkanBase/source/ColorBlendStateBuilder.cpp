@@ -19,7 +19,7 @@ ColorBlendStateBuilder::~ColorBlendStateBuilder() {
 
 ColorBlendStateBuilder &ColorBlendStateBuilder::blendConstants(float r, float g, float b, float a) {
     _info.blendConstants[0] = r;
-    _info.blendConstants[1] = b;
+    _info.blendConstants[1] = g;
     _info.blendConstants[2] = b;
     _info.blendConstants[3] = a;
     return *this;
