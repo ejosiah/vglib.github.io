@@ -21,7 +21,7 @@ ShaderBuilder &ShaderStageBuilder::vertexShader(const ShaderSource &source) {
     return addShader(source, VK_SHADER_STAGE_VERTEX_BIT);
 }
 
-ShaderBuilder &ShaderStageBuilder::taskSShader(const ShaderSource &source) {
+ShaderBuilder &ShaderStageBuilder::taskShader(const ShaderSource &source) {
     if(!taskShaderSupported()) throw std::runtime_error{ "Task Shader not supported" };
     return addShader(source, VK_SHADER_STAGE_TASK_BIT_EXT);
 }
@@ -157,8 +157,8 @@ ShaderBuilder &ShaderBuilder::vertexShader(const ShaderStageBuilder::ShaderSourc
     return parent()->vertexShader(source);
 }
 
-ShaderBuilder &ShaderBuilder::taskSShader(const ShaderStageBuilder::ShaderSource &source) {
-    return parent()->taskSShader(source);
+ShaderBuilder &ShaderBuilder::taskShader(const ShaderStageBuilder::ShaderSource &source) {
+    return parent()->taskShader(source);
 }
 
 ShaderBuilder &ShaderBuilder::meshShader(const ShaderStageBuilder::ShaderSource &source) {

@@ -21,7 +21,7 @@ public:
    [[nodiscard]]
    virtual ShaderBuilder& vertexShader(const ShaderSource & source);
 
-   virtual ShaderBuilder& taskSShader(const ShaderSource & source);
+   virtual ShaderBuilder& taskShader(const ShaderSource & source);
 
    virtual ShaderBuilder& meshShader(const ShaderSource & source);
 
@@ -91,7 +91,7 @@ public:
 
     ShaderBuilder &vertexShader(const ShaderSource &source) override;
 
-    ShaderBuilder &taskSShader(const ShaderSource &source) override;
+    ShaderBuilder &taskShader(const ShaderSource &source) override;
 
     ShaderBuilder &meshShader(const ShaderSource &source) override;
 
