@@ -19,10 +19,14 @@ function(compile_glsl)
     endif()
 
 
-    if(EXISTS ${COMPILE_INCLUDE_DIRS})
+    if(COMPILE_INCLUDE_DIRS)
         set(INCLUDE_DIRS ${COMPILE_INCLUDE_DIRS})
     endif()
 
+    set(GLSLC_INCLUDES "")
+    foreach(dir IN LISTS INCLUDE_DIRS)
+        list(APPEND GLSLC_INCLUDES -I "${dir}")
+    endforeach()
 
     set(GLSL_SHADER_TYPE "")
     string(REGEX MATCH ".*\\.(rgen|rchit|rmiss).glsl" RAY_TRACE_STAGE ${COMPILE_SRC_FILE})
@@ -32,9 +36,9 @@ function(compile_glsl)
     endif()
 
 
-    set(GLSLC_COMMAND "${GLSLC} -g -I ${INCLUDE_DIRS} ${GLSL_SHADER_TYPE} --target-spv=${COMPILE_SPV_VERSION} ${COMPILE_SRC_FILE} -o ${COMPILE_OUT_FILE}")
+    set(GLSLC_COMMAND "${GLSLC} -g ${GLSLC_INCLUDES} ${GLSL_SHADER_TYPE} --target-spv=${COMPILE_SPV_VERSION} ${COMPILE_SRC_FILE} -o ${COMPILE_OUT_FILE}")
     execute_process(
-        COMMAND ${GLSLC} -g -I ${INCLUDE_DIRS} ${GLSL_SHADER_TYPE} --target-spv=${COMPILE_SPV_VERSION} ${COMPILE_SRC_FILE} -o ${COMPILE_OUT_FILE}
+        COMMAND ${GLSLC} -g ${GLSLC_INCLUDES} ${GLSL_SHADER_TYPE} --target-spv=${COMPILE_SPV_VERSION} ${COMPILE_SRC_FILE} -o ${COMPILE_OUT_FILE}
         RESULT_VARIABLE GLSLC_COMPILE_OUTPUT
     )
     get_filename_component(SHADER_SRC_FILE ${COMPILE_SRC_FILE} NAME)
