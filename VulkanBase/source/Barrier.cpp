@@ -280,6 +280,17 @@ void Barrier::fragmentReadToComputeWrite(VkCommandBuffer commandBuffer) {
                          &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 }
 
+void Barrier::fragmentWriteToComputeRead(VkCommandBuffer commandBuffer) {
+    VkMemoryBarrier barrier{};
+
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1,
+                         &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
+}
+
 void Barrier::fragmentWriteToFragmentRead(VkCommandBuffer commandBuffer) {
     VkMemoryBarrier barrier{};
 

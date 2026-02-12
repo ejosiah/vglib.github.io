@@ -16,6 +16,8 @@ public:
 
     static void fragmentReadToComputeWrite(VkCommandBuffer commandBuffer);
 
+    static void fragmentWriteToComputeRead(VkCommandBuffer commandBuffer);
+
     static void fragmentWriteToFragmentRead(VkCommandBuffer commandBuffer);
 
     static void fragmentReadToFragmentWrite(VkCommandBuffer commandBuffer);

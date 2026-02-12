@@ -34,12 +34,17 @@ struct BindlessBuffer {
     uint32_t index{~0u};
 };
 
+struct TextureBindingId {
+
+};
+
 struct BindlessDescriptor {
     const VulkanDevice* device{};
     const VulkanDescriptorSetLayout* descriptorSetLayout{};
     VkDescriptorSet descriptorSet{};
     std::map<VkDescriptorType, std::atomic_int> bindingIds;
     std::map<VkDescriptorType, int> bindings;
+    std::vector<BindlessTexture> boundedTextures;
     VulkanSampler* defaultSampler;
 
     BindlessDescriptor() = default;
@@ -150,6 +155,17 @@ struct BindlessDescriptor {
 
         device->updateDescriptorSets(writes);
 
+    }
+
+    std::optional<uint32_t> getBindingId(const Texture* texture, VkDescriptorType descriptorType) {
+        auto itr = std::find_if(boundedTextures.begin(), boundedTextures.end(), [=](const auto bt){
+           return bt.texture ==  texture && bt.type == descriptorType;
+        });
+        return itr != boundedTextures.end() ? std::optional{itr->index} : std::nullopt;
+    }
+
+    VulkanDescriptorSetLayout* ncDescriptorSetLayout() {
+        return const_cast<VulkanDescriptorSetLayout*>(descriptorSetLayout);
     }
 
 };

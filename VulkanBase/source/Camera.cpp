@@ -126,7 +126,7 @@ void CameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout 
 }
 
 void CameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
-    cameras[currentMode]->push(commandBuffer, layout, stageFlags);
+//    cameras[currentMode]->push(commandBuffer, layout, stageFlags);
 }
 
 const Camera &CameraController::cam() const {
