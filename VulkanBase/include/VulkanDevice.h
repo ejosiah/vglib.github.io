@@ -17,6 +17,7 @@
 #include <bitset>
 #include "VulkanShaderModule.h"
 #include "ExtensionChain.hpp"
+#include "random.h"
 
 #include <span>
 
@@ -892,6 +893,20 @@ struct VulkanDevice{
     inline void getPhysicalDeviceProperties(VkPhysicalDeviceProperties2& properties) {
         assert(properties.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2);
         vkGetPhysicalDeviceProperties2(physicalDevice, &properties);
+    }
+
+    void group(std::function<void()>&& body, VkCommandBuffer commandBuffer, const std::string& name, const glm::vec4& color = randomColor()) {
+        VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
+        label.pLabelName = name.c_str();
+
+        label.color[0] = color.r;
+        label.color[1] = color.g;
+        label.color[2] = color.b;
+        label.color[3] = color.a;
+
+        vkCmdBeginDebugUtilsLabelEXT(commandBuffer, &label);
+        body();
+        vkCmdEndDebugUtilsLabelEXT(commandBuffer);
     }
 
 private:

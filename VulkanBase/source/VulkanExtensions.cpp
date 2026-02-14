@@ -13,6 +13,8 @@ static PFN_vkGetAccelerationStructureDeviceAddressKHR pfn_vkGetAccelerationStruc
 static PFN_vkGetRayTracingShaderGroupHandlesKHR pfn_vkGetRayTracingShaderGroupHandlesKHR = nullptr;
 static PFN_vkCreateRayTracingPipelinesKHR pfn_vkCreateRayTracingPipelinesKHR = nullptr;
 static PFN_vkSetDebugUtilsObjectNameEXT pfn_vkSetDebugUtilsObjectNameEXT = nullptr;
+static PFN_vkCmdBeginDebugUtilsLabelEXT pfn_vkCmdBeginDebugUtilsLabelEXT = nullptr;
+static PFN_vkCmdEndDebugUtilsLabelEXT  pfn_vkCmdEndDebugUtilsLabelEXT  = nullptr;
 static PFN_vkGetSemaphoreWin32HandleKHR pfn_vkGetSemaphoreWin32HandleKHR = nullptr;
 static PFN_vkCmdDrawMeshTasksEXT pfn_vkCmdDrawMeshTasksEXT = nullptr;
 static PFN_vkCmdSetPolygonModeEXT pfn_vkCmdSetPolygonModeEXT = nullptr;
@@ -44,6 +46,8 @@ namespace ext {
         pfn_createDebugUtilsMessenger = procAddress<PFN_vkCreateDebugUtilsMessengerEXT>(instance, "vkCreateDebugUtilsMessengerEXT");
         pfn_destroyDebugUtilsMessenger = procAddress<PFN_vkDestroyDebugUtilsMessengerEXT>(instance, "vkDestroyDebugUtilsMessengerEXT");
         pfn_vkSetDebugUtilsObjectNameEXT = procAddress<PFN_vkSetDebugUtilsObjectNameEXT>(instance, "vkSetDebugUtilsObjectNameEXT");
+        pfn_vkCmdBeginDebugUtilsLabelEXT = procAddress<PFN_vkCmdBeginDebugUtilsLabelEXT>(instance, "vkCmdBeginDebugUtilsLabelEXT");
+        pfn_vkCmdEndDebugUtilsLabelEXT = procAddress<PFN_vkCmdEndDebugUtilsLabelEXT>(instance, "vkCmdEndDebugUtilsLabelEXT");
 #endif
         pfn_vkCmdTraceRaysKHR = procAddress<PFN_vkCmdTraceRaysKHR>(instance, "vkCmdTraceRaysKHR");
         pfn_vkGetAccelerationStructureBuildSizesKHR = procAddress<PFN_vkGetAccelerationStructureBuildSizesKHR>(instance, "vkGetAccelerationStructureBuildSizesKHR");
@@ -323,4 +327,17 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetRenderingInputAttachmentIndicesKHR(
         const VkRenderingInputAttachmentIndexInfoKHR* pInputAttachmentIndexInfo) {
     assert(pfn_vkCmdSetRenderingInputAttachmentIndicesKHR);
     pfn_vkCmdSetRenderingInputAttachmentIndicesKHR(commandBuffer, pInputAttachmentIndexInfo);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdBeginDebugUtilsLabelEXT(
+    VkCommandBuffer                             commandBuffer,
+    const VkDebugUtilsLabelEXT*                 pLabelInfo) {
+    assert(pfn_vkCmdBeginDebugUtilsLabelEXT);
+    pfn_vkCmdBeginDebugUtilsLabelEXT(commandBuffer, pLabelInfo);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdEndDebugUtilsLabelEXT(
+    VkCommandBuffer                             commandBuffer) {
+    assert(pfn_vkCmdEndDebugUtilsLabelEXT);
+    pfn_vkCmdEndDebugUtilsLabelEXT(commandBuffer);
 }
