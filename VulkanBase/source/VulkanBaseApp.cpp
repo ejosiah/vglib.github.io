@@ -79,7 +79,7 @@ void VulkanBaseApp::init() {
     framebufferReady();
 
     initPlugins();
-    prototypes = std::make_unique<Prototypes>( device, swapChain, renderPass);
+    prototypes = std::make_shared<Prototypes>( device, swapChain, renderPass);
     emptyVertexBuffer = device.createBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, sizeof(int), "empty_vertex_buffer");
     initVideoDecoder();
     initApp();

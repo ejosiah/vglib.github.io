@@ -413,7 +413,7 @@ protected:
     par::ThreadPool threadPool{1};
 
     void* queueSubmitNextChain{};
-    std::unique_ptr<Prototypes> prototypes;
+    std::shared_ptr<Prototypes> prototypes;
     VulkanBuffer emptyVertexBuffer;
 
 private:
