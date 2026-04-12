@@ -17,6 +17,7 @@ public:
         createDebugMessenger();
         pickPhysicalDevice();
         createLogicalDevice();
+        vkDevice = context.device;
     }
 
     void initFileManager(){

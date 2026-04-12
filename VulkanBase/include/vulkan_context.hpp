@@ -9,7 +9,13 @@
 #include <vector>
 
 struct ContextCreateInfo{
-    VkApplicationInfo applicationInfo{};
+    VkApplicationInfo applicationInfo{
+        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pApplicationName = "No Name",
+        .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+        .pEngineName = "",
+        .apiVersion = VK_API_VERSION_1_3,
+    };
     ExtensionsAndValidationLayers instanceExtAndLayers{
             {VK_EXT_DEBUG_UTILS_EXTENSION_NAME}
     };
@@ -26,7 +32,7 @@ class VulkanContext{
 public:
     VulkanContext() = default;
 
-    VulkanContext(ContextCreateInfo createInfo);
+    explicit VulkanContext(ContextCreateInfo createInfo);
 
     ~VulkanContext();
 

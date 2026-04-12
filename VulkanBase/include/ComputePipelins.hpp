@@ -30,6 +30,8 @@ class ComputePipelines {
 public:
     explicit ComputePipelines(VulkanDevice* device = nullptr, const std::vector<PipelineMetaData>& metadata = {});
 
+    virtual ~ComputePipelines() = default;
+
     VkPipeline pipeline(const std::string& name) const;
 
     VkPipelineLayout layout(const std::string& name) const;
