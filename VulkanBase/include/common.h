@@ -271,9 +271,19 @@ T* as(auto u) { return reinterpret_cast<T*>(u); }
 template<typename T>
 constexpr T to(auto u){ return static_cast<T>(u); }
 
-template <typename R, typename Func>
+template <std::ranges::input_range R, typename Func>
 auto map_range(R&& range, Func&& func) {
-    auto view = std::forward<R>(range) | std::views::transform(std::forward<Func>(func));
+    auto view = std::forward<R>(range)
+              | std::views::transform(std::forward<Func>(func));
+
+    using value_type = std::ranges::range_value_t<decltype(view)>;
+    return std::vector<value_type>(view.begin(), view.end());
+}
+
+template <std::input_iterator It, std::sentinel_for<It> Sent, typename Func>
+auto map_range(It first, Sent last, Func&& func) {
+    auto view = std::ranges::subrange(first, last)
+              | std::views::transform(std::forward<Func>(func));
     return std::vector(view.begin(), view.end());
 }
 
