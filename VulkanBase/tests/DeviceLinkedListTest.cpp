@@ -7,7 +7,7 @@ protected:
         return {
                 {
                     "simple_linked_list",
-                    "data/shaders/test/simple_linked_list.comp.spv",
+                    data_shaders_test_simple_linked_list_comp,
                         { &sourceDataLayoutSet, &linkedList.setLayout }
                 }
         };

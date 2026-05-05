@@ -1,5 +1,6 @@
 #include "Texture.h"
 #include "VulkanShaderModule.h"
+#include "glsl_shaders.hpp"
 
 namespace textures{
 
@@ -69,7 +70,7 @@ namespace textures{
     }
 
     Pipeline createPipeline1(const VulkanDevice& device, const VulkanDescriptorSetLayout& setLayout){
-        auto module =  device.createShaderModule("../../data/shaders/pbr/integrate_brdf.comp.spv");
+        auto module =  device.createShaderModule(data_shaders_pbr_integrate_brdf_comp);
         auto stage = initializers::shaderStage({ module, VK_SHADER_STAGE_COMPUTE_BIT});
 
         Pipeline compute;

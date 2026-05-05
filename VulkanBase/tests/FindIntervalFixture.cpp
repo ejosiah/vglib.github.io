@@ -11,7 +11,7 @@ protected:
         return {
                 {
                     "find_interval_test",
-                    resource("find_interval_test.comp.spv"),
+                    data_shaders_test_find_interval_test_comp,
                     { &descriptorSetLayout}
                 }
         };

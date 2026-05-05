@@ -1,6 +1,7 @@
 #include "Texture.h"
 #include "VulkanShaderModule.h"
 #include "filemanager.hpp"
+#include "glsl_shaders.hpp"
 #include <array>
 #include <vector>
 
@@ -178,7 +179,7 @@ public:
     }
 
     void createPipelines(){
-        auto module = device.createShaderModule(FileManager::resource("pbr/irradiance_map.comp.spv"));
+        auto module = device.createShaderModule(data_shaders_pbr_irradiance_map_comp);
         auto stage = initializers::shaderStage({ module, VK_SHADER_STAGE_COMPUTE_BIT});
 
         std::vector<VulkanDescriptorSetLayout> setLayouts{ envMapSetLayout, setLayout };
@@ -191,7 +192,7 @@ public:
         irradianceCompute.pipeline = device.createComputePipeline(computeCreateInfo);
 
         // create specular map compute pipeline
-        module = device.createShaderModule( FileManager::resource("pbr/specular_map.comp.spv"));
+        module = device.createShaderModule(data_shaders_pbr_specular_map_comp);
         stage = initializers::shaderStage({ module, VK_SHADER_STAGE_COMPUTE_BIT});
         specular.layout = device.createPipelineLayout( setLayouts, { {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)} });
 

@@ -120,8 +120,12 @@ void Canvas::createDescriptorSet() {
 }
 
 void Canvas::createPipeline() {
-    auto vertexShaderModule = app->device.createShaderModule(vertexShaderPath.value_or("../data/shaders/quad.vert.spv"));
-    auto fragmentShaderModule = app->device.createShaderModule( fragmentShaderPath.value_or("../data/shaders/quad.frag.spv"));
+    auto vertexShaderModule = vertexShaderPath.has_value()
+        ? app->device.createShaderModule(vertexShaderPath.value())
+        : app->device.createShaderModule(data_shaders_quad_vert);
+    auto fragmentShaderModule = fragmentShaderPath.has_value()
+        ? app->device.createShaderModule(fragmentShaderPath.value())
+        : app->device.createShaderModule(data_shaders_quad_frag);
 
     auto stages = initializers::vertexShaderStages({
                                                              { vertexShaderModule, VK_SHADER_STAGE_VERTEX_BIT}

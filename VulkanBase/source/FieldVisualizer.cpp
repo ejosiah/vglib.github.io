@@ -150,8 +150,8 @@ void FieldVisualizer::createRenderPipeline() {
     _streamLines.pipeline =
         device->graphicsPipelineBuilder()
             .shaderStage()
-                .vertexShader(R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\stream_lines.vert.spv)")
-                .fragmentShader(R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\stream_lines.frag.spv)")
+                .vertexShader(data_shaders_fluid_2d_stream_lines_vert)
+                .fragmentShader(data_shaders_fluid_2d_stream_lines_frag)
             .vertexInputState()
                 .addVertexBindingDescription(0, sizeof(glm::vec2), VK_VERTEX_INPUT_RATE_VERTEX)
                 .addVertexAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, 0)
@@ -193,7 +193,7 @@ void FieldVisualizer::createRenderPipeline() {
         device->graphicsPipelineBuilder()
             .shaderStage()
                 .vertexShader(data_shaders_quad_vert)
-                .fragmentShader(R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\pressure_render.frag.spv)")
+                .fragmentShader(data_shaders_fluid_2d_pressure_render_frag)
             .vertexInputState()
                 .addVertexBindingDescriptions(ClipSpace::bindingDescription())
                 .addVertexAttributeDescriptions(ClipSpace::attributeDescriptions())
@@ -237,7 +237,7 @@ std::vector<PipelineMetaData> FieldVisualizer::pipelineMetaData() {
     return {
             {
                     .name = "compute_stream_lines",
-                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\compute_stream_lines.comp.spv)",
+                    .shadePath = data_shaders_fluid_2d_compute_stream_lines_comp,
                     .layouts =  { &_streamLines.setDescriptorSet, &_fieldSetLayout, &_fieldSetLayout }
             },
     };

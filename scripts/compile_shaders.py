@@ -4,11 +4,12 @@ import sys
 
 input_dir = sys.argv[1] if sys.argv[1:] else "../data/shaders"
 
-shader_ext = ['.vert', '.tecs', '.tess' '.frag', '.comp', '.geom']
+shader_ext = ['.vert', '.tesc', '.tese', '.frag', '.comp', '.geom']
 
 def compile_shader(path):
     output = f"{path}.spv"
     shader_stage = path.suffix[1:]
+    print(f"glslc -g -fshader-stage={shader_stage} --target-spv=spv1.6  {path} -o {output}")
     subprocess.run(["glslc", "-g", f"-fshader-stage={shader_stage}", '--target-spv=spv1.6', path, '-o', output])
 
 

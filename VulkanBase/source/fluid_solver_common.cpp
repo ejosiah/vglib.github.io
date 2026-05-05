@@ -145,7 +145,7 @@ void FluidSolver::createPipelines() {
                     .basePipeline(arrows.pipeline)
                     .shaderStage()
                     .vertexShader(data_shaders_quad_vert)
-                    .fragmentShader(R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.frag.spv)")
+                    .fragmentShader(data_shaders_fluid_2d_advect_frag)
                     .layout().clear()
                     .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, advectTextureSet, samplerSet})
                     .renderPass(renderPass)
@@ -155,7 +155,7 @@ void FluidSolver::createPipelines() {
     divergence.pipeline =
             builder
                     .shaderStage()
-                    .fragmentShader(R"(C:\Users\joebh\CLionProjects\vglib_examples_video\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.frag.spv)")
+                    .fragmentShader(data_shaders_fluid_2d_divergence_frag)
                     .layout().clear()
                     .addDescriptorSetLayouts( { globalConstantsSet, textureSetLayout})
                     .renderPass(renderPass)
