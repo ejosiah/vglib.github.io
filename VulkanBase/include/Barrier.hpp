@@ -57,6 +57,8 @@ public:
 
     static void transferWriteToComputeRead(VkCommandBuffer commandBuffer);
 
+    static void computeReadToTransferWrite(VkCommandBuffer commandBuffer);
+
     static void transferWriteToHostRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
 
     [[deprecated("user version without buffer specification")]]

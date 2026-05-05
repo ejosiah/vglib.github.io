@@ -896,6 +896,7 @@ struct VulkanDevice{
     }
 
     void group(std::function<void()>&& body, VkCommandBuffer commandBuffer, const std::string& name, const glm::vec4& color = randomColor()) {
+#ifndef NDEBUG
         VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
         label.pLabelName = name.c_str();
 
@@ -907,6 +908,9 @@ struct VulkanDevice{
         vkCmdBeginDebugUtilsLabelEXT(commandBuffer, &label);
         body();
         vkCmdEndDebugUtilsLabelEXT(commandBuffer);
+#else
+        body();
+#endif
     }
 
 private:
