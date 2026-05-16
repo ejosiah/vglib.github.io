@@ -28,7 +28,7 @@ function(compile_glsl)
     endif()
     set(noValues "")
     set(singleValues SRC_FILE OUT_FILE SPV_VERSION)
-    set(multiValues INCLUDE_DIRS)
+    set(multiValues INCLUDE_DIRS DEPENDS)
 
     cmake_parse_arguments(COMPILE "${noValues}" "${singleValues}" "${multiValues}" ${ARGN})
 
@@ -72,7 +72,7 @@ function(compile_glsl)
         OUTPUT "${COMPILE_OUT_FILE}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SHADER_OUT_DIR}"
         COMMAND ${GLSLC_COMMAND}
-        DEPENDS "${COMPILE_SRC_FILE}"
+        DEPENDS "${COMPILE_SRC_FILE}" ${COMPILE_DEPENDS}
         COMMENT "Compiling GLSL shader ${SHADER_SRC_FILE}"
         VERBATIM
     )
@@ -110,6 +110,24 @@ function(compile_glsl_directory)
             "${_SRC_ROOT}/*.tsk*"
     )
 
+    file(GLOB_RECURSE GLSL_DEPENDENCY_FILES CONFIGURE_DEPENDS
+            "${_SRC_ROOT}/*.glsl"
+    )
+
+    foreach(_INCLUDE_DIR IN LISTS COMPILE_INCLUDE_DIRS)
+        get_filename_component(_INCLUDE_ROOT "${_INCLUDE_DIR}" ABSOLUTE)
+        if(EXISTS "${_INCLUDE_ROOT}")
+            file(GLOB_RECURSE _INCLUDE_DEPENDENCY_FILES CONFIGURE_DEPENDS
+                    "${_INCLUDE_ROOT}/*.glsl"
+            )
+            list(APPEND GLSL_DEPENDENCY_FILES ${_INCLUDE_DEPENDENCY_FILES})
+        endif()
+    endforeach()
+
+    if(GLSL_DEPENDENCY_FILES)
+        list(REMOVE_DUPLICATES GLSL_DEPENDENCY_FILES)
+    endif()
+
     set(SPV_SOURCE_FILES "")
     foreach(SHADER_SOURCE IN LISTS GLSL_SOURCE_FILES)
         get_filename_component(_SHADER_FILE "${SHADER_SOURCE}" NAME)
@@ -136,7 +154,7 @@ function(compile_glsl_directory)
             string(REPLACE ".glsl" "" SPV_FILE "${SPV_FILE}")
         endif()
 
-        compile_glsl(SRC_FILE "${SHADER_SOURCE}" OUT_FILE "${SPV_FILE}" INCLUDE_DIRS ${COMPILE_INCLUDE_DIRS})
+        compile_glsl(SRC_FILE "${SHADER_SOURCE}" OUT_FILE "${SPV_FILE}" INCLUDE_DIRS ${COMPILE_INCLUDE_DIRS} DEPENDS ${GLSL_DEPENDENCY_FILES})
         list(APPEND SPV_SOURCE_FILES "${SPV_FILE}")
     endforeach()
 
@@ -155,7 +173,7 @@ function(compile_glsl_directory)
 
         add_custom_target(${_SHADER_TARGET} ALL
             DEPENDS ${SPV_SOURCE_FILES}
-            SOURCES ${GLSL_SOURCE_FILES}
+            SOURCES ${GLSL_SOURCE_FILES} ${GLSL_DEPENDENCY_FILES}
         )
         cmake_language(EVAL CODE
             "cmake_language(DEFER DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}\" CALL _attach_glsl_shader_target \"${_SHADER_TARGET}\" \"${CMAKE_CURRENT_SOURCE_DIR}\")"
