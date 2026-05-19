@@ -86,7 +86,7 @@ public:
     }
 
     inline void commit(){
-        if(!isReady()) return;
+        if(!isReady() || queries.empty()) return;
         std::vector<uint64_t> counters(queries.size() * 2);
 
         VkQueryResultFlags flags = VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT;
@@ -118,7 +118,7 @@ public:
     }
 
     inline void endFrame() {
-        if(!isReady()) return;
+        if(!isReady() || queries.empty()) return;
 
         std::vector<uint64_t> counters(queries.size() * 2);
 
@@ -177,18 +177,21 @@ public:
     }
 
     inline void resetAll(VkCommandBuffer commandBuffer) {
+        if(!isReady()) return;
         for(auto [name, query] : queries) {
             vkCmdResetQueryPool(commandBuffer, queryPool, query.startId, 2);
         }
     }
 
     inline void reset(const std::string& name, VkCommandBuffer commandBuffer) {
+        if(!isReady()) return;
         assert(queries.find(name) != end(queries));
         auto query = queries[name];
         vkCmdResetQueryPool(commandBuffer, queryPool, query.startId, 2);
     }
 
     inline void clear(const std::string& name) {
+        if(!isReady()) return;
         assert(queries.find(name) != end(queries));
         queries[name].movingAverage = {0, 0};
     }
@@ -221,4 +224,9 @@ private:
     VulkanDevice* device = nullptr;
     uint32_t queryCount = DEFAULT_QUERY_COUNT;
     std::map<std::string, QueryGroup> queryGroups;
+};
+
+class NullProfiler : public Profiler {
+public:
+    NullProfiler() = default;
 };
