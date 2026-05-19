@@ -96,10 +96,23 @@ struct BindlessDescriptor {
         return id;
     }
 
+    void recordBoundTexture(const BindlessTexture& bTexture) {
+        auto existing = std::find_if(boundedTextures.begin(), boundedTextures.end(), [&](const auto& entry) {
+            return entry.type == bTexture.type && entry.index == bTexture.index;
+        });
+
+        if(existing != boundedTextures.end()) {
+            *existing = bTexture;
+        }else {
+            boundedTextures.push_back(bTexture);
+        }
+    }
+
     void update(const BindlessTexture& bTexture) {
         assert(bTexture.index <= bindingIds[bTexture.type]);
         assert(device != VK_NULL_HANDLE && descriptorSet != VK_NULL_HANDLE);
 
+        recordBoundTexture(bTexture);
 
         auto texture = bTexture.texture;
         auto sampler = texture->sampler.handle ? texture->sampler.handle : defaultSampler->handle;
@@ -135,6 +148,7 @@ struct BindlessDescriptor {
             VkDescriptorImageInfo imageInfo{texture->sampler.handle, texture->imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
             imageInfos.push_back(imageInfo);
             write.pImageInfo = &imageInfos[imageInfos.size() - 1];
+            recordBoundTexture(bTexture);
         }
 
        device->updateDescriptorSets(writes);
