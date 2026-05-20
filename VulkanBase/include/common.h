@@ -184,8 +184,12 @@ template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 // explicit deduction guide (not needed as of C++20)
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
-inline byte_string loadFile(const std::string& path) {
-    std::ifstream fin(path.data(), std::ios::binary | std::ios::ate);
+inline byte_string loadFile(const std::string& path, bool binary = true) {
+    auto mode = std::ios::in | std::ios::ate;
+    if (binary) {
+        mode |= std::ios::binary;
+    }
+    std::ifstream fin(path.data(), mode);
     if(!fin.good()) throw std::runtime_error{"Failed to open file: " + path};
 
     auto size = fin.tellg();
