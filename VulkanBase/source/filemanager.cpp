@@ -17,12 +17,12 @@ void FileManager::addSearchPathFront(const fs::path &searchPath) {
 }
 
 
-byte_string FileManager::load(const std::string &resource) const {
+byte_string FileManager::load(const std::string &resource, bool binary) const {
     auto maybePath = getFullPath(resource);
     if(!maybePath.has_value()){
         throw std::runtime_error{fmt::format("resource: {} does not exists", resource)};
     }
-    return loadFile(maybePath->string());
+    return loadFile(maybePath->string(), binary);
 }
 
 std::optional<fs::path> FileManager::getFullPath(const std::string &resource) const {
@@ -48,6 +48,20 @@ FileManager FileManager::createInstance(const std::vector<fs::path>& searchPaths
     };
     std::call_once(flag, create);
     return instance_;
+}
+
+void FileManager::save(const std::string &content, const fs::path &outputPath, bool saveAsBinary) {
+    fs::path fullPath = fs::current_path() / outputPath;
+
+    fs::create_directories(fullPath.parent_path());
+
+    std::ofstream file(fullPath, saveAsBinary ? std::ios::binary : std::ios::out);
+    if (!file.is_open()) {
+        throw std::runtime_error{fmt::format("unable to open {} for writing", outputPath.string())};
+    }
+
+    file.write(content.data(), static_cast<std::streamsize>(content.size()));
+
 }
 
 FileManager FileManager::instance_ = createInstance();
