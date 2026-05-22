@@ -13,6 +13,10 @@
 #include "Barrier.hpp"
 #include "ComputePipelins.hpp"
 #include "filemanager.hpp"
+#include <ktxvulkan.h>
+#include <algorithm>
+#include <cctype>
+#include <cstring>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -219,6 +223,207 @@ constexpr bool isDepthTexture(VkFormat format) {
     }
 }
 
+namespace {
+
+    struct KtxTextureDeleter {
+        void operator()(ktxTexture* texture) const {
+            if(texture) {
+                ktxTexture_Destroy(texture);
+            }
+        }
+    };
+
+    struct KtxTexture2Deleter {
+        void operator()(ktxTexture2* texture) const {
+            if(texture) {
+                ktxTexture2_Destroy(texture);
+            }
+        }
+    };
+
+    using KtxTexturePtr = std::unique_ptr<ktxTexture, KtxTextureDeleter>;
+    using KtxTexture2Ptr = std::unique_ptr<ktxTexture2, KtxTexture2Deleter>;
+
+    void checkKtx(KTX_error_code result, std::string_view operation) {
+        if(result != KTX_SUCCESS) {
+            throw std::runtime_error{fmt::format("{} failed: {}", operation, ktxErrorString(result))};
+        }
+    }
+
+    bool isKtxFile(std::string_view path) {
+        auto extension = fs::path{std::string{path}}.extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        return extension == ".ktx" || extension == ".ktx2";
+    }
+
+    uint32_t ktxMipDimension(uint32_t base, uint32_t level) {
+        return std::max(1u, base >> level);
+    }
+
+    VkExtent3D ktxMipExtent(const ktxTexture* texture, uint32_t level) {
+        return {
+            ktxMipDimension(texture->baseWidth, level),
+            texture->numDimensions > 1 ? ktxMipDimension(texture->baseHeight, level) : 1u,
+            texture->numDimensions > 2 ? ktxMipDimension(texture->baseDepth, level) : 1u
+        };
+    }
+
+    VkImageType ktxImageType(const ktxTexture* texture) {
+        switch(texture->numDimensions) {
+            case 1: return VK_IMAGE_TYPE_1D;
+            case 2: return VK_IMAGE_TYPE_2D;
+            case 3: return VK_IMAGE_TYPE_3D;
+            default:
+                throw std::runtime_error{fmt::format("unsupported KTX texture dimension: {}", texture->numDimensions)};
+        }
+    }
+
+    uint32_t ktxTextureLayerCount(const ktxTexture* texture) {
+        const auto layers = std::max(1u, texture->numLayers);
+        return texture->isCubemap ? layers * texture->numFaces : layers;
+    }
+
+    VkImageViewType ktxImageViewType(const ktxTexture* texture) {
+        const auto layerCount = ktxTextureLayerCount(texture);
+        switch(texture->numDimensions) {
+            case 1:
+                return layerCount > 1 ? VK_IMAGE_VIEW_TYPE_1D_ARRAY : VK_IMAGE_VIEW_TYPE_1D;
+            case 2:
+                if(texture->isCubemap) {
+                    return layerCount > 6 ? VK_IMAGE_VIEW_TYPE_CUBE_ARRAY : VK_IMAGE_VIEW_TYPE_CUBE;
+                }
+                return layerCount > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+            case 3:
+                return VK_IMAGE_VIEW_TYPE_3D;
+            default:
+                throw std::runtime_error{fmt::format("unsupported KTX texture dimension: {}", texture->numDimensions)};
+        }
+    }
+
+    std::vector<VkBufferImageCopy> ktxCopyRegions(ktxTexture* texture) {
+        if(texture->numDimensions == 3 && texture->numLayers > 1) {
+            throw std::runtime_error{"KTX 3D array textures are not supported by Texture"};
+        }
+
+        const auto levels = std::max(1u, texture->numLevels);
+        const auto layers = std::max(1u, texture->numLayers);
+        std::vector<VkBufferImageCopy> regions;
+        regions.reserve(levels * layers * std::max(1u, std::max(texture->numFaces, texture->baseDepth)));
+
+        for(auto level = 0u; level < levels; ++level) {
+            const auto extent = ktxMipExtent(texture, level);
+            const auto faceSlices = texture->isCubemap
+                    ? texture->numFaces
+                    : texture->numDimensions == 3 ? extent.depth : 1u;
+
+            for(auto layer = 0u; layer < layers; ++layer) {
+                for(auto faceSlice = 0u; faceSlice < faceSlices; ++faceSlice) {
+                    ktx_size_t offset{};
+                    checkKtx(ktxTexture_GetImageOffset(texture, level, layer, faceSlice, &offset),
+                             fmt::format("reading KTX image offset for level {}, layer {}, slice {}", level, layer, faceSlice));
+
+                    VkBufferImageCopy region{};
+                    region.bufferOffset = offset;
+                    region.bufferRowLength = 0;
+                    region.bufferImageHeight = 0;
+                    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    region.imageSubresource.mipLevel = level;
+                    region.imageSubresource.baseArrayLayer = texture->numDimensions == 3
+                            ? 0
+                            : texture->isCubemap ? layer * texture->numFaces + faceSlice : layer;
+                    region.imageSubresource.layerCount = 1;
+                    region.imageOffset = {0, 0, texture->numDimensions == 3 ? static_cast<int32_t>(faceSlice) : 0};
+                    region.imageExtent = {
+                        extent.width,
+                        extent.height,
+                        1u
+                    };
+                    regions.push_back(region);
+                }
+            }
+        }
+
+        return regions;
+    }
+
+    KtxTexture2Ptr createKtxTexture(VkFormat format, uint32_t width, uint32_t height, uint32_t depth,
+                                    uint32_t layers, uint32_t levels, uint32_t faces, bool generateMipmaps = false) {
+        ktxTextureCreateInfo createInfo{};
+        createInfo.vkFormat = format;
+        createInfo.baseWidth = width;
+        createInfo.baseHeight = height;
+        createInfo.baseDepth = std::max(1u, depth);
+        createInfo.numDimensions = depth > 1 ? 3u : height > 1 ? 2u : 1u;
+        createInfo.numLevels = std::max(1u, levels);
+        createInfo.numLayers = std::max(1u, layers);
+        createInfo.numFaces = std::max(1u, faces);
+        createInfo.isArray = createInfo.numLayers > 1;
+        createInfo.generateMipmaps = generateMipmaps && levels <= 1;
+
+        ktxTexture2* rawTexture{};
+        checkKtx(ktxTexture2_Create(&createInfo, KTX_TEXTURE_CREATE_ALLOC_STORAGE, &rawTexture),
+                 "creating KTX texture");
+        return KtxTexture2Ptr{rawTexture};
+    }
+
+    bool canBasisCompressKtx(VkFormat format) {
+        switch(format) {
+            case VK_FORMAT_R8G8B8_SRGB:
+            case VK_FORMAT_R8G8B8_UNORM:
+            case VK_FORMAT_R8G8B8A8_SRGB:
+            case VK_FORMAT_R8G8B8A8_UNORM:
+            case VK_FORMAT_B8G8R8A8_SRGB:
+            case VK_FORMAT_B8G8R8A8_UNORM:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    void copyBufferToKtxStorage(ktxTexture* texture, const VulkanBuffer& data, const std::string& path) {
+        const auto dataSize = ktxTexture_GetDataSize(texture);
+        if(data.size < dataSize) {
+            throw std::runtime_error{
+                fmt::format("KTX texture {} needs {} bytes but source buffer only has {} bytes", path, dataSize, data.size)
+            };
+        }
+
+        auto* destination = ktxTexture_GetData(texture);
+        if(!destination || dataSize == 0) {
+            throw std::runtime_error{fmt::format("KTX texture {} has no writable image data", path)};
+        }
+
+        const auto* source = reinterpret_cast<const ktx_uint8_t*>(data.map());
+        std::memcpy(destination, source, dataSize);
+        data.unmap();
+    }
+
+    void compressKtxForSave(ktxTexture2* texture, VkFormat format, uint32_t depth, const std::string& path) {
+        if(depth <= 1 && canBasisCompressKtx(format)) {
+            checkKtx(ktxTexture2_CompressBasis(texture, 128),
+                     fmt::format("Basis-compressing KTX texture {}", path));
+            return;
+        }
+
+        checkKtx(ktxTexture2_DeflateZstd(texture, 6),
+                 fmt::format("Zstd-compressing KTX texture {}", path));
+    }
+
+    bool textureIsCubeArray(const Texture& texture) {
+        return texture.viewType == VK_IMAGE_VIEW_TYPE_CUBE_ARRAY
+               || ((texture.spec.flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) && texture.layers > 6);
+    }
+
+    bool textureIsCubeMap(const Texture& texture) {
+        return texture.viewType == VK_IMAGE_VIEW_TYPE_CUBE
+               || textureIsCubeArray(texture)
+               || (texture.spec.flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+    }
+
+}
+
 RawImage textures::loadImage(std::string_view path, bool flipUv) {
     int texWidth, texHeight,  texChannels;
     stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
@@ -231,7 +436,118 @@ RawImage textures::loadImage(std::string_view path, bool flipUv) {
     };
 }
 
+void textures::ktx(const VulkanDevice& device, Texture& texture, std::string_view path, VkSamplerAddressMode addressMode) {
+    const auto filePath = std::string{path};
+    ktxTexture* rawTexture{};
+    checkKtx(ktxTexture_CreateFromNamedFile(filePath.c_str(),
+                                            KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
+                                            &rawTexture),
+             fmt::format("loading KTX texture {}", filePath));
+
+    KtxTexturePtr source{rawTexture};
+    if(ktxTexture_NeedsTranscoding(source.get())) {
+        if(source->classId != ktxTexture2_c) {
+            throw std::runtime_error{fmt::format("KTX texture {} needs transcoding but is not KTX2", filePath)};
+        }
+        checkKtx(ktxTexture2_TranscodeBasis(reinterpret_cast<ktxTexture2*>(source.get()), KTX_TTF_RGBA32, 0),
+                 fmt::format("transcoding KTX texture {}", filePath));
+    }
+
+    const auto format = ktxTexture_GetVkFormat(source.get());
+    if(format == VK_FORMAT_UNDEFINED) {
+        throw std::runtime_error{fmt::format("KTX texture {} has no Vulkan-compatible format", filePath)};
+    }
+
+    const auto imageType = ktxImageType(source.get());
+    const auto extent = ktxMipExtent(source.get(), 0);
+    const auto levels = std::max(1u, source->numLevels);
+    const auto layers = ktxTextureLayerCount(source.get());
+    const auto dataSize = ktxTexture_GetDataSize(source.get());
+    auto* data = ktxTexture_GetData(source.get());
+    if(!data || dataSize == 0) {
+        throw std::runtime_error{fmt::format("KTX texture {} has no image data", filePath)};
+    }
+
+    VulkanBuffer stagingBuffer = device.createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, dataSize);
+    stagingBuffer.copy(data, dataSize);
+
+    VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+    VkImageCreateInfo imageCreateInfo{};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.flags = source->isCubemap ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
+    imageCreateInfo.imageType = imageType;
+    imageCreateInfo.format = format;
+    imageCreateInfo.extent = extent;
+    imageCreateInfo.mipLevels = levels;
+    imageCreateInfo.arrayLayers = layers;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.usage = usageFlags;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    auto& commandPool = device.commandPoolFor(*device.findFirstActiveQueue());
+
+    texture.image = device.createImage(imageCreateInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+    texture.spec = imageCreateInfo;
+    texture.image.size = dataSize;
+    texture.format = format;
+    texture.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    texture.width = extent.width;
+    texture.height = extent.height;
+    texture.depth = extent.depth;
+    texture.layers = layers;
+    texture.levels = levels;
+    texture.flipped = false;
+    texture.path = filePath;
+
+    VkImageSubresourceRange subresourceRange{};
+    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = levels;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount = layers;
+
+    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+    const auto regions = ktxCopyRegions(source.get());
+    commandPool.oneTimeCommand([&](auto commandBuffer) {
+        vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               COUNT(regions), regions.data());
+    });
+    texture.image.transitionLayout(commandPool, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
+
+    const auto viewType = ktxImageViewType(source.get());
+    texture.imageView = texture.image.createView(format, viewType, subresourceRange);
+    texture.viewType = viewType;
+
+    if(!texture.sampler.handle) {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = isIntegral(format) ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
+        samplerInfo.minFilter = isIntegral(format) ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = addressMode;
+        samplerInfo.addressModeV = addressMode;
+        samplerInfo.addressModeW = addressMode;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.mipmapMode = isIntegral(format) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = static_cast<float>(levels - 1);
+        if(texture.anisotropyEnable) {
+            samplerInfo.anisotropyEnable = VK_TRUE;
+            samplerInfo.maxAnisotropy = device.getLimits().maxSamplerAnisotropy;
+        }
+
+        texture.sampler = device.createSampler(samplerInfo);
+    }
+}
+
 void textures::fromFile(const VulkanDevice &device, Texture &texture, std::string_view path, bool flipUv, VkFormat format, uint32_t levelCount, VkSamplerAddressMode addressMode) {
+    if(isKtxFile(path)) {
+        ktx(device, texture, path, addressMode);
+        return;
+    }
+
     int texWidth, texHeight, texChannels;
     stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
     stbi_uc* pixels = stbi_load(path.data(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -434,7 +750,8 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
     subresourceRange.layerCount = 1;
 
     auto imageViewType = getImageViewType(imageType);
-    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);  // FIXME derive image view type
+    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
+    texture.viewType = imageViewType;
 
     if(!texture.sampler.handle) {
         VkSamplerCreateInfo samplerInfo{};
@@ -563,6 +880,7 @@ void textures::createTextureArray(const VulkanDevice &device, Texture &texture, 
 
     auto imageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
+    texture.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 
     if(!texture.sampler.handle) {
         VkSamplerCreateInfo samplerInfo{};
@@ -627,6 +945,7 @@ void textures::create(const VulkanDevice &device, Texture &texture, VkImageType 
 
     auto imageViewType = getImageViewType(imageType);
     texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
+    texture.viewType = imageViewType;
 
     if(!texture.sampler.handle) {
         VkSamplerCreateInfo samplerInfo{};
@@ -686,6 +1005,7 @@ void textures::createNoTransition(const VulkanDevice &device, Texture &texture, 
     }
 
     texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
+    texture.viewType = imageViewType;
 
     if(!texture.sampler.handle) {
         VkSamplerCreateInfo samplerInfo{};
@@ -744,7 +1064,8 @@ void textures::createExportable(const VulkanDevice &device, Texture &texture, Vk
     subresourceRange.layerCount = 1;
 
     auto imageViewType = getImageViewType(imageType);
-    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);  // FIXME derive image view type
+    texture.imageView = texture.image.createView(format, imageViewType, subresourceRange);
+    texture.viewType = imageViewType;
 
     if(!texture.sampler.handle) {
         VkSamplerCreateInfo samplerInfo{};
@@ -1154,6 +1475,18 @@ void saveAsExr(VkFormat format, const std::string& path, int width, int height, 
     throw std::runtime_error{"exr save not yet implemented!"};
 }
 
+void saveAsKtx(const std::string& path, const VulkanBuffer& data, VkFormat format, int width, int height, int depth = 1
+                , int layers = 1, int levels = 1, int faces = 1, bool generateMipmaps = false){
+    auto texture = createKtxTexture(format, static_cast<uint32_t>(width), static_cast<uint32_t>(height),
+                                   static_cast<uint32_t>(depth), static_cast<uint32_t>(layers),
+                                   static_cast<uint32_t>(levels), static_cast<uint32_t>(faces), generateMipmaps);
+    copyBufferToKtxStorage(reinterpret_cast<ktxTexture*>(texture.get()), data, path);
+    compressKtxForSave(texture.get(), format, static_cast<uint32_t>(depth), path);
+
+    checkKtx(ktxTexture2_WriteToNamedFile(texture.get(), path.c_str()),
+             fmt::format("writing KTX texture {}", path));
+}
+
 void textures::save(const VulkanDevice& device, const std::string& path, uint32_t width, uint32_t height, VkFormat format, const VulkanImage& image, FileFormat fileFormat){
     VkDeviceSize imageSize = width * height * nunChannels(format) * byteSize(format);
     VulkanBuffer buffer = device.createStagingBuffer(imageSize);
@@ -1186,6 +1519,11 @@ void textures::save(const VulkanDevice& device, const std::string& path, uint32_
 
 void textures::save(const VulkanDevice &device, Texture &texture,  FileFormat fileFormat, const std::string& path) {
     ASSERT(texture.format != VK_FORMAT_UNDEFINED)
+    if(fileFormat == FileFormat::KTX) {
+        saveAsKtx(device, texture, path);
+        return;
+    }
+
     int width = texture.width;
     int height = texture.height;
     VulkanBuffer buffer = device.createStagingBuffer(texture.image.size);
@@ -1203,28 +1541,58 @@ void textures::save(const VulkanDevice &device, Texture &texture,  FileFormat fi
     save(device, buffer, texture.format, fileFormat, path, width, height);
 }
 
+void textures::saveAsKtx(const VulkanDevice &device, Texture &texture, const std::string &path) {
+    ASSERT(texture.format != VK_FORMAT_UNDEFINED)
+
+    const auto isCubeMap = textureIsCubeMap(texture);
+    const auto layers = isCubeMap ? std::max(1u, texture.layers / 6u) : std::max(1u, texture.layers);
+    const auto faces = isCubeMap ? 6u : 1u;
+    auto ktx = createKtxTexture(texture.format, texture.width, texture.height, texture.depth,
+                                layers, texture.levels, faces);
+    auto* baseTexture = reinterpret_cast<ktxTexture*>(ktx.get());
+    const auto size = ktxTexture_GetDataSize(baseTexture);
+    auto buffer = device.createStagingBuffer(size);
+    auto regions = ktxCopyRegions(baseTexture);
+    const auto aspect = isDepthTexture(texture.format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    for(auto& region : regions) {
+        region.imageSubresource.aspectMask = aspect;
+    }
+
+    device.firstActiveCommandPool().oneTimeCommand([&](auto commandBuffer) {
+        vkCmdCopyImageToBuffer(commandBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer,
+                               COUNT(regions), regions.data());
+    });
+
+    copyBufferToKtxStorage(baseTexture, buffer, path);
+    compressKtxForSave(ktx.get(), texture.format, texture.depth, path);
+
+    checkKtx(ktxTexture2_WriteToNamedFile(ktx.get(), path.c_str()),
+             fmt::format("writing KTX texture {}", path));
+}
+
 void textures::save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format,
                     const std::string& path, int width, int height){
     switch(format) {
-        case FileFormat::PNG : {
+        case FileFormat::PNG:
             saveAsPing(imageFormat, path, width, height, buffer);
             break;
-            case FileFormat::BMP:
-                saveAsBmp(imageFormat, path, width, height, buffer);
+        case FileFormat::BMP:
+            saveAsBmp(imageFormat, path, width, height, buffer);
             break;
-            case FileFormat::JPG:
-                saveAsJpg(imageFormat, path, width, height, buffer);
+        case FileFormat::JPG:
+            saveAsJpg(imageFormat, path, width, height, buffer);
             break;
-            case FileFormat::HDR:
-                saveAsHdr(imageFormat, path, width, height, buffer);
+        case FileFormat::HDR:
+            saveAsHdr(imageFormat, path, width, height, buffer);
             break;
-            case FileFormat::EXR:
-                saveAsExr(imageFormat, path, width, height, buffer);
+        case FileFormat::EXR:
+            saveAsExr(imageFormat, path, width, height, buffer);
             break;
-            default:
-                throw std::runtime_error{"unsupported file format"};
-
-        }
+        case FileFormat::KTX:
+            saveAsKtx(path, buffer, imageFormat, width, height);
+            break;
+        default:
+            throw std::runtime_error{"unsupported file format"};
     }
 }
 

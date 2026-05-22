@@ -759,6 +759,10 @@ struct VulkanDevice{
         return commandPools[*queueFamilyIndex.video_decode];
     }
 
+    inline const VulkanCommandPool& firstActiveCommandPool() const {
+        return commandPoolFor(findFirstActiveQueue().value());
+    }
+
     [[nodiscard]]
     inline uint32_t getMemoryTypeIndex(uint32_t memoryTypeBitsReq, VkMemoryPropertyFlags requiredProperties) const{
         VkPhysicalDeviceMemoryProperties memoryProperties;

@@ -14,6 +14,7 @@ meshoptimizer/0.17
 openexr/3.3.2
 taskflow/3.4.0
 zlib/1.2.13
+ktx/4.4.2
 
 [generators]
 CMakeDeps

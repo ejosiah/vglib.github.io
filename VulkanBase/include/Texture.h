@@ -8,7 +8,7 @@
 #include <atomic>
 
 enum class FileFormat {
-    PNG, BMP, TGA, JPG, HDR, EXR
+    PNG, BMP, TGA, JPG, HDR, EXR, KTX
 };
 
 struct Texture{
@@ -18,6 +18,7 @@ struct Texture{
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageAspectFlags aspectMask{VK_IMAGE_ASPECT_COLOR_BIT};
     VkImageCreateInfo spec{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+    VkImageViewType viewType{ VK_IMAGE_VIEW_TYPE_2D};
     uint32_t width{0};
     uint32_t height{0};
     uint32_t depth{1};
@@ -112,6 +113,8 @@ namespace textures{
 
     void exr(const VulkanDevice& device, Texture& texture, std::string_view path);
 
+    void ktx(const VulkanDevice& device, Texture& texture, std::string_view path, VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+
     void checkerboard(const VulkanDevice& device, Texture& texture, const glm::vec3& colorA = glm::vec3(1), const glm::vec3& colorB = glm::vec3(0));
 
     void normalMap(const VulkanDevice& device, Texture& texture, const Dimension2D<uint32_t>& dimensions);
@@ -155,6 +158,8 @@ namespace textures{
     void createDistribution(const VulkanDevice& device, const VulkanDescriptorPool& descriptorPool, const Texture& source, Texture& destination);
 
     void save(const VulkanDevice& device, Texture& texture, FileFormat format, const std::string& path);
+
+    void saveAsKtx(const VulkanDevice& device, Texture& texture, const std::string& path);
 
     void save(const VulkanDevice& device, const VulkanBuffer& buffer, VkFormat imageFormat, FileFormat format, const std::string& path, int width, int height);
 

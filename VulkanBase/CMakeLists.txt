@@ -16,6 +16,7 @@ find_package(meshoptimizer)
 find_package(OpenEXR)
 find_package(Taskflow)
 find_package(ZLIB)
+find_package(Ktx)
 
 
 
@@ -31,7 +32,7 @@ add_definitions(
 
 set(CONAN_LIBS_DEP  assimp::assimp glm::glm glfw stb::stb spdlog::spdlog imgui::imgui
                     gtest::gtest argparse::argparse Bullet::Bullet EnTT::EnTT meshoptimizer::meshoptimizer
-                    openexr::openexr Taskflow::Taskflow ZLIB::ZLIB Freetype::Freetype)
+                    openexr::openexr Taskflow::Taskflow ZLIB::ZLIB Freetype::Freetype KTX::ktx)
 
 
 set(VGLIB_INCLUDE_DIRS
