@@ -69,21 +69,53 @@ public:
         group(name, queryNames);
     }
 
-    template<typename Body>
-    inline void profile(const std::string& name, VkCommandBuffer commandBuffer, Body&& body){
-        if(!isReady()){
-            body();
-            return;
+
+    class Profile {
+    public:
+        Profile(Profiler &profiler, const std::string& name, VkCommandBuffer commandBuffer)
+            : profiler_(profiler)
+            ,  cmd_(commandBuffer)
+        {
+            if (profiler.isReady()) {
+                assert(profiler.queries.contains(name));
+                query_ = &profiler.queries[name];
+
+                if(!profiler.externalReset) {
+                    vkCmdResetQueryPool(commandBuffer, profiler.queryPool, query_->startId, 2);
+                }
+                vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, profiler.queryPool, query_->startId);
+            } else {
+                ended_ = true;
+            }
         }
-        assert(queries.find(name) != end(queries));
-        auto query = queries[name];
-        if(!externalReset) {
-            vkCmdResetQueryPool(commandBuffer, queryPool, query.startId, 2);
+
+        ~Profile() {
+            if (ended_) return;
+            end();
         }
-        vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, queryPool, query.startId);
-        body();
-        vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, queryPool, query.endId);
+
+        void end() {
+            vkCmdWriteTimestamp(cmd_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, profiler_.queryPool, query_->endId);
+            ended_ = true;
+        }
+
+    private:
+        Profiler& profiler_;
+        Query* query_{};
+        VkCommandBuffer cmd_{};
+        bool ended_{};
+    };
+
+    Profile profile(const std::string& name, VkCommandBuffer commandBuffer) {
+        return { *this, name, commandBuffer };
     }
+
+    template<typename Body>
+     void profile(const std::string& name, VkCommandBuffer commandBuffer, Body&& body){
+        auto section = profile(name, commandBuffer);
+        body();
+    }
+
 
     inline void commit(){
         if(!isReady() || queries.empty()) return;

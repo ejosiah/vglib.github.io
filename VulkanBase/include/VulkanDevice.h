@@ -899,7 +899,7 @@ struct VulkanDevice{
         vkGetPhysicalDeviceProperties2(physicalDevice, &properties);
     }
 
-    void group(std::function<void()>&& body, VkCommandBuffer commandBuffer, const std::string& name, const glm::vec4& color = randomColor()) {
+    void section(std::function<void()>&& body, VkCommandBuffer commandBuffer, const std::string& name, const glm::vec4& color = randomColor()) {
 #ifndef NDEBUG
         VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
         label.pLabelName = name.c_str();
@@ -916,6 +916,42 @@ struct VulkanDevice{
         body();
 #endif
     }
+
+    class CmdDebugLabel {
+    public:
+        CmdDebugLabel(VkCommandBuffer commandBuffer, const std::string& name, const glm::vec4& color)
+            :cmd_(commandBuffer)
+        {
+            VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
+            label.pLabelName = name.c_str();
+
+            label.color[0] = color.r;
+            label.color[1] = color.g;
+            label.color[2] = color.b;
+            label.color[3] = color.a;
+
+            vkCmdBeginDebugUtilsLabelEXT(commandBuffer, &label);
+        }
+
+        ~CmdDebugLabel() {
+            if (ended_) return;
+            end();
+        }
+
+        void end() {
+            vkCmdEndDebugUtilsLabelEXT(cmd_);
+            ended_ = true;
+        }
+
+    private:
+        VkCommandBuffer cmd_{};
+        bool ended_{};
+    };
+
+    CmdDebugLabel section(VkCommandBuffer commandBuffer, const std::string& name, const glm::vec4& color = randomColor()) {
+        return { commandBuffer, name, color};
+    }
+
 
 private:
     void* _enabledExtensions{};
