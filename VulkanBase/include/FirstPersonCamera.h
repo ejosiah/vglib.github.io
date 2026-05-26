@@ -2,21 +2,40 @@
 
 #include "camera_base.h"
 
-struct FirstPersonSpectatorCameraSettings : public BaseCameraSettings{
+template<typename Scalar>
+struct FirstPersonSpectatorCameraSettingsT : public BaseCameraSettingsT<Scalar> {
 };
 
-class SpectatorCameraController : public BaseCameraController {
+template<typename Scalar>
+class SpectatorCameraControllerT : public BaseCameraControllerT<Scalar> {
 public:
-    SpectatorCameraController(InputManager& inputManager, const FirstPersonSpectatorCameraSettings& settings = {});
+    using Base = BaseCameraControllerT<Scalar>;
+    using Settings = FirstPersonSpectatorCameraSettingsT<Scalar>;
+
+    SpectatorCameraControllerT(InputManager& inputManager, const Settings& settings = {});
 
     void update(float elapsedTime) override;
 
-    void rotate(float headingDegrees, float pitchDegrees, float rollDegrees) override;
+    void rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) override;
 };
 
-class FirstPersonCameraController : public SpectatorCameraController {
+template<typename Scalar>
+class FirstPersonCameraControllerT : public SpectatorCameraControllerT<Scalar> {
 public:
-    FirstPersonCameraController(InputManager& inputManager, const FirstPersonSpectatorCameraSettings& settings = {});
+    using Base = SpectatorCameraControllerT<Scalar>;
+    using Vec3 = typename Base::Vec3;
+    using Settings = FirstPersonSpectatorCameraSettingsT<Scalar>;
 
-    void move(float dx, float dy, float dz) override;
+    FirstPersonCameraControllerT(InputManager& inputManager, const Settings& settings = {});
+
+    void move(Scalar dx, Scalar dy, Scalar dz) override;
 };
+
+using FirstPersonSpectatorCameraSettings = FirstPersonSpectatorCameraSettingsT<float>;
+using DoubleFirstPersonSpectatorCameraSettings = FirstPersonSpectatorCameraSettingsT<double>;
+
+using SpectatorCameraController = SpectatorCameraControllerT<float>;
+using DoubleSpectatorCameraController = SpectatorCameraControllerT<double>;
+
+using FirstPersonCameraController = FirstPersonCameraControllerT<float>;
+using DoubleFirstPersonCameraController = FirstPersonCameraControllerT<double>;

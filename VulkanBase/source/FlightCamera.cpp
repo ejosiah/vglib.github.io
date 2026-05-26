@@ -1,41 +1,50 @@
 #include "FlightCamera.h"
 
-FlightCameraController::FlightCameraController(InputManager &inputManager, const FlightCameraSettings &settings)
-: BaseCameraController(inputManager, settings)
-, YawSpeed(settings.yawSpeed)
+template<typename Scalar>
+FlightCameraControllerT<Scalar>::FlightCameraControllerT(InputManager& inputManager, const Settings& settings)
+    : BaseCameraControllerT<Scalar>(inputManager, settings)
+    , YawSpeed(settings.yawSpeed)
 {
-
 }
 
-void FlightCameraController::update(float elapsedTime) {
-    float dx = -direction.x * YawSpeed * elapsedTime;
-    float dy = mouse.relativePosition.y;
-    float dz = -mouse.relativePosition.x;
-    rotateSmoothly(0.0f, dy, dz);
+template<typename Scalar>
+void FlightCameraControllerT<Scalar>::update(float elapsedTime) {
+    Scalar dx = -this->direction.x * YawSpeed * static_cast<Scalar>(elapsedTime);
+    Scalar dy = static_cast<Scalar>(this->mouse.relativePosition.y);
+    Scalar dz = -static_cast<Scalar>(this->mouse.relativePosition.x);
+    this->rotateSmoothly(Scalar(0), dy, dz);
 
-    if (dx != 0.0f) {
-        rotate(dx, 0.0f, 0.0f);
+    if (dx != Scalar(0)) {
+        rotate(dx, Scalar(0), Scalar(0));
     }
 
-    direction.x = 0.0f; // ignore yaw motion when updating camera's velocity;
-    updatePosition(direction, elapsedTime);
+    this->direction.x = Scalar(0);
+    this->updatePosition(this->direction, static_cast<Scalar>(elapsedTime));
 }
 
-void FlightCameraController::rotate(float headingDegrees, float pitchDegrees, float rollDegrees) {
-    if(headingDegrees == 0 && pitchDegrees == 0 && rollDegrees == 0){
+template<typename Scalar>
+void FlightCameraControllerT<Scalar>::rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) {
+    if (headingDegrees == Scalar(0) && pitchDegrees == Scalar(0) && rollDegrees == Scalar(0)) {
         return;
     }
 
-    accumPitchDegrees += pitchDegrees;
+    this->accumPitchDegrees += pitchDegrees;
 
-    if (accumPitchDegrees > 360.0f)
-        accumPitchDegrees -= 360.0f;
+    if (this->accumPitchDegrees > Scalar(360))
+        this->accumPitchDegrees -= Scalar(360);
 
-    if (accumPitchDegrees < -360.0f)
-        accumPitchDegrees += 360.0f;
+    if (this->accumPitchDegrees < Scalar(-360))
+        this->accumPitchDegrees += Scalar(360);
 
-    glm::quat rot = glm::quat({ glm::radians(pitchDegrees), glm::radians(headingDegrees), glm::radians(rollDegrees) });
-    orientation = rot * orientation;
+    glm::qua<Scalar, glm::defaultp> rot = glm::qua<Scalar, glm::defaultp>({
+        glm::radians(pitchDegrees),
+        glm::radians(headingDegrees),
+        glm::radians(rollDegrees)
+    });
+    this->orientation = rot * this->orientation;
 
-    updateViewMatrix();
+    this->updateViewMatrix();
 }
+
+template class FlightCameraControllerT<float>;
+template class FlightCameraControllerT<double>;

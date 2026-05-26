@@ -4,7 +4,34 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_access.hpp>
 
-BaseCameraController::BaseCameraController(InputManager& inputManager, const BaseCameraSettings& settings)
+namespace {
+    template<typename Scalar>
+    bool close_enough(Scalar x, Scalar y, Scalar epsilon = Scalar(1E-3)) {
+        return std::abs(x - y) <= epsilon * (std::abs(x) + std::abs(y) + Scalar(1));
+    }
+
+    template<typename Scalar>
+    glm::mat<4, 4, Scalar, glm::defaultp> perspective_vfov_vk(Scalar fovy, Scalar aspect, Scalar zNear, Scalar zFar) {
+        auto result = glm::perspectiveRH_ZO(fovy, aspect, zNear, zFar);
+        result[1][1] *= Scalar(-1);
+        return result;
+    }
+
+    template<typename Scalar>
+    glm::mat<4, 4, Scalar, glm::defaultp> perspective_hfov_vk(Scalar fovx, Scalar aspect, Scalar zNear, Scalar zFar) {
+        const auto fovy = Scalar(2) * std::atan(std::tan(fovx * Scalar(0.5)) / aspect);
+        return perspective_vfov_vk(fovy, aspect, zNear, zFar);
+    }
+
+    template<typename Scalar>
+    glm::mat<4, 4, Scalar, glm::defaultp> perspective_matrix(Scalar fov, Scalar aspect, Scalar zNear, Scalar zFar, bool horizontalFov) {
+        return horizontalFov ? perspective_hfov_vk(fov, aspect, zNear, zFar)
+                             : perspective_vfov_vk(fov, aspect, zNear, zFar);
+    }
+}
+
+template<typename Scalar>
+BaseCameraControllerT<Scalar>::BaseCameraControllerT(InputManager& inputManager, const Settings& settings)
     : fov(settings.fieldOfView)
     , aspectRatio(settings.aspectRatio)
     , znear(settings.zNear)
@@ -12,136 +39,138 @@ BaseCameraController::BaseCameraController(InputManager& inputManager, const Bas
     , minZoom(settings.minZoom)
     , maxZoom(settings.maxZoom)
     , rotationSpeed(settings.rotationSpeed)
-    , accumPitchDegrees(0.0f)
+    , accumPitchDegrees(Scalar(0))
     , floorOffset(settings.floorOffset)
     , handleZoom(settings.handleZoom)
     , horizontalFov(settings.horizontalFov)
-    , eyes(0.0f)
-    , target(0.0f)
-    , targetYAxis(0.0f, 1.0f, 0.0f)
-    , xAxis(1.0f, 0.0f, 0.0f)
-    , yAxis(0.0f, 1.0f, 0.0f)
-    , zAxis(0.0f, 0.0f, 1.0f)
-    , viewDir(0.0f, 0.0f, -1.0f)
+    , eyes(Scalar(0))
+    , target(Scalar(0))
+    , targetYAxis(Scalar(0), Scalar(1), Scalar(0))
+    , xAxis(Scalar(1), Scalar(0), Scalar(0))
+    , yAxis(Scalar(0), Scalar(1), Scalar(0))
+    , zAxis(Scalar(0), Scalar(0), Scalar(1))
+    , viewDir(Scalar(0), Scalar(0), Scalar(-1))
     , _acceleration(settings.acceleration)
+    , currentVelocity(Scalar(0))
     , _velocity(settings.velocity)
-    , currentVelocity(0)
-    , orientation(1, 0, 0, 0)
-    , direction(0)
+    , orientation(Scalar(1), Scalar(0), Scalar(0), Scalar(0))
+    , direction(Scalar(0))
     , camera()
     , mouse(inputManager.getMouse())
     , zoomIn(inputManager.mapToMouse(MouseEvent::MoveCode::WHEEL_UP))
     , zoomOut(inputManager.mapToMouse(MouseEvent::MoveCode::WHEEL_DOWN))
-    {
-        _move.forward = &inputManager.mapToKey(Key::W, "forward", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
-        _move.back = &inputManager.mapToKey(Key::S, "backward", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
-        _move.left = &inputManager.mapToKey(Key::A, "left", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
-        _move.right = &inputManager.mapToKey(Key::D, "right", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
-        _move.up = &inputManager.mapToKey(Key::E, "up", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
-        _move.down = &inputManager.mapToKey(Key::Q, "down", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
-        position({0.0f, floorOffset, 0.0f});
-        perspective(fov, aspectRatio, znear, zfar);
-    }
+{
+    _move.forward = &inputManager.mapToKey(Key::W, "forward", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
+    _move.back = &inputManager.mapToKey(Key::S, "backward", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
+    _move.left = &inputManager.mapToKey(Key::A, "left", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
+    _move.right = &inputManager.mapToKey(Key::D, "right", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
+    _move.up = &inputManager.mapToKey(Key::E, "up", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
+    _move.down = &inputManager.mapToKey(Key::Q, "down", Action::Behavior::DETECT_INITIAL_PRESS_ONLY);
+    position({Scalar(0), floorOffset, Scalar(0)});
+    perspective(fov, aspectRatio, znear, zfar);
+}
 
-void BaseCameraController::processInput() {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::processInput() {
     processMovementInput();
     processZoomInput();
 }
 
-void BaseCameraController::processMovementInput() {
-    direction = glm::vec3(0);
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::processMovementInput() {
+    direction = Vec3(Scalar(0));
     auto vel = currentVelocity;
-    if(_move.forward->isPressed()){
+    if (_move.forward->isPressed()) {
         currentVelocity.x = vel.x;
         currentVelocity.y = vel.y;
-        currentVelocity.z = 0;
-    }else if(_move.forward->isHeld()){
-        direction.z += 1.0f;
+        currentVelocity.z = Scalar(0);
+    } else if (_move.forward->isHeld()) {
+        direction.z += Scalar(1);
     }
 
-    if(_move.back->isPressed()){
+    if (_move.back->isPressed()) {
         currentVelocity.x = vel.x;
         currentVelocity.y = vel.y;
-        currentVelocity.z = 0;
-    }else if(_move.back->isHeld()){
-        direction.z -= 1.0f;
+        currentVelocity.z = Scalar(0);
+    } else if (_move.back->isHeld()) {
+        direction.z -= Scalar(1);
     }
 
-    if(_move.right->isPressed()){
-        currentVelocity.x = 0;
+    if (_move.right->isPressed()) {
+        currentVelocity.x = Scalar(0);
         currentVelocity.y = vel.y;
         currentVelocity.z = vel.z;
-    }else if(_move.right->isHeld()){
-        direction.x += 1.0f;
+    } else if (_move.right->isHeld()) {
+        direction.x += Scalar(1);
     }
 
-    if(_move.left->isPressed()){
-        currentVelocity.x = 0;
+    if (_move.left->isPressed()) {
+        currentVelocity.x = Scalar(0);
         currentVelocity.y = vel.y;
         currentVelocity.z = vel.z;
-    }else if(_move.left->isHeld()){
-        direction.x -= 1.0f;
+    } else if (_move.left->isHeld()) {
+        direction.x -= Scalar(1);
     }
 
-
-    if(_move.up->isPressed()){
+    if (_move.up->isPressed()) {
         currentVelocity.x = vel.x;
-        currentVelocity.y = 0.0f;
+        currentVelocity.y = Scalar(0);
         currentVelocity.z = vel.z;
-    }else if(_move.up->isHeld()){
-        direction.y += 1.0f;
+    } else if (_move.up->isHeld()) {
+        direction.y += Scalar(1);
     }
 
-    if(_move.down->isPressed()){
+    if (_move.down->isPressed()) {
         currentVelocity.x = vel.x;
-        currentVelocity.y = 0.0f;
+        currentVelocity.y = Scalar(0);
         currentVelocity.z = vel.z;
-    }else if(_move.down->isHeld()){
-        direction.y -= 1.0f;
+    } else if (_move.down->isHeld()) {
+        direction.y -= Scalar(1);
     }
 }
 
-void BaseCameraController::processZoomInput() {
-    zoomAmount = 0.0f;
-    if(zoomIn.isPressed()){
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::processZoomInput() {
+    zoomAmount = Scalar(0);
+    if (zoomIn.isPressed()) {
         zoomAmount = -zoomDelta;
-    }else if(zoomOut.isPressed()){
+    } else if (zoomOut.isPressed()) {
         zoomAmount = zoomDelta;
     }
-    if(handleZoom && zoomAmount != 0){
+    if (handleZoom && zoomAmount != Scalar(0)) {
         zoom(zoomAmount, minZoom, maxZoom);
     }
 }
 
-
-void BaseCameraController::lookAt(const glm::vec3 &eye, const glm::vec3 &target, const glm::vec3 &up) {
-
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::lookAt(const Vec3& eye, const Vec3& target, const Vec3& up) {
     this->eyes = eye;
     this->target = target;
 
     auto& view = camera.view;
     view = glm::lookAt(eye, target, up);
-    // Extract the pitch angle from the view matrix.
-    accumPitchDegrees = glm::degrees(asinf(view[1][2]));	// TODO change this matrix is colomn matrix
+    accumPitchDegrees = glm::degrees(std::asin(view[1][2]));
 
-    xAxis = glm::vec3(row(view, 0));
-    yAxis = glm::vec3(row(view, 1));
-    zAxis = glm::vec3(row(view, 2));
+    xAxis = Vec3(row(view, 0));
+    yAxis = Vec3(row(view, 1));
+    zAxis = Vec3(row(view, 2));
 
     viewDir = -zAxis;
 
-    accumPitchDegrees = glm::degrees(asinf(view[1][2]));
+    accumPitchDegrees = glm::degrees(std::asin(view[1][2]));
 
-    orientation = glm::quat(view);
+    orientation = Quat(view);
     updateViewMatrix();
 }
 
-void BaseCameraController::perspective(float aspect) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::perspective(Scalar aspect) {
     perspective(fov, aspect, znear, zfar);
 }
 
-void BaseCameraController::perspective(float fov, float aspect, float znear, float zfar) {
-    camera.proj = vkn::perspective(glm::radians(fov), aspect, znear, zfar, horizontalFov);
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::perspective(Scalar fov, Scalar aspect, Scalar znear, Scalar zfar) {
+    camera.proj = perspective_matrix(glm::radians(fov), aspect, znear, zfar, horizontalFov);
     this->fov = fov;
     aspectRatio = aspect;
     this->znear = znear;
@@ -149,37 +178,42 @@ void BaseCameraController::perspective(float fov, float aspect, float znear, flo
     _moved = true;
 }
 
-void BaseCameraController::rotateSmoothly(float headingDegrees, float pitchDegrees, float rollDegrees) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::rotateSmoothly(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) {
     headingDegrees *= rotationSpeed;
     pitchDegrees *= rotationSpeed;
     rollDegrees *= rotationSpeed;
 
-    rotate(headingDegrees, pitchDegrees, rollDegrees);
+    this->rotate(headingDegrees, pitchDegrees, rollDegrees);
 }
 
-void BaseCameraController::undoRoll() {
-    lookAt(eyes, eyes + viewDir, WORLD_YAXIS);
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::undoRoll() {
+    lookAt(eyes, eyes + viewDir, WORLD_YAXIS_T<Scalar>);
 }
 
-void BaseCameraController::zoom(float zoom, float minZoom, float maxZoom) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::zoom(Scalar zoom, Scalar minZoom, Scalar maxZoom) {
     zoom = std::min(std::max(zoom, minZoom), maxZoom);
     perspective(zoom, aspectRatio, znear, zfar);
 }
 
-void BaseCameraController::move(float dx, float dy, float dz) {
-    if(dx == 0 && dy == 0 && dz == 0) return;   // TODO use close enough
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::move(Scalar dx, Scalar dy, Scalar dz) {
+    if (dx == Scalar(0) && dy == Scalar(0) && dz == Scalar(0)) return;
 
-    glm::vec3 eyes = this->eyes;
-    glm::vec3 forwards = viewDir;
+    Vec3 eyes = this->eyes;
+    Vec3 forwards = viewDir;
 
     eyes += xAxis * dx;
-    eyes += WORLD_YAXIS * dy;
+    eyes += WORLD_YAXIS_T<Scalar> * dy;
     eyes += forwards * dz;
 
     position(eyes);
 }
 
-void BaseCameraController::move(const glm::vec3 &direction, const glm::vec3 &amount) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::move(const Vec3& direction, const Vec3& amount) {
     eyes.x += direction.x * amount.x;
     eyes.y += direction.y * amount.y;
     eyes.z += direction.z * amount.z;
@@ -187,251 +221,212 @@ void BaseCameraController::move(const glm::vec3 &direction, const glm::vec3 &amo
     updateViewMatrix();
 }
 
-
-void BaseCameraController::position(const glm::vec3 &pos) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::position(const Vec3& pos) {
     eyes = pos;
     onPositionChanged();
     updateViewMatrix();
 }
 
-const glm::vec3& BaseCameraController::position() const {
+template<typename Scalar>
+const typename BaseCameraControllerT<Scalar>::Vec3& BaseCameraControllerT<Scalar>::position() const {
     return eyes;
 }
 
-const glm::vec3& BaseCameraController::velocity() const {
+template<typename Scalar>
+const typename BaseCameraControllerT<Scalar>::Vec3& BaseCameraControllerT<Scalar>::velocity() const {
     return currentVelocity;
 }
 
-const glm::vec3& BaseCameraController::acceleration() const {
+template<typename Scalar>
+const typename BaseCameraControllerT<Scalar>::Vec3& BaseCameraControllerT<Scalar>::acceleration() const {
     return _acceleration;
 }
 
-void BaseCameraController::updatePosition(const glm::vec3 &direction, float elapsedTimeSec) {
-    // Moves the Camera using Newton's second law of motion. Unit mass is
-    // assumed here to somewhat simplify the calculations. The direction vector
-    // is in the range [-1,1].
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::updatePosition(const Vec3& direction, Scalar elapsedTimeSec) {
     using namespace glm;
-    if (dot(currentVelocity, currentVelocity) != 0.0f)
-    {
-        // Only move the Camera if the _velocity vector is not of zero length.
-        // Doing this guards against the Camera slowly creeping around due to
-        // floating point rounding errors.
+    if (dot(currentVelocity, currentVelocity) != Scalar(0)) {
+        Vec3 displacement = (currentVelocity * elapsedTimeSec) +
+                            (Scalar(0.5) * _acceleration * elapsedTimeSec * elapsedTimeSec);
 
-        glm::vec3 displacement = (currentVelocity * elapsedTimeSec) +
-                                 (0.5f * _acceleration * elapsedTimeSec * elapsedTimeSec);
+        if (direction.x == Scalar(0) && close_enough(currentVelocity.x, Scalar(0)))
+            displacement.x = Scalar(0);
 
-        // Floating point rounding errors will slowly accumulate and cause the
-        // Camera to move along each axis. To prevent any unintended movement
-        // the displacement vector is clamped to zero for each direction that
-        // the Camera isn't moving in. Note that the updateVelocity() method
-        // will slowly decelerate the Camera's _velocity back to a stationary
-        // state when the Camera is no longer moving along that direction. To
-        // account for this the Camera's current _velocity is also checked.
+        if (direction.y == Scalar(0) && close_enough(currentVelocity.y, Scalar(0)))
+            displacement.y = Scalar(0);
 
-        if (direction.x == 0.0f && closeEnough(currentVelocity.x, 0.0f))
-            displacement.x = 0.0f;
-
-        if (direction.y == 0.0f && closeEnough(currentVelocity.y, 0.0f))
-            displacement.y = 0.0f;
-
-        if (direction.z == 0.0f && closeEnough(currentVelocity.z, 0.0f))
-            displacement.z = 0.0f;
+        if (direction.z == Scalar(0) && close_enough(currentVelocity.z, Scalar(0)))
+            displacement.z = Scalar(0);
 
         move(displacement.x, displacement.y, displacement.z);
     }
 
-    // Continuously update the Camera's _velocity vector even if the Camera
-    // hasn't moved during this call. When the Camera is no longer being moved
-    // the Camera is decelerating back to its stationary state.
-
     updateVelocity(direction, elapsedTimeSec);
 }
 
-void BaseCameraController::updateViewMatrix() {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::updateViewMatrix() {
     auto& view = camera.view;
     view = glm::mat4_cast(orientation);
 
-    xAxis = glm::vec3(glm::row(view, 0));
-    yAxis = glm::vec3(glm::row(view, 1));
-    zAxis = glm::vec3(glm::row(view, 2));
+    xAxis = Vec3(glm::row(view, 0));
+    yAxis = Vec3(glm::row(view, 1));
+    zAxis = Vec3(glm::row(view, 2));
     viewDir = -zAxis;
 
     view[3][0] = -dot(xAxis, eyes);
     view[3][1] = -dot(yAxis, eyes);
-    view[3][2] =  -dot(zAxis, eyes);
+    view[3][2] = -dot(zAxis, eyes);
     _moved = true;
 }
 
-void BaseCameraController::updateVelocity(const glm::vec3 &direction, float elapsedTimeSec) {
-    // Updates the Camera's _velocity based on the supplied movement direction
-    // and the elapsed time (since this method was last called). The movement
-    // direction is in the range [-1,1].
-
-    if (direction.x != 0.0f)
-    {
-        // Camera is moving along the x axis.
-        // Linearly accelerate up to the Camera's max speed.
-
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::updateVelocity(const Vec3& direction, Scalar elapsedTimeSec) {
+    if (direction.x != Scalar(0)) {
         currentVelocity.x += direction.x * _acceleration.x * elapsedTimeSec;
 
         if (currentVelocity.x > _velocity.x)
             currentVelocity.x = _velocity.x;
         else if (currentVelocity.x < -_velocity.x)
             currentVelocity.x = -_velocity.x;
-    }
-    else
-    {
-        // Camera is no longer moving along the x axis.
-        // Linearly decelerate back to stationary state.
-
-        if (currentVelocity.x > 0.0f)
-        {
-            if ((currentVelocity.x -= _acceleration.x * elapsedTimeSec) < 0.0f)
-                currentVelocity.x = 0.0f;
-        }
-        else
-        {
-            if ((currentVelocity.x += _acceleration.x * elapsedTimeSec) > 0.0f)
-                currentVelocity.x = 0.0f;
+    } else {
+        if (currentVelocity.x > Scalar(0)) {
+            if ((currentVelocity.x -= _acceleration.x * elapsedTimeSec) < Scalar(0))
+                currentVelocity.x = Scalar(0);
+        } else {
+            if ((currentVelocity.x += _acceleration.x * elapsedTimeSec) > Scalar(0))
+                currentVelocity.x = Scalar(0);
         }
     }
 
-    if (direction.y != 0.0f)
-    {
-        // Camera is moving along the y axis.
-        // Linearly accelerate up to the Camera's max speed.
-
+    if (direction.y != Scalar(0)) {
         currentVelocity.y += direction.y * _acceleration.y * elapsedTimeSec;
 
         if (currentVelocity.y > _velocity.y)
             currentVelocity.y = _velocity.y;
         else if (currentVelocity.y < -_velocity.y)
             currentVelocity.y = -_velocity.y;
-    }
-    else
-    {
-        // Camera is no longer moving along the y axis.
-        // Linearly decelerate back to stationary state.
-
-        if (currentVelocity.y > 0.0f)
-        {
-            if ((currentVelocity.y -= _acceleration.y * elapsedTimeSec) < 0.0f)
-                currentVelocity.y = 0.0f;
-        }
-        else
-        {
-            if ((currentVelocity.y += _acceleration.y * elapsedTimeSec) > 0.0f)
-                currentVelocity.y = 0.0f;
+    } else {
+        if (currentVelocity.y > Scalar(0)) {
+            if ((currentVelocity.y -= _acceleration.y * elapsedTimeSec) < Scalar(0))
+                currentVelocity.y = Scalar(0);
+        } else {
+            if ((currentVelocity.y += _acceleration.y * elapsedTimeSec) > Scalar(0))
+                currentVelocity.y = Scalar(0);
         }
     }
 
-    if (direction.z != 0.0f)
-    {
-        // Camera is moving along the z axis.
-        // Linearly accelerate up to the Camera's max speed.
-
+    if (direction.z != Scalar(0)) {
         currentVelocity.z += direction.z * _acceleration.z * elapsedTimeSec;
 
         if (currentVelocity.z > _velocity.z)
             currentVelocity.z = _velocity.z;
         else if (currentVelocity.z < -_velocity.z)
             currentVelocity.z = -_velocity.z;
-    }
-    else
-    {
-        // Camera is no longer moving along the z axis.
-        // Linearly decelerate back to stationary state.
-
-        if (currentVelocity.z > 0.0f)
-        {
-            if ((currentVelocity.z -= _acceleration.z * elapsedTimeSec) < 0.0f)
-                currentVelocity.z = 0.0f;
-        }
-        else
-        {
-            if ((currentVelocity.z += _acceleration.z * elapsedTimeSec) > 0.0f)
-                currentVelocity.z = 0.0f;
+    } else {
+        if (currentVelocity.z > Scalar(0)) {
+            if ((currentVelocity.z -= _acceleration.z * elapsedTimeSec) < Scalar(0))
+                currentVelocity.z = Scalar(0);
+        } else {
+            if ((currentVelocity.z += _acceleration.z * elapsedTimeSec) > Scalar(0))
+                currentVelocity.z = Scalar(0);
         }
     }
 }
 
-
-void BaseCameraController::onResize(int width, int height) {
-    perspective(static_cast<float>(width)/static_cast<float>(height));
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::onResize(int width, int height) {
+    perspective(static_cast<Scalar>(width) / static_cast<Scalar>(height));
 }
 
-void BaseCameraController::setModel(const glm::mat4& model) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::setModel(const Mat4& model) {
     camera.model = model;
 }
 
-void BaseCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
     vkCmdPushConstants(commandBuffer, layout.handle, stageFlags, 0, sizeof(Camera), &camera);
 }
 
-void BaseCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const Mat4& model, VkShaderStageFlags stageFlags) {
     const Camera aCamera{ .model = model, .view = camera.view, .proj = camera.proj };
     vkCmdPushConstants(commandBuffer, layout.handle, stageFlags, 0, sizeof(Camera), &aCamera);
 }
 
-const Camera &BaseCameraController::cam() const {
+template<typename Scalar>
+const typename BaseCameraControllerT<Scalar>::Camera& BaseCameraControllerT<Scalar>::cam() const {
     return camera;
 }
 
-const Camera &BaseCameraController::previousCamera() const {
+template<typename Scalar>
+const typename BaseCameraControllerT<Scalar>::Camera& BaseCameraControllerT<Scalar>::previousCamera() const {
     return _previousCamera;
 }
 
-
-void BaseCameraController::onPositionChanged() {
-
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::onPositionChanged() {
 }
 
-const glm::quat &BaseCameraController::getOrientation() const {
+template<typename Scalar>
+const typename BaseCameraControllerT<Scalar>::Quat& BaseCameraControllerT<Scalar>::getOrientation() const {
     return orientation;
 }
 
-void BaseCameraController::setTargetYAxis(const glm::vec3& axis) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::setTargetYAxis(const Vec3& axis) {
     targetYAxis = axis;
 }
 
-const glm::vec3 &BaseCameraController::getYAxis() {
+template<typename Scalar>
+const typename BaseCameraControllerT<Scalar>::Vec3& BaseCameraControllerT<Scalar>::getYAxis() {
     return yAxis;
 }
 
-void BaseCameraController::newFrame() {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::newFrame() {
     _moved = false;
     _previousCamera = camera;
 }
 
-bool BaseCameraController::moved() const {
+template<typename Scalar>
+bool BaseCameraControllerT<Scalar>::moved() const {
     return _moved;
 }
 
-float BaseCameraController::near() const {
+template<typename Scalar>
+Scalar BaseCameraControllerT<Scalar>::near() const {
     return znear;
 }
 
-float BaseCameraController::far() const {
+template<typename Scalar>
+Scalar BaseCameraControllerT<Scalar>::far() const {
     return zfar;
 }
 
-void BaseCameraController::fieldOfView(float value) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::fieldOfView(Scalar value) {
     perspective(value, aspectRatio, znear, zfar);
 }
 
-void BaseCameraController::jitter(float jx, float jy) {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::jitter(Scalar jx, Scalar jy) {
     perspective(fov, aspectRatio, znear, zfar);
-    glm::mat4 jMatrix = glm::translate(glm::mat4{1}, {jx, jy, 0});
+    Mat4 jMatrix = glm::translate(Mat4{1}, Vec3{jx, jy, Scalar(0)});
     camera.proj = jMatrix * camera.proj;
 }
 
-void BaseCameraController::extract(Frustum &frustum) const {
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::extract(Frustum& frustum) const {
     Frustum::extractFrustum(frustum, camera.proj * camera.view);
 }
 
-void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const {
-    bMin = glm::vec3(MAX_FLOAT);
-    bMax = glm::vec3(MIN_FLOAT);
+template<typename Scalar>
+void BaseCameraControllerT<Scalar>::extractAABB(Vec3& bMin, Vec3& bMax) const {
+    bMin = Vec3(std::numeric_limits<Scalar>::max());
+    bMax = Vec3(std::numeric_limits<Scalar>::lowest());
 
     const auto near = znear;
     const auto far = zfar;
@@ -440,100 +435,107 @@ void BaseCameraController::extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const {
 
     const auto inv_view = glm::inverse(camera.view);
 
-    glm::vec2 nearCorner{0, 0};
-    nearCorner.y = glm::tan(fovRad / 2) * -near; // TODO check if horizontal or vertical fov
+    glm::vec<2, Scalar, glm::defaultp> nearCorner{Scalar(0), Scalar(0)};
+    nearCorner.y = std::tan(fovRad / Scalar(2)) * -near;
     nearCorner.x = nearCorner.y * aspect;
 
-    corners[0] = inv_view * glm::vec4(nearCorner, -near, 1);
-    corners[1] = inv_view * glm::vec4(-nearCorner, -near, 1);
+    corners[0] = inv_view * Vec4(nearCorner, -near, Scalar(1));
+    corners[1] = inv_view * Vec4(-nearCorner, -near, Scalar(1));
 
-    nearCorner.y *= -1;
-    corners[2] = inv_view * glm::vec4(nearCorner, -near, 1);
-    corners[3] = inv_view * glm::vec4(-nearCorner, -near, 1);
+    nearCorner.y *= Scalar(-1);
+    corners[2] = inv_view * Vec4(nearCorner, -near, Scalar(1));
+    corners[3] = inv_view * Vec4(-nearCorner, -near, Scalar(1));
 
-    glm::vec2 farCorner{0, 0,};
-    farCorner.y = glm::tan(fovRad / 2) * -far; // TODO check if horizontal or vertical fov
+    glm::vec<2, Scalar, glm::defaultp> farCorner{Scalar(0), Scalar(0)};
+    farCorner.y = std::tan(fovRad / Scalar(2)) * -far;
     farCorner.x = farCorner.y * aspect;
 
-    corners[4] = inv_view * glm::vec4(farCorner, -far, 1);
-    corners[5] = inv_view * glm::vec4(-farCorner, -far, 1);
+    corners[4] = inv_view * Vec4(farCorner, -far, Scalar(1));
+    corners[5] = inv_view * Vec4(-farCorner, -far, Scalar(1));
 
-    farCorner.y *= -1;
-    corners[6] = inv_view * glm::vec4(farCorner, -far, 1);
-    corners[7] = inv_view * glm::vec4(-farCorner, -far, 1);
+    farCorner.y *= Scalar(-1);
+    corners[6] = inv_view * Vec4(farCorner, -far, Scalar(1));
+    corners[7] = inv_view * Vec4(-farCorner, -far, Scalar(1));
 
-    for(auto& corner : corners) {
+    for (auto& corner : corners) {
         corner /= corner.w;
         bMin = glm::min(corner.xyz(), bMin);
         bMax = glm::max(corner.xyz(), bMax);
     }
 }
 
-bool Frustum::test(const glm::vec3 &point) const {
+template<typename Scalar>
+bool FrustumT<Scalar>::test(const Vec3& point) const {
     using namespace glm;
-    const vec4 v = vec4(point, 1);
-    float outside = 0;
-    outside += step(dot(cp[LEFT_PLANE], v), 0.f) + step(dot(cp[RIGHT_PLANE], v), 0.f);
-    outside += step(dot(cp[BOTTOM_PLANE], v), 0.f) + step(dot(cp[TOP_PLANE], v), 0.f);
-    outside += step(dot(cp[NEAR_PLANE], v), 0.f) + step(dot(cp[FAR_PLANE], v), 0.f);
+    const auto v = ClipPlane(point, Scalar(1));
+    Scalar outside = Scalar(0);
+    outside += step(dot(cp[LEFT_PLANE], v), Scalar(0)) + step(dot(cp[RIGHT_PLANE], v), Scalar(0));
+    outside += step(dot(cp[BOTTOM_PLANE], v), Scalar(0)) + step(dot(cp[TOP_PLANE], v), Scalar(0));
+    outside += step(dot(cp[NEAR_PLANE], v), Scalar(0)) + step(dot(cp[FAR_PLANE], v), Scalar(0));
 
-    return outside == 0;
+    return outside == Scalar(0);
 }
 
-bool Frustum::test(const glm::vec3 &bMin, const glm::vec3 &bMax) const {
+template<typename Scalar>
+bool FrustumT<Scalar>::test(const Vec3& bMin, const Vec3& bMax) const {
+    using Vec4 = glm::vec<4, Scalar, glm::defaultp>;
     using namespace glm;
 
-    auto corners = std::array<vec4, 8> {{
-        vec4(bMin.x, bMin.y, bMin.z, 1), vec4(bMax.x, bMin.y, bMin.z, 1), vec4(bMin.x, bMax.y, bMin.z, 1),
-        vec4(bMax.x, bMax.y, bMin.z, 1), vec4(bMin.x, bMin.y, bMax.z, 1), vec4(bMax.x, bMin.y, bMax.z, 1),
-        vec4(bMin.x, bMax.y, bMax.z, 1), vec4(bMax.x, bMax.y, bMax.z, 1)
+    auto corners = std::array<Vec4, 8> {{
+        Vec4(bMin.x, bMin.y, bMin.z, Scalar(1)), Vec4(bMax.x, bMin.y, bMin.z, Scalar(1)), Vec4(bMin.x, bMax.y, bMin.z, Scalar(1)),
+        Vec4(bMax.x, bMax.y, bMin.z, Scalar(1)), Vec4(bMin.x, bMin.y, bMax.z, Scalar(1)), Vec4(bMax.x, bMin.y, bMax.z, Scalar(1)),
+        Vec4(bMin.x, bMax.y, bMax.z, Scalar(1)), Vec4(bMax.x, bMax.y, bMax.z, Scalar(1))
     }};
 
-    for(int i = 0; i < 6; ++i) {
-        float outside = 0;
-        outside += step(dot( cp[i], corners[0] ) , 0.f );
-        outside += step(dot( cp[i], corners[1] ) , 0.f );
-        outside += step(dot( cp[i], corners[2] ) , 0.f );
-        outside += step(dot( cp[i], corners[3] ) , 0.f );
-        outside += step(dot( cp[i], corners[4] ) , 0.f );
-        outside += step(dot( cp[i], corners[5] ) , 0.f );
-        outside += step(dot( cp[i], corners[6] ) , 0.f );
-        outside += step(dot( cp[i], corners[7] ) , 0.f );
+    for (int i = 0; i < 6; ++i) {
+        Scalar outside = Scalar(0);
+        outside += step(dot(cp[i], corners[0]), Scalar(0));
+        outside += step(dot(cp[i], corners[1]), Scalar(0));
+        outside += step(dot(cp[i], corners[2]), Scalar(0));
+        outside += step(dot(cp[i], corners[3]), Scalar(0));
+        outside += step(dot(cp[i], corners[4]), Scalar(0));
+        outside += step(dot(cp[i], corners[5]), Scalar(0));
+        outside += step(dot(cp[i], corners[6]), Scalar(0));
+        outside += step(dot(cp[i], corners[7]), Scalar(0));
 
-        if (outside == 8) return false;
+        if (outside == Scalar(8)) return false;
     }
 
     return true;
 }
 
-bool Frustum::test(const glm::vec3 &boxCenter, float scale) {
+template<typename Scalar>
+bool FrustumT<Scalar>::test(const Vec3& boxCenter, Scalar scale) {
+    using Vec4 = glm::vec<4, Scalar, glm::defaultp>;
     using namespace glm;
-    static auto corners = std::array<glm::vec4, 8> {{
-        vec4( -0.5, -0.5, -0.5, 0.5 ), vec4(0.5, -0.5, -0.5, 0.5 ), vec4(0.5, -0.5, 0.5, 0.5 ), vec4(-0.5, -0.5, 0.5, 0.5 ),
-        vec4( -0.5, 0.5, -0.5, 0.5 ), vec4(0.5, 0.5, -0.5, 0.5 ), vec4(0.5, 0.5, 0.5, 0.5 ), vec4(-0.5, 0.5, 0.5, 0.5 ),
+    static auto corners = std::array<Vec4, 8> {{
+        Vec4(Scalar(-0.5), Scalar(-0.5), Scalar(-0.5), Scalar(0.5)), Vec4(Scalar(0.5), Scalar(-0.5), Scalar(-0.5), Scalar(0.5)),
+        Vec4(Scalar(0.5), Scalar(-0.5), Scalar(0.5), Scalar(0.5)), Vec4(Scalar(-0.5), Scalar(-0.5), Scalar(0.5), Scalar(0.5)),
+        Vec4(Scalar(-0.5), Scalar(0.5), Scalar(-0.5), Scalar(0.5)), Vec4(Scalar(0.5), Scalar(0.5), Scalar(-0.5), Scalar(0.5)),
+        Vec4(Scalar(0.5), Scalar(0.5), Scalar(0.5), Scalar(0.5)), Vec4(Scalar(-0.5), Scalar(0.5), Scalar(0.5), Scalar(0.5)),
     }};
 
+    const auto bc = Vec4(boxCenter, Scalar(0.5));
+    const auto s = Vec4(scale, scale, scale, Scalar(1));
+    for (int i = 0; i < 6; ++i) {
+        Scalar outside = Scalar(0);
+        outside += step(dot(cp[i], bc + corners[0] * s), Scalar(0));
+        outside += step(dot(cp[i], bc + corners[1] * s), Scalar(0));
+        outside += step(dot(cp[i], bc + corners[2] * s), Scalar(0));
+        outside += step(dot(cp[i], bc + corners[3] * s), Scalar(0));
+        outside += step(dot(cp[i], bc + corners[4] * s), Scalar(0));
+        outside += step(dot(cp[i], bc + corners[5] * s), Scalar(0));
+        outside += step(dot(cp[i], bc + corners[6] * s), Scalar(0));
+        outside += step(dot(cp[i], bc + corners[7] * s), Scalar(0));
 
-    const auto bc = glm::vec4(boxCenter, 0.5);
-    const auto s = glm::vec4(scale, scale, scale, 1);
-    for(int i = 0; i < 6; ++i) {
-        float outside = 0;
-        outside += step(dot( cp[i], bc + corners[0] * s), 0.f);
-        outside += step(dot( cp[i], bc + corners[1] * s), 0.f);
-        outside += step(dot( cp[i], bc + corners[2] * s), 0.f);
-        outside += step(dot( cp[i], bc + corners[3] * s), 0.f);
-        outside += step(dot( cp[i], bc + corners[4] * s), 0.f);
-        outside += step(dot( cp[i], bc + corners[5] * s), 0.f);
-        outside += step(dot( cp[i], bc + corners[6] * s), 0.f);
-        outside += step(dot( cp[i], bc + corners[7] * s), 0.f);
-
-        if (outside == 8) return false;
+        if (outside == Scalar(8)) return false;
     }
 
     return true;
 }
 
-void Frustum::extractFrustum(Frustum &frustum, const glm::mat4 M) {
+template<typename Scalar>
+void FrustumT<Scalar>::extractFrustum(FrustumT& frustum, Mat4 M) {
     const auto m1 = glm::row(M, 0);
     const auto m4 = glm::row(M, 3);
 
@@ -571,9 +573,13 @@ void Frustum::extractFrustum(Frustum &frustum, const glm::mat4 M) {
     frustum.cp[FAR_PLANE].z = m4[2] - m3[2];
     frustum.cp[FAR_PLANE].w = m4[3] - m3[3];
 
-    for(auto& p : frustum.cp) {
+    for (auto& p : frustum.cp) {
         auto invLength = glm::inversesqrt(glm::dot(p.xyz(), p.xyz()));
         p *= invLength;
-
     }
 }
+
+template struct FrustumT<float>;
+template struct FrustumT<double>;
+template struct BaseCameraControllerT<float>;
+template struct BaseCameraControllerT<double>;

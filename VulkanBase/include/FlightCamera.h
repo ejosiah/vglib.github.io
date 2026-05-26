@@ -4,18 +4,28 @@
 
 constexpr float DEFAULT_YAW_SPEED = 100.0F;
 
-struct FlightCameraSettings : BaseCameraSettings{
-    float  yawSpeed = DEFAULT_YAW_SPEED;
+template<typename Scalar>
+struct FlightCameraSettingsT : BaseCameraSettingsT<Scalar> {
+    Scalar yawSpeed = Scalar(DEFAULT_YAW_SPEED);
 };
 
-class FlightCameraController : public BaseCameraController{
+template<typename Scalar>
+class FlightCameraControllerT : public BaseCameraControllerT<Scalar> {
 public:
-    FlightCameraController(InputManager& inputManager, const FlightCameraSettings& settings = {});
+    using Settings = FlightCameraSettingsT<Scalar>;
+
+    FlightCameraControllerT(InputManager& inputManager, const Settings& settings = {});
 
     void update(float elapsedTime) override;
 
-    void rotate(float headingDegrees, float pitchDegrees, float rollDegrees) override;
+    void rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) override;
 
 private:
-    float YawSpeed;
+    Scalar YawSpeed;
 };
+
+using FlightCameraSettings = FlightCameraSettingsT<float>;
+using DoubleFlightCameraSettings = FlightCameraSettingsT<double>;
+
+using FlightCameraController = FlightCameraControllerT<float>;
+using DoubleFlightCameraController = FlightCameraControllerT<double>;

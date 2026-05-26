@@ -3,90 +3,106 @@
 #include "VulkanRAII.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <array>
 
-struct Camera{
-    glm::mat4 model = glm::mat4(1);
-    glm::mat4 view = glm::mat4(1);
-    glm::mat4 proj = glm::mat4(1);
+template<typename Scalar>
+struct CameraT {
+    using Mat4 = glm::mat<4, 4, Scalar, glm::defaultp>;
+
+    Mat4 model = Mat4(1);
+    Mat4 view = Mat4(1);
+    Mat4 proj = Mat4(1);
 
     static constexpr VkPushConstantRange pushConstant(VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) {
-        return {stageFlags, 0, sizeof(Camera)};
+        return {stageFlags, 0, sizeof(CameraT)};
     }
-
 };
 
 enum PlaneType : int { LEFT_PLANE = 0, RIGHT_PLANE, BOTTOM_PLANE, TOP_PLANE, NEAR_PLANE, FAR_PLANE};
 
-using ClipPlane = glm::vec4;
+template<typename Scalar>
+using ClipPlaneT = glm::vec<4, Scalar, glm::defaultp>;
 
-struct Frustum {
+template<typename Scalar>
+struct FrustumT {
+    using Vec3 = glm::vec<3, Scalar, glm::defaultp>;
+    using Mat4 = glm::mat<4, 4, Scalar, glm::defaultp>;
+    using ClipPlane = ClipPlaneT<Scalar>;
+
     std::array<ClipPlane, 6> cp;
 
-    bool test(const glm::vec3& point) const;
+    bool test(const Vec3& point) const;
 
-    bool test(const glm::vec3& boxMin, const glm::vec3& boxMax) const;
+    bool test(const Vec3& boxMin, const Vec3& boxMax) const;
 
-    bool test(const glm::vec3& boxCenter, float scale);
+    bool test(const Vec3& boxCenter, Scalar scale);
 
-    static void extractFrustum(Frustum& frustum, const glm::mat4 M);
+    static void extractFrustum(FrustumT& frustum, Mat4 M);
 };
 
-class AbstractCamera {
+template<typename Scalar>
+class AbstractCameraT {
 public:
-    virtual ~AbstractCamera() = default;
+    using Vec3 = glm::vec<3, Scalar, glm::defaultp>;
+    using Mat4 = glm::mat<4, 4, Scalar, glm::defaultp>;
+    using Quat = glm::qua<Scalar, glm::defaultp>;
+    using Camera = CameraT<Scalar>;
+    using Frustum = FrustumT<Scalar>;
+
+    virtual ~AbstractCameraT() = default;
 
     virtual void update(float time) = 0;
 
     virtual void processInput() = 0;
 
-    virtual void lookAt(const glm::vec3 &eye, const glm::vec3 &target, const glm::vec3 &up) = 0;
+    virtual void lookAt(const Vec3& eye, const Vec3& target, const Vec3& up) = 0;
 
-    virtual void perspective(float fovx, float aspect, float znear, float zfar) = 0;
+    virtual void perspective(Scalar fovx, Scalar aspect, Scalar znear, Scalar zfar) = 0;
 
-    virtual void perspective(float aspect) = 0;
+    virtual void perspective(Scalar aspect) = 0;
 
-    virtual void rotateSmoothly(float headingDegrees, float pitchDegrees, float rollDegrees) = 0;
+    virtual void rotateSmoothly(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) = 0;
 
-    virtual void rotate(float headingDegrees, float pitchDegrees, float rollDegrees) = 0;
+    virtual void rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) = 0;
 
-    virtual void move(float dx, float dy, float dz) = 0;
+    virtual void move(Scalar dx, Scalar dy, Scalar dz) = 0;
 
-    virtual void move(const glm::vec3 &direction, const glm::vec3 &amount) = 0;
+    virtual void move(const Vec3& direction, const Vec3& amount) = 0;
 
-    virtual void position(const glm::vec3& pos) = 0;
-
-    [[nodiscard]]
-    virtual const glm::vec3& position() const = 0;
+    virtual void position(const Vec3& pos) = 0;
 
     [[nodiscard]]
-    virtual const glm::vec3& velocity() const = 0;
+    virtual const Vec3& position() const = 0;
 
     [[nodiscard]]
-    virtual const glm::vec3& acceleration() const = 0;
+    virtual const Vec3& velocity() const = 0;
 
-    virtual float near() const = 0;
+    [[nodiscard]]
+    virtual const Vec3& acceleration() const = 0;
 
-    virtual float far() const = 0;
+    virtual Scalar near() const = 0;
 
-    virtual void fieldOfView(float value) = 0;
+    virtual Scalar far() const = 0;
 
-    virtual void updatePosition(const glm::vec3 &direction, float elapsedTimeSec) = 0;
+    virtual void fieldOfView(Scalar value) = 0;
+
+    virtual void updatePosition(const Vec3& direction, Scalar elapsedTimeSec) = 0;
 
     virtual void undoRoll() = 0;
 
-    virtual void zoom(float zoom, float minZoom, float maxZoom) = 0;
+    virtual void zoom(Scalar zoom, Scalar minZoom, Scalar maxZoom) = 0;
 
     virtual void onResize(int width, int height) = 0;
 
-    virtual void setModel(const glm::mat4& model) = 0;
+    virtual void setModel(const Mat4& model) = 0;
 
     virtual void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) const = 0;
 
-    virtual void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) = 0;
+    virtual void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const Mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) = 0;
 
     [[nodiscard]]
-    virtual const glm::quat& getOrientation() const = 0;
+    virtual const Quat& getOrientation() const = 0;
 
     [[nodiscard]]
     virtual const Camera& cam() const = 0;
@@ -98,10 +114,21 @@ public:
     [[nodiscard]]
     virtual bool moved() const = 0;
 
-    virtual void jitter(float jx, float jy) = 0;
+    virtual void jitter(Scalar jx, Scalar jy) = 0;
 
     virtual void extract(Frustum& frustum) const = 0;
 
-    virtual void extractAABB(glm::vec3& bMin, glm::vec3& bMax) const = 0;
-
+    virtual void extractAABB(Vec3& bMin, Vec3& bMax) const = 0;
 };
+
+using Camera = CameraT<float>;
+using DoubleCamera = CameraT<double>;
+
+using ClipPlane = ClipPlaneT<float>;
+using DoubleClipPlane = ClipPlaneT<double>;
+
+using Frustum = FrustumT<float>;
+using DoubleFrustum = FrustumT<double>;
+
+using AbstractCamera = AbstractCameraT<float>;
+using DoubleAbstractCamera = AbstractCameraT<double>;

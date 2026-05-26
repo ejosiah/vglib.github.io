@@ -1,76 +1,85 @@
 #include "FirstPersonCamera.h"
 
-SpectatorCameraController::SpectatorCameraController(InputManager &inputManager,  const FirstPersonSpectatorCameraSettings &settings)
-: BaseCameraController(inputManager, settings)
+namespace {
+    template<typename Scalar>
+    glm::qua<Scalar, glm::defaultp> from_axis_angle(const glm::vec<3, Scalar, glm::defaultp>& axis, Scalar angle) {
+        const auto halfAngle = glm::radians(angle) / Scalar(2);
+        const auto w = std::cos(halfAngle);
+        const auto xyz = axis * std::sin(halfAngle);
+        return glm::qua<Scalar, glm::defaultp>(w, xyz);
+    }
+}
+
+template<typename Scalar>
+SpectatorCameraControllerT<Scalar>::SpectatorCameraControllerT(InputManager& inputManager, const Settings& settings)
+    : Base(inputManager, settings)
 {
-
 }
 
-void SpectatorCameraController::update(float elapsedTime) {
-    float dx = -mouse.relativePosition.x;
-    float dy = -mouse.relativePosition.y;
-    rotateSmoothly(dx, dy, 0.0f);
-    updatePosition(direction, elapsedTime);
+template<typename Scalar>
+void SpectatorCameraControllerT<Scalar>::update(float elapsedTime) {
+    const Scalar dx = -static_cast<Scalar>(this->mouse.relativePosition.x);
+    const Scalar dy = -static_cast<Scalar>(this->mouse.relativePosition.y);
+    this->rotateSmoothly(dx, dy, Scalar(0));
+    this->updatePosition(this->direction, static_cast<Scalar>(elapsedTime));
 }
 
-
-void SpectatorCameraController::rotate(float headingDegrees, float pitchDegrees, float rollDegrees) {
-    if(headingDegrees == 0 && pitchDegrees == 0 && rollDegrees == 0){
+template<typename Scalar>
+void SpectatorCameraControllerT<Scalar>::rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) {
+    if (headingDegrees == Scalar(0) && pitchDegrees == Scalar(0) && rollDegrees == Scalar(0)) {
         return;
     }
-    // Implements the rotation logic for the first person style and
-    // spectator style Camera modes. Roll is ignored.
-    accumPitchDegrees += pitchDegrees;
 
-    static std::vector<float> pRots;
-    if (pitchDegrees != 0) pRots.push_back(pitchDegrees);
+    this->accumPitchDegrees += pitchDegrees;
 
-    if (accumPitchDegrees > 90.0f) {
-        pitchDegrees = 90.0f - (accumPitchDegrees - pitchDegrees);
-        accumPitchDegrees = 90.0f;
+    static std::vector<Scalar> pRots;
+    if (pitchDegrees != Scalar(0)) pRots.push_back(pitchDegrees);
+
+    if (this->accumPitchDegrees > Scalar(90)) {
+        pitchDegrees = Scalar(90) - (this->accumPitchDegrees - pitchDegrees);
+        this->accumPitchDegrees = Scalar(90);
     }
 
-    if (accumPitchDegrees < -90.0f) {
-        pitchDegrees = -90.0f - (accumPitchDegrees - pitchDegrees);
-        accumPitchDegrees = -90.0f;
+    if (this->accumPitchDegrees < Scalar(-90)) {
+        pitchDegrees = Scalar(-90) - (this->accumPitchDegrees - pitchDegrees);
+        this->accumPitchDegrees = Scalar(-90);
     }
 
-    glm::quat rot;
+    glm::qua<Scalar, glm::defaultp> rot;
 
-    // Rotate Camera about the world y axis.
-    // Note the order the Orientationernions are multiplied. That is important!
-    if (headingDegrees != 0.0f) {
-        rot = fromAxisAngle(WORLD_YAXIS, headingDegrees); // TODO
-        orientation = orientation * rot;
-
+    if (headingDegrees != Scalar(0)) {
+        rot = from_axis_angle(WORLD_YAXIS_T<Scalar>, headingDegrees);
+        this->orientation = this->orientation * rot;
     }
 
-    // Rotate Camera about its local x axis.
-    // Note the order the Orientationernions are multiplied. That is important!
-    if (pitchDegrees != 0.0f) {
-        rot = fromAxisAngle(WORLD_XAXIS, pitchDegrees);
-        orientation = rot * orientation;
+    if (pitchDegrees != Scalar(0)) {
+        rot = from_axis_angle(WORLD_XAXIS_T<Scalar>, pitchDegrees);
+        this->orientation = rot * this->orientation;
     }
-    updateViewMatrix();
+    this->updateViewMatrix();
 }
 
+template<typename Scalar>
+FirstPersonCameraControllerT<Scalar>::FirstPersonCameraControllerT(InputManager& inputManager, const Settings& settings)
+    : Base(inputManager, settings)
+{
+}
 
-FirstPersonCameraController::FirstPersonCameraController(InputManager &inputManager, const FirstPersonSpectatorCameraSettings &settings)
-: SpectatorCameraController(inputManager, settings)
-{}
+template<typename Scalar>
+void FirstPersonCameraControllerT<Scalar>::move(Scalar dx, Scalar dy, Scalar dz) {
+    if (dx == Scalar(0) && dy == Scalar(0) && dz == Scalar(0)) return;
+    Vec3 eyes = this->eyes;
 
-void FirstPersonCameraController::move(float dx, float dy, float dz) {
-    if(dx == 0 && dy == 0 && dz == 0) return;
-    glm::vec3 eyes = this->eyes;
+    Vec3 forwards = normalize(cross(WORLD_YAXIS_T<Scalar>, this->xAxis));
 
-    // Calculate the forwards direction. Can't just use the Camera's local
-    // z axis as doing so will cause the Camera to move more slowly as the
-    // Camera's view approaches 90 degrees straight up and down.
-    glm::vec3 forwards = normalize(cross(WORLD_YAXIS, xAxis));
-
-    eyes += xAxis * dx;
-    eyes += WORLD_YAXIS * dy;
+    eyes += this->xAxis * dx;
+    eyes += WORLD_YAXIS_T<Scalar> * dy;
     eyes += forwards * dz;
 
-    position(eyes);
+    this->position(eyes);
 }
+
+template class SpectatorCameraControllerT<float>;
+template class SpectatorCameraControllerT<double>;
+template class FirstPersonCameraControllerT<float>;
+template class FirstPersonCameraControllerT<double>;

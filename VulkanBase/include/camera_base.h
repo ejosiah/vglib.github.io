@@ -21,90 +21,110 @@ static constexpr float DEFAULT_ZOOM_MIN = 1.5f;
 static constexpr glm::vec3 DEFAULT_ACCELERATION(4.0f, 4.0f, 4.0f);
 static constexpr glm::vec3 DEFAULT_VELOCITY(1.0f);
 
-constexpr glm::vec3 WORLD_XAXIS(1.0f, 0.0f, 0.0f);
-constexpr glm::vec3 WORLD_YAXIS(0.0f, 1.0f, 0.0f);
-constexpr glm::vec3 WORLD_ZAXIS(0.0f, 0.0f, 1.0f);
+template<typename Scalar>
+inline constexpr glm::vec<3, Scalar, glm::defaultp> WORLD_XAXIS_T(Scalar(1), Scalar(0), Scalar(0));
 
+template<typename Scalar>
+inline constexpr glm::vec<3, Scalar, glm::defaultp> WORLD_YAXIS_T(Scalar(0), Scalar(1), Scalar(0));
 
-struct BaseCameraSettings{
-    glm::vec3 acceleration = DEFAULT_ACCELERATION;
-    glm::vec3 velocity = DEFAULT_VELOCITY;
-    float rotationSpeed = DEFAULT_ROTATION_SPEED;
-    float fieldOfView = DEFAULT_FOVX;
-    float aspectRatio = 1.0F;
-    float zNear = DEFAULT_ZNEAR;
-    float zFar = DEFAULT_ZFAR;
-    float minZoom = DEFAULT_ZOOM_MIN;
-    float maxZoom = DEFAULT_ZOOM_MAX;
-    float floorOffset = 0.5f;
+template<typename Scalar>
+inline constexpr glm::vec<3, Scalar, glm::defaultp> WORLD_ZAXIS_T(Scalar(0), Scalar(0), Scalar(1));
+
+constexpr glm::vec3 WORLD_XAXIS = WORLD_XAXIS_T<float>;
+constexpr glm::vec3 WORLD_YAXIS = WORLD_YAXIS_T<float>;
+constexpr glm::vec3 WORLD_ZAXIS = WORLD_ZAXIS_T<float>;
+
+template<typename Scalar>
+struct BaseCameraSettingsT {
+    using Vec3 = glm::vec<3, Scalar, glm::defaultp>;
+
+    Vec3 acceleration = Vec3(Scalar(4), Scalar(4), Scalar(4));
+    Vec3 velocity = Vec3(Scalar(1));
+    Scalar rotationSpeed = Scalar(DEFAULT_ROTATION_SPEED);
+    Scalar fieldOfView = Scalar(DEFAULT_FOVX);
+    Scalar aspectRatio = Scalar(1);
+    Scalar zNear = Scalar(DEFAULT_ZNEAR);
+    Scalar zFar = Scalar(DEFAULT_ZFAR);
+    Scalar minZoom = Scalar(DEFAULT_ZOOM_MIN);
+    Scalar maxZoom = Scalar(DEFAULT_ZOOM_MAX);
+    Scalar floorOffset = Scalar(0.5);
     bool handleZoom = false;
     bool horizontalFov = false;
 };
 
-struct BaseCameraController : public AbstractCamera {
+template<typename Scalar>
+struct BaseCameraControllerT : public AbstractCameraT<Scalar> {
 public:
-    BaseCameraController(InputManager& inputManager, const BaseCameraSettings& settings = {});
+    using Vec3 = glm::vec<3, Scalar, glm::defaultp>;
+    using Vec4 = glm::vec<4, Scalar, glm::defaultp>;
+    using Mat4 = glm::mat<4, 4, Scalar, glm::defaultp>;
+    using Quat = glm::qua<Scalar, glm::defaultp>;
+    using Camera = CameraT<Scalar>;
+    using Frustum = FrustumT<Scalar>;
+    using Settings = BaseCameraSettingsT<Scalar>;
 
-    ~BaseCameraController() override = default;
+    BaseCameraControllerT(InputManager& inputManager, const Settings& settings = {});
+
+    ~BaseCameraControllerT() override = default;
 
     void processInput() override;
 
-    void lookAt(const glm::vec3 &eye, const glm::vec3 &target, const glm::vec3 &up) final;
+    void lookAt(const Vec3& eye, const Vec3& target, const Vec3& up) final;
 
-    void perspective(float fovx, float aspect, float znear, float zfar) final;
+    void perspective(Scalar fovx, Scalar aspect, Scalar znear, Scalar zfar) final;
 
-    void perspective(float aspect) final;
+    void perspective(Scalar aspect) final;
 
-    void rotateSmoothly(float headingDegrees, float pitchDegrees, float rollDegrees) override;
+    void rotateSmoothly(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) override;
 
-    void move(float dx, float dy, float dz) override;
+    void move(Scalar dx, Scalar dy, Scalar dz) override;
 
-    void move(const glm::vec3 &direction, const glm::vec3 &amount) override;
+    void move(const Vec3& direction, const Vec3& amount) override;
 
-    void position(const glm::vec3& pos) final;
+    void position(const Vec3& pos) final;
 
     [[nodiscard]]
-    const glm::vec3& position() const final;
+    const Vec3& position() const final;
 
     virtual void onPositionChanged();
 
     [[nodiscard]]
-    const glm::vec3& velocity() const final;
+    const Vec3& velocity() const final;
 
     [[nodiscard]]
-    const glm::vec3& acceleration() const final;
+    const Vec3& acceleration() const final;
 
-    void updatePosition(const glm::vec3 &direction, float elapsedTimeSec) override;
+    void updatePosition(const Vec3& direction, Scalar elapsedTimeSec) override;
 
     void undoRoll() override;
 
-    void zoom(float zoom, float minZoom, float maxZoom) override;
+    void zoom(Scalar zoom, Scalar minZoom, Scalar maxZoom) override;
 
     void onResize(int width, int height) override;
 
-    void setModel(const glm::mat4& model) override;
+    void setModel(const Mat4& model) override;
 
-    void setTargetYAxis(const glm::vec3& axis);
+    void setTargetYAxis(const Vec3& axis);
 
-    const glm::vec3& getYAxis();
+    const Vec3& getYAxis();
 
-    float near() const override;
+    Scalar near() const override;
 
-    float far() const override;
+    Scalar far() const override;
 
-    void fieldOfView(float value) override;
+    void fieldOfView(Scalar value) override;
 
     void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) const override;
 
-    void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) override;
+    void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const Mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) override;
 
     [[nodiscard]]
     const Camera& cam() const final;
 
-    const Camera& previousCamera() const;
+    const Camera& previousCamera() const override;
 
     [[nodiscard]]
-    const glm::quat &getOrientation() const final;
+    const Quat& getOrientation() const final;
 
 public:
     virtual void updateViewMatrix();
@@ -113,48 +133,48 @@ public:
 
     virtual void processZoomInput();
 
-    virtual void updateVelocity(const glm::vec3 &direction, float elapsedTimeSec);
+    virtual void updateVelocity(const Vec3& direction, Scalar elapsedTimeSec);
 
     void newFrame() override;
 
     bool moved() const override;
 
-    void jitter(float jx, float jy) final;
+    void jitter(Scalar jx, Scalar jy) final;
 
-    void extract(Frustum &frustum) const final;
+    void extract(Frustum& frustum) const final;
 
-    void extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const override;
+    void extractAABB(Vec3& bMin, Vec3& bMax) const override;
 
-    float fov;
-    float aspectRatio;
-    float znear;
-    float zfar;
-    float minZoom;
-    float maxZoom;
-    float zoomDelta = 0.1;
-    float rotationSpeed;
-    float accumPitchDegrees;
-    float floorOffset;
+    Scalar fov;
+    Scalar aspectRatio;
+    Scalar znear;
+    Scalar zfar;
+    Scalar minZoom;
+    Scalar maxZoom;
+    Scalar zoomDelta = Scalar(0.1);
+    Scalar rotationSpeed;
+    Scalar accumPitchDegrees;
+    Scalar floorOffset;
     bool handleZoom;
     bool horizontalFov;
-    glm::vec3 eyes;
-    glm::vec3 target;
-    glm::vec3 targetYAxis;
-    glm::vec3 xAxis;
-    glm::vec3 yAxis;
-    glm::vec3 zAxis;
-    glm::vec3 viewDir;
-    glm::vec3 _acceleration;
-    glm::vec3 currentVelocity;
-    glm::vec3 _velocity;
-    glm::quat orientation;
-    glm::vec3 direction;
+    Vec3 eyes;
+    Vec3 target;
+    Vec3 targetYAxis;
+    Vec3 xAxis;
+    Vec3 yAxis;
+    Vec3 zAxis;
+    Vec3 viewDir;
+    Vec3 _acceleration;
+    Vec3 currentVelocity;
+    Vec3 _velocity;
+    Quat orientation;
+    Vec3 direction;
     mutable Camera camera;
     mutable Camera _previousCamera;
     const Mouse& mouse;
-    mutable std::array<glm::vec4, 8> corners{};
+    mutable std::array<Vec4, 8> corners{};
 
-    float zoomAmount = 0;
+    Scalar zoomAmount = Scalar(0);
 
     struct {
         Action* forward;
@@ -170,3 +190,9 @@ public:
 
     bool _moved;
 };
+
+using BaseCameraSettings = BaseCameraSettingsT<float>;
+using DoubleBaseCameraSettings = BaseCameraSettingsT<double>;
+
+using BaseCameraController = BaseCameraControllerT<float>;
+using DoubleBaseCameraController = BaseCameraControllerT<double>;

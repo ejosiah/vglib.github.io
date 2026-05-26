@@ -8,41 +8,50 @@ static constexpr float DEFAULT_ORBIT_MAX_ZOOM = DEFAULT_ZOOM_MAX;
 static constexpr float DEFAULT_SPEED_ORBIT_ROLL = 100.0f;
 static constexpr float DEFAULT_ORBIT_OFFSET_DISTANCE = DEFAULT_ORBIT_MIN_ZOOM + (DEFAULT_ORBIT_MAX_ZOOM - DEFAULT_ORBIT_MIN_ZOOM) * 0.25f;
 
+template<typename Scalar>
+struct OrbitingCameraSettingsT : public BaseCameraSettingsT<Scalar> {
+    using Vec3 = glm::vec<3, Scalar, glm::defaultp>;
 
-struct OrbitingCameraSettings : public BaseCameraSettings{
-    float offsetDistance = DEFAULT_ORBIT_OFFSET_DISTANCE;
-    float orbitRollSpeed = DEFAULT_SPEED_ORBIT_ROLL;
-    float orbitMinZoom = DEFAULT_ORBIT_MIN_ZOOM;
-    float orbitMaxZoom = DEFAULT_ORBIT_MAX_ZOOM;
-    float modelHeight = 1.0f;
+    Scalar offsetDistance = Scalar(DEFAULT_ORBIT_OFFSET_DISTANCE);
+    Scalar orbitRollSpeed = Scalar(DEFAULT_SPEED_ORBIT_ROLL);
+    Scalar orbitMinZoom = Scalar(DEFAULT_ORBIT_MIN_ZOOM);
+    Scalar orbitMaxZoom = Scalar(DEFAULT_ORBIT_MAX_ZOOM);
+    Scalar modelHeight = Scalar(1);
     bool preferTargetYAxisOrbiting = true;
-    glm::vec3 target{std::numeric_limits<float>::quiet_NaN()};
+    Vec3 target{std::numeric_limits<Scalar>::quiet_NaN()};
     struct {
-        glm::vec3 min{MAX_FLOAT};
-        glm::vec3 max{MIN_FLOAT};
+        Vec3 min{std::numeric_limits<Scalar>::max()};
+        Vec3 max{std::numeric_limits<Scalar>::lowest()};
     } model;
 };
 
 // FIXME change to focus on a target and not a model in the scene
-class OrbitingCameraController : public BaseCameraController {
+template<typename Scalar>
+class OrbitingCameraControllerT : public BaseCameraControllerT<Scalar> {
 public:
-    OrbitingCameraController(InputManager& inputManager, const OrbitingCameraSettings& settings = {});
+    using Base = BaseCameraControllerT<Scalar>;
+    using Vec3 = typename Base::Vec3;
+    using Mat4 = typename Base::Mat4;
+    using Quat = typename Base::Quat;
+    using Settings = OrbitingCameraSettingsT<Scalar>;
+
+    OrbitingCameraControllerT(InputManager& inputManager, const Settings& settings = {});
 
     void update(float elapsedTime) override;
 
-    void updateModel(const glm::vec3& position, const glm::quat& orientation = {1, 0, 0, 0});
+    void updateModel(const Vec3& position, const Quat& orientation = {Scalar(1), Scalar(0), Scalar(0), Scalar(0)});
 
-    void updateModel(const glm::vec3& bMin, const glm::vec3& bMax);
+    void updateModel(const Vec3& bMin, const Vec3& bMax);
 
-    void move(float dx, float dy, float dz) override;
+    void move(Scalar dx, Scalar dy, Scalar dz) override;
 
-    void move(const glm::vec3 &direction, const glm::vec3 &amount) override;
+    void move(const Vec3& direction, const Vec3& amount) override;
 
-    void rotate(float headingDegrees, float pitchDegrees, float rollDegrees) override;
+    void rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) override;
 
     void undoRoll() override;
 
-    void zoom(float zoom, float minZoom, float maxZoom) override;
+    void zoom(Scalar zoom, Scalar minZoom, Scalar maxZoom) override;
 
     void updateViewMatrix() override;
 
@@ -50,19 +59,24 @@ public:
 
     void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) const override;
 
-    void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4 &model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) override;
+    void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const Mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) override;
 
     [[nodiscard]]
-    glm::mat4 getModel() const;
+    Mat4 getModel() const;
 
 private:
-    float offsetDistance;
-    float orbitRollSpeed;
+    Scalar offsetDistance;
+    Scalar orbitRollSpeed;
     bool preferTargetYAxisOrbiting;
 
     mutable struct {
-        glm::vec3 position;
-        glm::quat orientation;
+        Vec3 position;
+        Quat orientation;
     } model;
-
 };
+
+using OrbitingCameraSettings = OrbitingCameraSettingsT<float>;
+using DoubleOrbitingCameraSettings = OrbitingCameraSettingsT<double>;
+
+using OrbitingCameraController = OrbitingCameraControllerT<float>;
+using DoubleOrbitingCameraController = OrbitingCameraControllerT<double>;

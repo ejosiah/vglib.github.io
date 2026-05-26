@@ -1,67 +1,83 @@
 #include <OrbitingCamera.h>
 #include "OrbitingCamera.h"
 
-OrbitingCameraController::OrbitingCameraController(InputManager& inputManager,  const OrbitingCameraSettings& settings)
-: BaseCameraController(inputManager, settings)
-, offsetDistance(settings.offsetDistance)
-, orbitRollSpeed(settings.orbitRollSpeed)
-, preferTargetYAxisOrbiting(settings.preferTargetYAxisOrbiting)
-{
-    minZoom = settings.orbitMinZoom;
-    maxZoom = settings.orbitMaxZoom;
-    offsetDistance = settings.offsetDistance;
-    floorOffset = settings.modelHeight * 0.5f;
-    handleZoom = false;
-    model.position = {0.0f, floorOffset, 0.0f};
-    model.orientation = glm::inverse(orientation);
+namespace {
+    template<typename Scalar>
+    glm::qua<Scalar, glm::defaultp> from_axis_angle(const glm::vec<3, Scalar, glm::defaultp>& axis, Scalar angle) {
+        const auto halfAngle = glm::radians(angle) / Scalar(2);
+        const auto w = std::cos(halfAngle);
+        const auto xyz = axis * std::sin(halfAngle);
+        return glm::qua<Scalar, glm::defaultp>(w, xyz);
+    }
+}
 
-    glm::vec3 target = model.position;
-    if(!glm::any(glm::isnan(settings.target))){
+template<typename Scalar>
+OrbitingCameraControllerT<Scalar>::OrbitingCameraControllerT(InputManager& inputManager, const Settings& settings)
+    : Base(inputManager, settings)
+    , offsetDistance(settings.offsetDistance)
+    , orbitRollSpeed(settings.orbitRollSpeed)
+    , preferTargetYAxisOrbiting(settings.preferTargetYAxisOrbiting)
+{
+    this->minZoom = settings.orbitMinZoom;
+    this->maxZoom = settings.orbitMaxZoom;
+    offsetDistance = settings.offsetDistance;
+    this->floorOffset = settings.modelHeight * Scalar(0.5);
+    this->handleZoom = false;
+    model.position = {Scalar(0), this->floorOffset, Scalar(0)};
+    model.orientation = glm::inverse(this->orientation);
+
+    Vec3 target = model.position;
+    if (!glm::any(glm::isnan(settings.target))) {
         target = settings.target;
     }
 
-    auto eyes = target + zAxis * offsetDistance;
-    lookAt(eyes, target, targetYAxis);
+    auto eyes = target + this->zAxis * offsetDistance;
+    this->lookAt(eyes, target, this->targetYAxis);
 }
 
-void OrbitingCameraController::update(float elapsedTime) {
-    float dx = mouse.relativePosition.x;
-    float dy = mouse.relativePosition.y;
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::update(float elapsedTime) {
+    const Scalar dx = static_cast<Scalar>(this->mouse.relativePosition.x);
+    const Scalar dy = static_cast<Scalar>(this->mouse.relativePosition.y);
 
-    rotateSmoothly(dx, dy, 0.0f);
+    this->rotateSmoothly(dx, dy, Scalar(0));
 
     if (!preferTargetYAxisOrbiting) {
-        float dz = direction.x * orbitRollSpeed * elapsedTime;
-        if (dz != 0.0f) {
-            rotate(0.0f, 0.0f, dz);
+        Scalar dz = this->direction.x * orbitRollSpeed * static_cast<Scalar>(elapsedTime);
+        if (dz != Scalar(0)) {
+            rotate(Scalar(0), Scalar(0), dz);
         }
     }
 
-    if (zoomAmount != 0.0f) {
-        zoom(zoomAmount, minZoom, maxZoom);
+    if (this->zoomAmount != Scalar(0)) {
+        zoom(this->zoomAmount, this->minZoom, this->maxZoom);
     }
 }
 
-void OrbitingCameraController::move(float dx, float dy, float dz) {
-    // Operation Not supported
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::move(Scalar dx, Scalar dy, Scalar dz) {
+    UNUSED_VARIABLE(dx);
+    UNUSED_VARIABLE(dy);
+    UNUSED_VARIABLE(dz);
 }
 
-void OrbitingCameraController::move(const glm::vec3 &direction, const glm::vec3 &amount) {
-    // Operation Not supported
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::move(const Vec3& direction, const Vec3& amount) {
+    UNUSED_VARIABLE(direction);
+    UNUSED_VARIABLE(amount);
 }
 
-void OrbitingCameraController::undoRoll() {
-    lookAt(eyes, target, targetYAxis);
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::undoRoll() {
+    this->lookAt(this->eyes, this->target, this->targetYAxis);
 }
 
-void OrbitingCameraController::zoom(float zoom, float minZoom, float maxZoom) {
-    // Moves the Camera closer to or further away from the orbit
-    // target. The zoom amounts are in world units.
-
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::zoom(Scalar zoom, Scalar minZoom, Scalar maxZoom) {
     this->maxZoom = maxZoom;
     this->minZoom = minZoom;
 
-    glm::vec3 offset = eyes - target;
+    Vec3 offset = this->eyes - this->target;
 
     offsetDistance = glm::length(offset);
     offset = normalize(offset);
@@ -69,103 +85,97 @@ void OrbitingCameraController::zoom(float zoom, float minZoom, float maxZoom) {
     offsetDistance = std::min(std::max(offsetDistance, minZoom), maxZoom);
 
     offset *= offsetDistance;
-    eyes = offset + target;
+    this->eyes = offset + this->target;
 
     updateViewMatrix();
 }
 
-void OrbitingCameraController::rotate(float headingDegrees, float pitchDegrees, float rollDegrees) {
-    if(headingDegrees == 0 && pitchDegrees == 0 && rollDegrees == 0){
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) {
+    if (headingDegrees == Scalar(0) && pitchDegrees == Scalar(0) && rollDegrees == Scalar(0)) {
         return;
     }
 
-    // Implements the rotation logic for the orbit style Camera mode.
-    // Roll is ignored for target Y axis orbiting.
-    //
-    // Briefly here's how this orbit Camera implementation works. Switching to
-    // the orbit Camera mode via the setBehavior() method will set the
-    // Camera's orientation to match the orbit target's orientation. Calls to
-    // rotateOrbit() will rotate this orientation. To turn this into a third
-    // person style view the updateViewMatrix() method will move the Camera
-    // position back 'orbitOffsetDistance' world units along the Camera's
-    // local z axis from the orbit target's world position.
     pitchDegrees = -pitchDegrees;
     headingDegrees = -headingDegrees;
     rollDegrees = -rollDegrees;
 
-    using namespace glm;
-    glm::quat rot;
+    glm::qua<Scalar, glm::defaultp> rot;
 
-    if (preferTargetYAxisOrbiting)
-    {
-        if (headingDegrees != 0.0f)
-        {
-            rot = fromAxisAngle(targetYAxis, headingDegrees);
-            orientation =  orientation * rot;
+    if (preferTargetYAxisOrbiting) {
+        if (headingDegrees != Scalar(0)) {
+            rot = from_axis_angle(this->targetYAxis, headingDegrees);
+            this->orientation = this->orientation * rot;
         }
 
-        if (pitchDegrees != 0.0f)
-        {
-            rot = fromAxisAngle(WORLD_XAXIS, pitchDegrees);
-            orientation = rot * orientation;
+        if (pitchDegrees != Scalar(0)) {
+            rot = from_axis_angle(WORLD_XAXIS_T<Scalar>, pitchDegrees);
+            this->orientation = rot * this->orientation;
         }
-    }
-    else
-    {
-        rot = glm::quat({ radians(pitchDegrees), radians(headingDegrees), radians(rollDegrees) });
-        orientation = rot * orientation;
+    } else {
+        rot = glm::qua<Scalar, glm::defaultp>({glm::radians(pitchDegrees), glm::radians(headingDegrees), glm::radians(rollDegrees)});
+        this->orientation = rot * this->orientation;
     }
     updateViewMatrix();
 }
 
-void OrbitingCameraController::updateModel(const glm::vec3& position, const glm::quat& orientation) {
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::updateModel(const Vec3& position, const Quat& orientation) {
     model.orientation = glm::inverse(orientation);
     model.position = position;
 }
 
-void OrbitingCameraController::updateModel(const glm::vec3& bMin, const glm::vec3& bMax) {
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::updateModel(const Vec3& bMin, const Vec3& bMax) {
     const auto dim = bMax - bMin;
-    const auto center = (bMin + bMax) * 0.5f;
+    const auto center = (bMin + bMax) * Scalar(0.5);
     model.position = center;
-    target = center;
+    this->target = center;
     offsetDistance = glm::length(dim);
-    auto eyes = target + zAxis * offsetDistance;
-    lookAt(eyes, target, targetYAxis);
-
+    auto eyes = this->target + this->zAxis * offsetDistance;
+    this->lookAt(eyes, this->target, this->targetYAxis);
 }
 
-void OrbitingCameraController::updateViewMatrix() {
-    auto& view = camera.view;
-    view = glm::mat4_cast(orientation);
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::updateViewMatrix() {
+    auto& view = this->camera.view;
+    view = glm::mat4_cast(this->orientation);
 
-    xAxis = glm::vec3(glm::row(view, 0));
-    yAxis = glm::vec3(glm::row(view, 1));
-    zAxis = glm::vec3(glm::row(view, 2));
-    viewDir = -zAxis;
+    this->xAxis = Vec3(glm::row(view, 0));
+    this->yAxis = Vec3(glm::row(view, 1));
+    this->zAxis = Vec3(glm::row(view, 2));
+    this->viewDir = -this->zAxis;
 
-    eyes = target + zAxis * offsetDistance;
+    this->eyes = this->target + this->zAxis * offsetDistance;
 
-    view[3][0] = -dot(xAxis, eyes);
-    view[3][1] = -dot(yAxis, eyes);
-    view[3][2] =  -dot(zAxis, eyes);
-    _moved = true;
+    view[3][0] = -dot(this->xAxis, this->eyes);
+    view[3][1] = -dot(this->yAxis, this->eyes);
+    view[3][2] = -dot(this->zAxis, this->eyes);
+    this->_moved = true;
 }
 
-void OrbitingCameraController::onPositionChanged() {
-    auto newEyes = eyes + zAxis * offsetDistance;
-    auto newTarget = eyes;
-    lookAt(newEyes, newTarget, targetYAxis);
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::onPositionChanged() {
+    auto newEyes = this->eyes + this->zAxis * offsetDistance;
+    auto newTarget = this->eyes;
+    this->lookAt(newEyes, newTarget, this->targetYAxis);
 }
 
-void OrbitingCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
-    camera.model = getModel();
-    BaseCameraController::push(commandBuffer, layout, stageFlags);
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags) const {
+    this->camera.model = getModel();
+    Base::push(commandBuffer, layout, stageFlags);
 }
 
-void OrbitingCameraController::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4 &model, VkShaderStageFlags stageFlags) {
-    BaseCameraController::push(commandBuffer, layout, model, stageFlags);
+template<typename Scalar>
+void OrbitingCameraControllerT<Scalar>::push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const Mat4& model, VkShaderStageFlags stageFlags) {
+    Base::push(commandBuffer, layout, model, stageFlags);
 }
 
-glm::mat4 OrbitingCameraController::getModel() const {
-    return glm::mat4_cast(model.orientation) * translate(glm::mat4(1), model.position);
+template<typename Scalar>
+typename OrbitingCameraControllerT<Scalar>::Mat4 OrbitingCameraControllerT<Scalar>::getModel() const {
+    return glm::mat4_cast(model.orientation) * glm::translate(Mat4(1), model.position);
 }
+
+template class OrbitingCameraControllerT<float>;
+template class OrbitingCameraControllerT<double>;

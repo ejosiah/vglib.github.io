@@ -5,7 +5,7 @@
 #include "FirstPersonCamera.h"
 #include "FlightCamera.h"
 
-enum class CameraMode{
+enum class CameraMode {
     FIRST_PERSON,
     SPECTATOR,
     FLIGHT,
@@ -13,18 +13,27 @@ enum class CameraMode{
     NONE
 };
 
-struct CameraSettings : BaseCameraSettings{
-    FirstPersonSpectatorCameraSettings firstPerson;
-    FlightCameraSettings flight;
-    OrbitingCameraSettings orbit;
+template<typename Scalar>
+struct CameraSettingsT : BaseCameraSettingsT<Scalar> {
+    FirstPersonSpectatorCameraSettingsT<Scalar> firstPerson;
+    FlightCameraSettingsT<Scalar> flight;
+    OrbitingCameraSettingsT<Scalar> orbit;
     CameraMode mode = CameraMode::NONE;
 };
 
-class CameraController final : public AbstractCamera {
+template<typename Scalar>
+class CameraControllerT final : public AbstractCameraT<Scalar> {
 public:
-    CameraController( InputManager& inputManager, const CameraSettings& settings);
+    using Vec3 = glm::vec<3, Scalar, glm::defaultp>;
+    using Mat4 = glm::mat<4, 4, Scalar, glm::defaultp>;
+    using Quat = glm::qua<Scalar, glm::defaultp>;
+    using Camera = CameraT<Scalar>;
+    using Frustum = FrustumT<Scalar>;
+    using Settings = CameraSettingsT<Scalar>;
 
-    ~CameraController() override = default;
+    CameraControllerT(InputManager& inputManager, const Settings& settings);
+
+    ~CameraControllerT() override = default;
 
     void update(float time) final;
 
@@ -32,45 +41,45 @@ public:
 
     void setMode(CameraMode mode);
 
-    void lookAt(const glm::vec3 &eye, const glm::vec3 &target, const glm::vec3 &up) final;
+    void lookAt(const Vec3& eye, const Vec3& target, const Vec3& up) final;
 
-    void perspective(float fovx, float aspect, float znear, float zfar) final;
+    void perspective(Scalar fovx, Scalar aspect, Scalar znear, Scalar zfar) final;
 
-    void perspective(float aspect) final;
+    void perspective(Scalar aspect) final;
 
-    void rotateSmoothly(float headingDegrees, float pitchDegrees, float rollDegrees) final;
+    void rotateSmoothly(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) final;
 
-    void rotate(float headingDegrees, float pitchDegrees, float rollDegrees) final;
+    void rotate(Scalar headingDegrees, Scalar pitchDegrees, Scalar rollDegrees) final;
 
-    void move(float dx, float dy, float dz) final;
+    void move(Scalar dx, Scalar dy, Scalar dz) final;
 
-    void move(const glm::vec3 &direction, const glm::vec3 &amount) final;
+    void move(const Vec3& direction, const Vec3& amount) final;
 
-    void position(const glm::vec3& pos) final;
+    void position(const Vec3& pos) final;
 
-    void updatePosition(const glm::vec3 &direction, float elapsedTimeSec) final;
+    void updatePosition(const Vec3& direction, Scalar elapsedTimeSec) final;
 
     void undoRoll() final;
 
-    void zoom(float zoom, float minZoom, float maxZoom) final;
+    void zoom(Scalar zoom, Scalar minZoom, Scalar maxZoom) final;
 
     void onResize(int width, int height) final;
 
-    void setModel(const glm::mat4& model) final;
+    void setModel(const Mat4& model) final;
 
     void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) const final;
 
-    void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const glm::mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) final;
+    void push(VkCommandBuffer commandBuffer, VulkanPipelineLayout layout, const Mat4& model, VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT) final;
 
-    const glm::vec3 &position() const final;
+    const Vec3& position() const final;
 
-    const glm::vec3 &velocity() const final;
+    const Vec3& velocity() const final;
 
-    const glm::vec3 &acceleration() const final;
+    const Vec3& acceleration() const final;
 
-    float near() const final;
+    Scalar near() const final;
 
-    float far() const final;
+    Scalar far() const final;
 
     std::string mode() const;
 
@@ -85,28 +94,33 @@ public:
 
     bool isInObitMode() const;
 
-    const glm::quat &getOrientation() const final;
+    const Quat& getOrientation() const final;
 
     void newFrame() override;
 
     bool moved() const override;
 
-    void fieldOfView(float value) override;
+    void fieldOfView(Scalar value) override;
 
-    const Camera &previousCamera() const override;
+    const Camera& previousCamera() const override;
 
-    void jitter(float jx, float jy) override;
+    void jitter(Scalar jx, Scalar jy) override;
 
-    void extract(Frustum &frustum) const override;
+    void extract(Frustum& frustum) const override;
 
-    void extractAABB(glm::vec3 &bMin, glm::vec3 &bMax) const override;
+    void extractAABB(Vec3& bMin, Vec3& bMax) const override;
 
 private:
     CameraMode currentMode;
-    mutable std::map<CameraMode, std::unique_ptr<BaseCameraController>> cameras;
+    mutable std::map<CameraMode, std::unique_ptr<BaseCameraControllerT<Scalar>>> cameras;
     Action& firstPerson;
     Action& spectator;
     Action& flight;
     Action& orbit;
-
 };
+
+using CameraSettings = CameraSettingsT<float>;
+using DoubleCameraSettings = CameraSettingsT<double>;
+
+using CameraController = CameraControllerT<float>;
+using DoubleCameraController = CameraControllerT<double>;
