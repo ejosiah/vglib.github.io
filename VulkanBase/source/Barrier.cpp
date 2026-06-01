@@ -81,6 +81,27 @@ Barrier::computeWriteToTransferRead(VkCommandBuffer commandBuffer) {
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1,
                          &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 }
+void Barrier::computeWriteToVertexRead(VkCommandBuffer commandBuffer) {
+    VkMemoryBarrier barrier{};
+
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1,
+                         &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
+}
+
+void Barrier::computeWriteToVertexDraw(VkCommandBuffer commandBuffer) {
+    VkMemoryBarrier barrier{};
+
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1,
+                         &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
+}
 
 void Barrier::computeWriteToVertexDraw(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers) {
     std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
@@ -177,7 +198,7 @@ void Barrier::transferWriteToHostRead(VkCommandBuffer commandBuffer, VulkanBuffe
 
     barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
     barrier.offset = 0;
     barrier.buffer = buffer;
     barrier.size = buffer.size;

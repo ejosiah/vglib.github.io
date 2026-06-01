@@ -42,8 +42,10 @@ public:
     static void computeWriteToTransferRead(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
 
     static void computeWriteToTransferRead(VkCommandBuffer commandBuffer);
+    static void computeWriteToVertexRead(VkCommandBuffer commandBuffer);
 
     static void computeWriteToVertexDraw(VkCommandBuffer commandBuffer, std::initializer_list<VulkanBuffer> buffers);
+    static void computeWriteToVertexDraw(VkCommandBuffer commandBuffer);
 
     static void computeWriteToDrawIndirect(VkCommandBuffer commandBuffer);
 

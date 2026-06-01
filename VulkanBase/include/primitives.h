@@ -87,6 +87,9 @@ namespace primitives{
      */
     Vertices torus(int rows, int columns, float innerRadius = 0.5f, float outerRadius = 1.0f, glm::mat4 xform = glm::mat4{1}, const glm::vec4& color = randomColor(), VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
 
+
+    Vertices icosahedron(const glm::vec4& color);
+
     /**
      * Generates a parametric surface
      * @tparam SurfaceFunction giving an i,j pair generates a position and normal vector i.e f(i, j) -> std::tuple<glm::vec3, glm::vec3>

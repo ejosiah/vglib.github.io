@@ -250,6 +250,55 @@ Vertices primitives::torus(int rows, int columns, float innerRadius, float outer
     return generateSurface(p, q, f, color, xform, topology);
 }
 
+Vertices primitives::icosahedron(const glm::vec4 &color) {
+    constexpr float phi = 1.6180339887498948482f;
+
+    std::vector<glm::vec3> positions = {
+        {-1.0f,  phi, 0.0f}, { 1.0f,  phi, 0.0f}, {-1.0f, -phi, 0.0f}, { 1.0f, -phi, 0.0f},
+        {0.0f, -1.0f,  phi}, {0.0f,  1.0f,  phi}, {0.0f, -1.0f, -phi}, {0.0f,  1.0f, -phi},
+        { phi, 0.0f, -1.0f}, { phi, 0.0f,  1.0f}, {-phi, 0.0f, -1.0f}, {-phi, 0.0f,  1.0f}
+    };
+
+    for (auto& p : positions) {
+        p = glm::normalize(p);
+    }
+
+    std::vector<uint32_t> indices = {
+        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11,
+        1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8,
+        3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9,
+        4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1
+    };
+
+    std::vector<Vertex> vertices;
+    vertices.reserve(positions.size());
+
+    for (const auto& p : positions) {
+        glm::vec3 normal = glm::normalize(p);
+        glm::vec3 up = std::abs(normal.y) < 0.999f ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+        glm::vec3 tangent = glm::normalize(glm::cross(up, normal));
+        glm::vec3 bitangent = glm::normalize(glm::cross(normal, tangent));
+
+        float u = 0.5f + std::atan2(normal.z, normal.x) / (2.0f * glm::pi<float>());
+        float v = 0.5f - std::asin(normal.y) / glm::pi<float>();
+
+        vertices.push_back(Vertex{
+            glm::vec4(p, 1.0f),
+            color,
+            normal,
+            tangent,
+            bitangent,
+            glm::vec2(u, v)
+        });
+    }
+
+    return Vertices{
+        std::move(vertices),
+        std::move(indices),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+    };
+}
+
 Vertices primitives::plane(int rows, int columns, float width, float height, const glm::mat4& xform, const glm::vec4 &color, VkPrimitiveTopology topology) {
 
     const auto p = columns;
