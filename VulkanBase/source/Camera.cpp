@@ -190,6 +190,11 @@ const typename CameraControllerT<Scalar>::Vec3& CameraControllerT<Scalar>::accel
 }
 
 template<typename Scalar>
+typename CameraControllerT<Scalar>::Vec3 CameraControllerT<Scalar>::viewDirection() const {
+    return cameras[currentMode]->viewDir;
+}
+
+template<typename Scalar>
 void CameraControllerT<Scalar>::setMode(CameraMode mode) {
     auto prevMode = currentMode;
     currentMode = mode;
@@ -278,6 +283,11 @@ void CameraControllerT<Scalar>::fieldOfView(Scalar value) {
 }
 
 template<typename Scalar>
+Scalar CameraControllerT<Scalar>::fieldOfView() const {
+    return cameras[currentMode]->fov;
+}
+
+template<typename Scalar>
 const typename CameraControllerT<Scalar>::Camera& CameraControllerT<Scalar>::previousCamera() const {
     return cameras[currentMode]->previousCamera();
 }
@@ -295,6 +305,11 @@ void CameraControllerT<Scalar>::extract(Frustum& frustum) const {
 template<typename Scalar>
 void CameraControllerT<Scalar>::extractAABB(Vec3& bMin, Vec3& bMax) const {
     cameras[currentMode]->extractAABB(bMin, bMax);
+}
+
+template<typename Scalar>
+typename CameraControllerT<Scalar>::Camera CameraControllerT<Scalar>::cameraMatrix() const {
+    return cameras[currentMode]->camera;
 }
 
 template class CameraControllerT<float>;

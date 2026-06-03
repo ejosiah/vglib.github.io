@@ -77,6 +77,8 @@ public:
 
     const Vec3& acceleration() const final;
 
+    Vec3 viewDirection() const;
+
     Scalar near() const final;
 
     Scalar far() const final;
@@ -102,6 +104,8 @@ public:
 
     void fieldOfView(Scalar value) override;
 
+    Scalar fieldOfView() const;
+
     const Camera& previousCamera() const override;
 
     void jitter(Scalar jx, Scalar jy) override;
@@ -109,6 +113,8 @@ public:
     void extract(Frustum& frustum) const override;
 
     void extractAABB(Vec3& bMin, Vec3& bMax) const override;
+
+    Camera cameraMatrix() const;
 
 private:
     CameraMode currentMode;
