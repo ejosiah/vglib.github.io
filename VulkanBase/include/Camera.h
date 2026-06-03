@@ -83,7 +83,13 @@ public:
 
     Scalar far() const final;
 
-    std::string mode() const;
+    void near(float value);
+
+    void far(float value);
+
+    std::string modeToString() const;
+
+    CameraMode mode() const;
 
     [[nodiscard]]
     const Camera& cam() const final;
@@ -119,6 +125,8 @@ public:
     Scalar aspectRatio();
 
 private:
+    void resetPerspective();
+
     CameraMode currentMode;
     mutable std::map<CameraMode, std::unique_ptr<BaseCameraControllerT<Scalar>>> cameras;
     Action& firstPerson;

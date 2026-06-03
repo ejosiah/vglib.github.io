@@ -164,7 +164,7 @@ const typename CameraControllerT<Scalar>::Camera& CameraControllerT<Scalar>::cam
 }
 
 template<typename Scalar>
-std::string CameraControllerT<Scalar>::mode() const {
+std::string CameraControllerT<Scalar>::modeToString() const {
     switch (currentMode) {
         case CameraMode::FIRST_PERSON: return "First Person";
         case CameraMode::SPECTATOR: return "Spectator";
@@ -172,6 +172,11 @@ std::string CameraControllerT<Scalar>::mode() const {
         case CameraMode::ORBIT: return "Orbit";
         default: return "Unknown";
     }
+}
+
+template<typename Scalar>
+CameraMode CameraControllerT<Scalar>::mode() const {
+    return currentMode;
 }
 
 template<typename Scalar>
@@ -278,8 +283,21 @@ Scalar CameraControllerT<Scalar>::far() const {
 }
 
 template<typename Scalar>
+void CameraControllerT<Scalar>::near(float value) {
+    cameras[currentMode]->znear = value;
+    resetPerspective();
+}
+
+template<typename Scalar>
+void CameraControllerT<Scalar>::far(float value) {
+    cameras[currentMode]->zfar = value;
+    resetPerspective();
+}
+
+template<typename Scalar>
 void CameraControllerT<Scalar>::fieldOfView(Scalar value) {
     return cameras[currentMode]->fieldOfView(value);
+    resetPerspective();
 }
 
 template<typename Scalar>
@@ -315,6 +333,15 @@ typename CameraControllerT<Scalar>::Camera CameraControllerT<Scalar>::cameraMatr
 template<typename Scalar>
 Scalar CameraControllerT<Scalar>::aspectRatio() {
     return cameras[currentMode]->aspectRatio;
+}
+
+template<typename Scalar>
+void CameraControllerT<Scalar>::resetPerspective() {
+    const auto fov = cameras[currentMode]->fov;
+    const auto aspect = cameras[currentMode]->aspectRatio;
+    const auto near = cameras[currentMode]->near();
+    const auto far = cameras[currentMode]->far();
+    cameras[currentMode]->perspective(fov, aspect, near, far);
 }
 
 template class CameraControllerT<float>;
