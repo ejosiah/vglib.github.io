@@ -116,6 +116,8 @@ public:
 
     Camera cameraMatrix() const;
 
+    Scalar aspectRatio();
+
 private:
     CameraMode currentMode;
     mutable std::map<CameraMode, std::unique_ptr<BaseCameraControllerT<Scalar>>> cameras;

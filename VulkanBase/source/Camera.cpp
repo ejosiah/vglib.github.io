@@ -312,5 +312,10 @@ typename CameraControllerT<Scalar>::Camera CameraControllerT<Scalar>::cameraMatr
     return cameras[currentMode]->camera;
 }
 
+template<typename Scalar>
+Scalar CameraControllerT<Scalar>::aspectRatio() {
+    return cameras[currentMode]->aspectRatio;
+}
+
 template class CameraControllerT<float>;
 template class CameraControllerT<double>;
