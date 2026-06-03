@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <fstream>
+#include <limits>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -168,6 +170,7 @@ uint32_t nunChannels(VkFormat format) {
         case VK_FORMAT_R32_UINT:
         case VK_FORMAT_R8_UINT:
         case VK_FORMAT_R16_SFLOAT:
+        case VK_FORMAT_R16_UNORM:
             return 1;
         case VK_FORMAT_R8G8_SRGB:
         case VK_FORMAT_R8G8_UNORM:
@@ -225,6 +228,497 @@ constexpr bool isDepthTexture(VkFormat format) {
 
 namespace {
 
+    constexpr uint16_t TiffByte = 1;
+    constexpr uint16_t TiffAscii = 2;
+    constexpr uint16_t TiffShort = 3;
+    constexpr uint16_t TiffLong = 4;
+    constexpr uint16_t TiffRational = 5;
+    constexpr uint16_t TiffSByte = 6;
+    constexpr uint16_t TiffUndefined = 7;
+    constexpr uint16_t TiffSShort = 8;
+    constexpr uint16_t TiffSLong = 9;
+    constexpr uint16_t TiffSRational = 10;
+    constexpr uint16_t TiffFloat = 11;
+    constexpr uint16_t TiffDouble = 12;
+
+    constexpr uint16_t TiffPhotometricWhiteIsZero = 0;
+    constexpr uint16_t TiffPhotometricBlackIsZero = 1;
+    constexpr uint16_t TiffPhotometricRgb = 2;
+
+    constexpr uint16_t TiffSampleUnsigned = 1;
+    constexpr uint16_t TiffSampleFloat = 3;
+
+    struct LoadedTexturePixels {
+        std::unique_ptr<stbi_uc, stbi_image_deleter> data;
+        int width{};
+        int height{};
+        int channels{};
+        VkFormat format{VK_FORMAT_UNDEFINED};
+    };
+
+    struct TiffDirectory {
+        uint32_t width{};
+        uint32_t height{};
+        std::vector<uint32_t> bitsPerSample;
+        uint32_t compression{1};
+        uint32_t photometric{TiffPhotometricBlackIsZero};
+        std::vector<uint32_t> stripOffsets;
+        std::vector<uint32_t> stripByteCounts;
+        uint32_t samplesPerPixel{1};
+        uint32_t rowsPerStrip{};
+        uint32_t planarConfiguration{1};
+        uint32_t sampleFormat{TiffSampleUnsigned};
+    };
+
+    struct TiffImage {
+        std::vector<stbi_uc> data;
+        int width{};
+        int height{};
+        int channels{};
+        VkFormat format{VK_FORMAT_UNDEFINED};
+    };
+
+    std::string lowerExtension(std::string_view path) {
+        auto extension = fs::path{std::string{path}}.extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        return extension;
+    }
+
+    uint32_t tiffTypeSize(uint16_t type) {
+        switch(type) {
+            case TiffByte:
+            case TiffAscii:
+            case TiffSByte:
+            case TiffUndefined:
+                return 1;
+            case TiffShort:
+            case TiffSShort:
+                return 2;
+            case TiffLong:
+            case TiffSLong:
+            case TiffFloat:
+                return 4;
+            case TiffRational:
+            case TiffSRational:
+            case TiffDouble:
+                return 8;
+            default:
+                throw std::runtime_error{fmt::format("unsupported TIFF field type: {}", type)};
+        }
+    }
+
+    class TiffReader {
+    public:
+        explicit TiffReader(std::string_view path) {
+            const auto filePath = std::string{path};
+            std::ifstream file{filePath, std::ios::binary};
+            if(!file) {
+                throw std::runtime_error{fmt::format("failed to open TIFF image {}!", filePath)};
+            }
+
+            file.seekg(0, std::ios::end);
+            const auto size = static_cast<std::streamsize>(file.tellg());
+            if(size <= 0) {
+                throw std::runtime_error{fmt::format("TIFF image {} is empty", filePath)};
+            }
+
+            m_bytes.resize(static_cast<size_t>(size));
+            file.seekg(0, std::ios::beg);
+            file.read(reinterpret_cast<char*>(m_bytes.data()), size);
+            if(!file) {
+                throw std::runtime_error{fmt::format("failed to read TIFF image {}!", filePath)};
+            }
+
+            if(m_bytes.size() < 8) {
+                throw std::runtime_error{fmt::format("TIFF image {} is too small", filePath)};
+            }
+
+            if(m_bytes[0] == 'I' && m_bytes[1] == 'I') {
+                m_littleEndian = true;
+            }else if(m_bytes[0] == 'M' && m_bytes[1] == 'M') {
+                m_littleEndian = false;
+            }else {
+                throw std::runtime_error{fmt::format("TIFF image {} has an invalid byte order marker", filePath)};
+            }
+
+            if(readU16(2) != 42) {
+                throw std::runtime_error{fmt::format("TIFF image {} has an invalid magic value", filePath)};
+            }
+        }
+
+        uint8_t readU8(size_t offset) const {
+            checkRange(offset, 1);
+            return m_bytes[offset];
+        }
+
+        uint16_t readU16(size_t offset) const {
+            checkRange(offset, 2);
+            if(m_littleEndian) {
+                return static_cast<uint16_t>(m_bytes[offset] | (m_bytes[offset + 1] << 8));
+            }
+            return static_cast<uint16_t>((m_bytes[offset] << 8) | m_bytes[offset + 1]);
+        }
+
+        uint32_t readU32(size_t offset) const {
+            checkRange(offset, 4);
+            if(m_littleEndian) {
+                return static_cast<uint32_t>(m_bytes[offset])
+                       | (static_cast<uint32_t>(m_bytes[offset + 1]) << 8)
+                       | (static_cast<uint32_t>(m_bytes[offset + 2]) << 16)
+                       | (static_cast<uint32_t>(m_bytes[offset + 3]) << 24);
+            }
+            return (static_cast<uint32_t>(m_bytes[offset]) << 24)
+                   | (static_cast<uint32_t>(m_bytes[offset + 1]) << 16)
+                   | (static_cast<uint32_t>(m_bytes[offset + 2]) << 8)
+                   | static_cast<uint32_t>(m_bytes[offset + 3]);
+        }
+
+        float readF32(size_t offset) const {
+            const auto bits = readU32(offset);
+            float value{};
+            std::memcpy(&value, &bits, sizeof(value));
+            return value;
+        }
+
+        void checkRange(size_t offset, size_t size) const {
+            if(offset > m_bytes.size() || size > m_bytes.size() - offset) {
+                throw std::runtime_error{"TIFF image contains an out-of-range offset"};
+            }
+        }
+
+        std::vector<uint32_t> readUnsignedValues(size_t entryValueOffset, uint16_t type, uint32_t count) const {
+            const auto elementSize = tiffTypeSize(type);
+            const auto byteCount = static_cast<size_t>(elementSize) * count;
+            const auto dataOffset = byteCount <= 4 ? entryValueOffset : static_cast<size_t>(readU32(entryValueOffset));
+            checkRange(dataOffset, byteCount);
+
+            std::vector<uint32_t> values;
+            values.reserve(count);
+            for(auto i = 0u; i < count; ++i) {
+                const auto offset = dataOffset + static_cast<size_t>(i) * elementSize;
+                switch(type) {
+                    case TiffByte:
+                    case TiffUndefined:
+                        values.push_back(readU8(offset));
+                        break;
+                    case TiffShort:
+                        values.push_back(readU16(offset));
+                        break;
+                    case TiffLong:
+                        values.push_back(readU32(offset));
+                        break;
+                    default:
+                        throw std::runtime_error{fmt::format("unsupported TIFF numeric field type: {}", type)};
+                }
+            }
+            return values;
+        }
+
+        TiffDirectory readDirectory() const {
+            const auto ifdOffset = static_cast<size_t>(readU32(4));
+            checkRange(ifdOffset, 2);
+
+            TiffDirectory directory;
+            const auto entryCount = readU16(ifdOffset);
+            checkRange(ifdOffset + 2, static_cast<size_t>(entryCount) * 12);
+
+            for(auto i = 0u; i < entryCount; ++i) {
+                const auto entry = ifdOffset + 2 + static_cast<size_t>(i) * 12;
+                const auto tag = readU16(entry);
+                const auto type = readU16(entry + 2);
+                const auto count = readU32(entry + 4);
+                const auto valueOffset = entry + 8;
+
+                auto readFirst = [&]() {
+                    auto values = readUnsignedValues(valueOffset, type, count);
+                    return values.empty() ? 0u : values.front();
+                };
+
+                switch(tag) {
+                    case 256:
+                        directory.width = readFirst();
+                        break;
+                    case 257:
+                        directory.height = readFirst();
+                        break;
+                    case 258:
+                        directory.bitsPerSample = readUnsignedValues(valueOffset, type, count);
+                        break;
+                    case 259:
+                        directory.compression = readFirst();
+                        break;
+                    case 262:
+                        directory.photometric = readFirst();
+                        break;
+                    case 273:
+                        directory.stripOffsets = readUnsignedValues(valueOffset, type, count);
+                        break;
+                    case 277:
+                        directory.samplesPerPixel = readFirst();
+                        break;
+                    case 278:
+                        directory.rowsPerStrip = readFirst();
+                        break;
+                    case 279:
+                        directory.stripByteCounts = readUnsignedValues(valueOffset, type, count);
+                        break;
+                    case 284:
+                        directory.planarConfiguration = readFirst();
+                        break;
+                    case 339:
+                        directory.sampleFormat = readFirst();
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            return directory;
+        }
+
+    private:
+        std::vector<uint8_t> m_bytes;
+        bool m_littleEndian{};
+    };
+
+    std::unique_ptr<stbi_uc, stbi_image_deleter> stbiOwnedCopy(const void* data, size_t size) {
+        auto* pixels = static_cast<stbi_uc*>(STBI_MALLOC(size));
+        if(!pixels) {
+            throw std::runtime_error{"failed to allocate image pixels"};
+        }
+        std::memcpy(pixels, data, size);
+        return std::unique_ptr<stbi_uc, stbi_image_deleter>{pixels};
+    }
+
+    void writeU16(std::vector<stbi_uc>& data, size_t offset, uint16_t value) {
+        data[offset] = static_cast<stbi_uc>(value & 0xffu);
+        data[offset + 1] = static_cast<stbi_uc>((value >> 8) & 0xffu);
+    }
+
+    uint8_t toUnorm8(uint32_t value, uint32_t bits) {
+        if(bits == 8) {
+            return static_cast<uint8_t>(value);
+        }
+        const auto maxValue = (uint64_t{1} << bits) - 1u;
+        return static_cast<uint8_t>((static_cast<uint64_t>(value) * 255u + maxValue / 2u) / maxValue);
+    }
+
+    uint32_t readUnsignedSample(const TiffReader& reader, size_t offset, uint32_t bits) {
+        switch(bits) {
+            case 8:
+                return reader.readU8(offset);
+            case 16:
+                return reader.readU16(offset);
+            case 32:
+                return reader.readU32(offset);
+            default:
+                throw std::runtime_error{fmt::format("unsupported TIFF sample bit depth: {}", bits)};
+        }
+    }
+
+    void validateTiffDirectory(const TiffDirectory& directory) {
+        if(directory.width == 0 || directory.height == 0) {
+            throw std::runtime_error{"TIFF image is missing dimensions"};
+        }
+        if(directory.compression != 1) {
+            throw std::runtime_error{fmt::format("unsupported TIFF compression: {}", directory.compression)};
+        }
+        if(directory.planarConfiguration != 1) {
+            throw std::runtime_error{fmt::format("unsupported TIFF planar configuration: {}", directory.planarConfiguration)};
+        }
+        if(directory.stripOffsets.empty()) {
+            throw std::runtime_error{"TIFF image is missing strip offsets"};
+        }
+        if(directory.photometric != TiffPhotometricWhiteIsZero
+           && directory.photometric != TiffPhotometricBlackIsZero
+           && directory.photometric != TiffPhotometricRgb) {
+            throw std::runtime_error{fmt::format("unsupported TIFF photometric interpretation: {}", directory.photometric)};
+        }
+        if(directory.sampleFormat != TiffSampleUnsigned && directory.sampleFormat != TiffSampleFloat) {
+            throw std::runtime_error{fmt::format("unsupported TIFF sample format: {}", directory.sampleFormat)};
+        }
+    }
+
+    TiffImage loadTiffImage(std::string_view path, bool flipUv) {
+        TiffReader reader{path};
+        auto directory = reader.readDirectory();
+        validateTiffDirectory(directory);
+
+        directory.rowsPerStrip = directory.rowsPerStrip == 0 ? directory.height : directory.rowsPerStrip;
+        if(directory.bitsPerSample.empty()) {
+            directory.bitsPerSample.push_back(1);
+        }
+        if(directory.bitsPerSample.size() == 1 && directory.samplesPerPixel > 1) {
+            directory.bitsPerSample.resize(directory.samplesPerPixel, directory.bitsPerSample.front());
+        }
+        if(directory.bitsPerSample.size() != directory.samplesPerPixel) {
+            throw std::runtime_error{"TIFF bits-per-sample count does not match samples-per-pixel"};
+        }
+
+        std::vector<size_t> sampleOffsets(directory.samplesPerPixel);
+        size_t sourcePixelSize = 0;
+        for(auto sample = 0u; sample < directory.samplesPerPixel; ++sample) {
+            const auto bits = directory.bitsPerSample[sample];
+            if(bits % 8 != 0) {
+                throw std::runtime_error{fmt::format("unsupported packed TIFF sample bit depth: {}", bits)};
+            }
+            sampleOffsets[sample] = sourcePixelSize;
+            sourcePixelSize += bits / 8;
+        }
+
+        const auto pixelCount = static_cast<size_t>(directory.width) * directory.height;
+        TiffImage image;
+        image.width = static_cast<int>(directory.width);
+        image.height = static_cast<int>(directory.height);
+
+        if(directory.sampleFormat == TiffSampleFloat) {
+            if(directory.samplesPerPixel != 1 || directory.bitsPerSample.front() != 32) {
+                throw std::runtime_error{"only single-channel 32-bit float TIFF images are supported"};
+            }
+            image.channels = 1;
+            image.format = VK_FORMAT_R32_SFLOAT;
+            image.data.resize(pixelCount * sizeof(float));
+        }else if(directory.samplesPerPixel == 1 && directory.bitsPerSample.front() == 8) {
+            image.channels = 1;
+            image.format = VK_FORMAT_R8_UNORM;
+            image.data.resize(pixelCount);
+        }else if(directory.samplesPerPixel == 1 && directory.bitsPerSample.front() == 16) {
+            image.channels = 1;
+            image.format = VK_FORMAT_R16_UNORM;
+            image.data.resize(pixelCount * sizeof(uint16_t));
+        }else {
+            if(directory.photometric != TiffPhotometricRgb || directory.samplesPerPixel < 3) {
+                throw std::runtime_error{"unsupported TIFF color layout"};
+            }
+            image.channels = 4;
+            image.format = VK_FORMAT_R8G8B8A8_UNORM;
+            image.data.resize(pixelCount * 4);
+        }
+
+        const auto sourceRowSize = static_cast<size_t>(directory.width) * sourcePixelSize;
+        const auto invertGrayscale = directory.photometric == TiffPhotometricWhiteIsZero;
+        for(auto strip = 0u; strip < directory.stripOffsets.size(); ++strip) {
+            const auto startRow = strip * directory.rowsPerStrip;
+            if(startRow >= directory.height) {
+                break;
+            }
+
+            const auto rowCount = std::min(directory.rowsPerStrip, directory.height - startRow);
+            const auto stripOffset = static_cast<size_t>(directory.stripOffsets[strip]);
+            const auto expectedStripSize = static_cast<size_t>(rowCount) * sourceRowSize;
+            const auto byteCount = strip < directory.stripByteCounts.size()
+                ? static_cast<size_t>(directory.stripByteCounts[strip])
+                : expectedStripSize;
+            if(byteCount < expectedStripSize) {
+                throw std::runtime_error{"TIFF strip is smaller than expected for an uncompressed image"};
+            }
+            reader.checkRange(stripOffset, expectedStripSize);
+
+            for(auto row = 0u; row < rowCount; ++row) {
+                const auto sourceRow = startRow + row;
+                const auto destinationRow = flipUv ? directory.height - 1u - sourceRow : sourceRow;
+                const auto sourceRowOffset = stripOffset + static_cast<size_t>(row) * sourceRowSize;
+                for(auto x = 0u; x < directory.width; ++x) {
+                    const auto sourcePixelOffset = sourceRowOffset + static_cast<size_t>(x) * sourcePixelSize;
+                    const auto destinationPixel = static_cast<size_t>(destinationRow) * directory.width + x;
+
+                    if(image.format == VK_FORMAT_R32_SFLOAT) {
+                        auto value = reader.readF32(sourcePixelOffset);
+                        if(invertGrayscale) {
+                            value = 1.0f - value;
+                        }
+                        std::memcpy(image.data.data() + destinationPixel * sizeof(float), &value, sizeof(value));
+                    }else if(image.format == VK_FORMAT_R8_UNORM) {
+                        auto value = readUnsignedSample(reader, sourcePixelOffset, directory.bitsPerSample.front());
+                        if(invertGrayscale) {
+                            value = 255u - value;
+                        }
+                        image.data[destinationPixel] = static_cast<stbi_uc>(value);
+                    }else if(image.format == VK_FORMAT_R16_UNORM) {
+                        auto value = static_cast<uint16_t>(readUnsignedSample(reader, sourcePixelOffset, directory.bitsPerSample.front()));
+                        if(invertGrayscale) {
+                            value = std::numeric_limits<uint16_t>::max() - value;
+                        }
+                        writeU16(image.data, destinationPixel * sizeof(uint16_t), value);
+                    }else {
+                        auto* destination = image.data.data() + destinationPixel * 4;
+                        for(auto sample = 0u; sample < 3; ++sample) {
+                            const auto value = readUnsignedSample(reader, sourcePixelOffset + sampleOffsets[sample], directory.bitsPerSample[sample]);
+                            destination[sample] = toUnorm8(value, directory.bitsPerSample[sample]);
+                        }
+                        destination[3] = directory.samplesPerPixel > 3
+                            ? toUnorm8(readUnsignedSample(reader, sourcePixelOffset + sampleOffsets[3], directory.bitsPerSample[3]), directory.bitsPerSample[3])
+                            : 255u;
+                    }
+                }
+            }
+        }
+
+        return image;
+    }
+
+    std::vector<stbi_uc> tiffToRgba8(const TiffImage& image) {
+        std::vector<stbi_uc> rgba(static_cast<size_t>(image.width) * image.height * 4);
+        const auto pixelCount = static_cast<size_t>(image.width) * image.height;
+        if(image.format == VK_FORMAT_R8G8B8A8_UNORM) {
+            return image.data;
+        }
+
+        for(size_t i = 0; i < pixelCount; ++i) {
+            uint8_t value{};
+            if(image.format == VK_FORMAT_R32_SFLOAT) {
+                float sample{};
+                std::memcpy(&sample, image.data.data() + i * sizeof(float), sizeof(sample));
+                value = static_cast<uint8_t>(std::clamp(sample, 0.0f, 1.0f) * 255.0f);
+            }else if(image.format == VK_FORMAT_R16_UNORM) {
+                const auto lo = image.data[i * sizeof(uint16_t)];
+                const auto hi = image.data[i * sizeof(uint16_t) + 1];
+                value = static_cast<uint8_t>((static_cast<uint16_t>(hi) << 8 | lo) >> 8);
+            }else {
+                value = image.data[i];
+            }
+            rgba[i * 4 + 0] = value;
+            rgba[i * 4 + 1] = value;
+            rgba[i * 4 + 2] = value;
+            rgba[i * 4 + 3] = 255u;
+        }
+        return rgba;
+    }
+
+    bool isTiffFile(std::string_view path) {
+        const auto extension = lowerExtension(path);
+        return extension == ".tif" || extension == ".tiff";
+    }
+
+    LoadedTexturePixels loadTexturePixels(std::string_view path, bool flipUv, VkFormat requestedFormat) {
+        if(isTiffFile(path)) {
+            auto image = loadTiffImage(path, flipUv);
+            return LoadedTexturePixels{
+                stbiOwnedCopy(image.data.data(), image.data.size()),
+                image.width,
+                image.height,
+                image.channels,
+                image.format,
+            };
+        }
+
+        int width, height, channels;
+        stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
+        stbi_uc* pixels = stbi_load(path.data(), &width, &height, &channels, STBI_rgb_alpha);
+        if(!pixels) {
+            throw std::runtime_error{fmt::format("failed to load texture image {}!", path)};
+        }
+        return LoadedTexturePixels{
+            std::unique_ptr<stbi_uc, stbi_image_deleter>{pixels},
+            width,
+            height,
+            channels,
+            requestedFormat,
+        };
+    }
+
     struct KtxTextureDeleter {
         void operator()(ktxTexture* texture) const {
             if(texture) {
@@ -251,10 +745,7 @@ namespace {
     }
 
     bool isKtxFile(std::string_view path) {
-        auto extension = fs::path{std::string{path}}.extension().string();
-        std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) {
-            return static_cast<char>(std::tolower(c));
-        });
+        const auto extension = lowerExtension(path);
         return extension == ".ktx" || extension == ".ktx2";
     }
 
@@ -425,14 +916,23 @@ namespace {
 }
 
 RawImage textures::loadImage(std::string_view path, bool flipUv) {
-    int texWidth, texHeight,  texChannels;
-    stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
-    stbi_uc* pixels = stbi_load(path.data(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    if(isTiffFile(path)) {
+        auto image = loadTiffImage(path, flipUv);
+        auto rgba = tiffToRgba8(image);
+        return RawImage{
+            stbiOwnedCopy(rgba.data(), rgba.size()),
+            static_cast<uint32_t>(image.width),
+            static_cast<uint32_t>(image.height),
+            image.channels
+        };
+    }
+
+    auto pixels = loadTexturePixels(path, flipUv, VK_FORMAT_R8G8B8A8_UNORM);
     return RawImage{
-        std::unique_ptr<stbi_uc, stbi_image_deleter>(pixels),
-                static_cast<uint32_t>(texWidth),
-                static_cast<uint32_t>(texHeight),
-                texChannels
+        std::move(pixels.data),
+        static_cast<uint32_t>(pixels.width),
+        static_cast<uint32_t>(pixels.height),
+        pixels.channels
     };
 }
 
@@ -548,55 +1048,45 @@ void textures::fromFile(const VulkanDevice &device, Texture &texture, std::strin
         return;
     }
 
-    int texWidth, texHeight, texChannels;
-    stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
-    stbi_uc* pixels = stbi_load(path.data(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-    texture.width = texWidth;
-    texture.height = texHeight;
-    if(!pixels){
-        throw std::runtime_error{fmt::format("failed to load texture image {}!", path)};
-    }
+    auto pixels = loadTexturePixels(path, flipUv, format);
+    texture.width = pixels.width;
+    texture.height = pixels.height;
     levelCount = std::max(levelCount, texture.levels);
-    create(device, texture, VK_IMAGE_TYPE_2D, format, pixels, {texWidth, texHeight, 1u}, addressMode, 1, VK_IMAGE_TILING_OPTIMAL, levelCount);
-    stbi_image_free(pixels);
+    create(device, texture, VK_IMAGE_TYPE_2D, pixels.format, pixels.data.get(),
+           {static_cast<uint32_t>(pixels.width), static_cast<uint32_t>(pixels.height), 1u},
+           addressMode, 1, VK_IMAGE_TILING_OPTIMAL, levelCount);
 }
 
 void textures::fromFile(const VulkanDevice &device, Texture &texture, const std::vector<std::string> &paths, bool flipUv,
                         VkFormat format, uint32_t levels) {
 
-    auto load = [flipUv](std::string_view path, int& width, int& height, int& channel){
-        stbi_set_flip_vertically_on_load(flipUv ? 1 : 0);
-        stbi_uc* pixels = stbi_load(path.data(), &width, &height, &channel, STBI_rgb_alpha);
-        if(!pixels){
-            throw std::runtime_error{fmt::format("failed to load texture image {}!", path)};
-        }
-        return pixels;
-    };
-
+    std::vector<LoadedTexturePixels> loadedImages;
     std::vector<void*> data;
-    int texWidth, texHeight, texChannels;
     auto itr = paths.begin();
-    auto pixels = load(itr->data(), texWidth, texHeight, texChannels);
-    data.push_back(pixels);
+    loadedImages.push_back(loadTexturePixels(*itr, flipUv, format));
+    auto texWidth = loadedImages.front().width;
+    auto texHeight = loadedImages.front().height;
+    auto textureFormat = loadedImages.front().format;
+    data.push_back(loadedImages.front().data.get());
 
     std::advance(itr, 1);
     while(itr != end(paths)){
-        int width, height;
-        pixels = load(itr->data(), width, height, texChannels);
-        if(width != texWidth || height != texHeight){
+        loadedImages.push_back(loadTexturePixels(*itr, flipUv, format));
+        auto& pixels = loadedImages.back();
+        if(pixels.width != texWidth || pixels.height != texHeight){
             throw std::runtime_error(fmt::format("{} dimensions: [{}, {}] does not match previously loaded dimensions: [{}, {}]",
-                                                 *itr, width, height, texWidth, texHeight));
+                                                 *itr, pixels.width, pixels.height, texWidth, texHeight));
         }
-        data.push_back(pixels);
-        texWidth = width;
-        texHeight = height;
+        if(pixels.format != textureFormat) {
+            throw std::runtime_error(fmt::format("{} format does not match previously loaded texture array format", *itr));
+        }
+        data.push_back(pixels.data.get());
         std::advance(itr, 1);
     }
 
-    createTextureArray(device, texture, VK_IMAGE_TYPE_2D, format, data, {texWidth, texHeight, 1u}, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1, VK_IMAGE_TILING_OPTIMAL, levels);
-    for(auto memory : data){
-        stbi_image_free(memory);
-    }
+    createTextureArray(device, texture, VK_IMAGE_TYPE_2D, textureFormat, data,
+                       {static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1u},
+                       VK_SAMPLER_ADDRESS_MODE_REPEAT, byteSize(textureFormat), VK_IMAGE_TILING_OPTIMAL, levels);
 
 }
 
