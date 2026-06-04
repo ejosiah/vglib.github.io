@@ -124,6 +124,8 @@ public:
 
     Scalar aspectRatio();
 
+    void resetOrientation();
+
 private:
     void resetPerspective();
 

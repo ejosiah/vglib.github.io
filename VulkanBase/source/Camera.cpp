@@ -296,7 +296,7 @@ void CameraControllerT<Scalar>::far(float value) {
 
 template<typename Scalar>
 void CameraControllerT<Scalar>::fieldOfView(Scalar value) {
-    return cameras[currentMode]->fieldOfView(value);
+    cameras[currentMode]->fieldOfView(value);
     resetPerspective();
 }
 
@@ -333,6 +333,11 @@ typename CameraControllerT<Scalar>::Camera CameraControllerT<Scalar>::cameraMatr
 template<typename Scalar>
 Scalar CameraControllerT<Scalar>::aspectRatio() {
     return cameras[currentMode]->aspectRatio;
+}
+
+template<typename Scalar>
+void CameraControllerT<Scalar>::resetOrientation() {
+    cameras[currentMode]->orientation = {1, 0, 0, 0};
 }
 
 template<typename Scalar>
