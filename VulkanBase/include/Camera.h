@@ -126,6 +126,8 @@ public:
 
     void resetOrientation();
 
+    void orientation(const Quat& quat);
+
 private:
     void resetPerspective();
 

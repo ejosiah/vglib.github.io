@@ -341,6 +341,12 @@ void CameraControllerT<Scalar>::resetOrientation() {
 }
 
 template<typename Scalar>
+void CameraControllerT<Scalar>::orientation(const Quat &quat) {
+    cameras[currentMode]->orientation = quat;
+    cameras[currentMode]->updateViewMatrix();
+}
+
+template<typename Scalar>
 void CameraControllerT<Scalar>::resetPerspective() {
     const auto fov = cameras[currentMode]->fov;
     const auto aspect = cameras[currentMode]->aspectRatio;
