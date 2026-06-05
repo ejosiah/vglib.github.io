@@ -5,6 +5,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_samplerless_texture_functions : enable
 
+#define BOUNDARY_SET 4
 #include "common_new.glsl"
 
 layout(local_size_x = 32, local_size_y = 32) in;
@@ -17,6 +18,11 @@ void main() {
     if(gid.x >= grid_size.x || gid.y >= grid_size.y) return;
 
     vec2 uv = get_uv();
+    if(checkBoundary(uv)){
+        imageStore(destination_field, gid, vec4(0));
+        return;
+    }
+
     vec4 result = texture(source_field, uv) * dt + texture(accumulated_field, uv);
 
     imageStore(destination_field, gid, result);

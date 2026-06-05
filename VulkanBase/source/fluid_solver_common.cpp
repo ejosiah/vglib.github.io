@@ -4,7 +4,8 @@
 #include "glsl_shaders.hpp"
 
 FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool *descriptorPool,
-                         VulkanRenderPass *displayRenderPass, FileManager *fileManager, glm::uvec3 gridSize)
+                         VulkanRenderPass *displayRenderPass, FileManager *fileManager, glm::uvec3 gridSize,
+                         std::optional<VkDescriptorSet> optionalBoundaryDescriptorSet)
         : device(device)
         , descriptorPool(descriptorPool)
         , displayRenderPass(displayRenderPass)
@@ -12,6 +13,8 @@ FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool *descriptorP
         , width(gridSize.x)
         , height(gridSize.y)
         , depth(gridSize.z)
+        , boundaryDescriptorSet(optionalBoundaryDescriptorSet.value_or(VK_NULL_HANDLE))
+        , useDefaultBoundaryTexture(!optionalBoundaryDescriptorSet.has_value() || *optionalBoundaryDescriptorSet == VK_NULL_HANDLE)
 {
 
 }
@@ -147,7 +150,8 @@ void FluidSolver::createPipelines() {
                     .vertexShader(data_shaders_quad_vert)
                     .fragmentShader(data_shaders_fluid_2d_advect_frag)
                     .layout().clear()
-                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, advectTextureSet, samplerSet})
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, advectTextureSet, samplerSet, boundarySetLayout})
+                    .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(advectPipeline.constants))
                     .renderPass(renderPass)
                     .name("advect")
                     .build(advectPipeline.layout);
@@ -157,7 +161,7 @@ void FluidSolver::createPipelines() {
                     .shaderStage()
                     .fragmentShader(data_shaders_fluid_2d_divergence_frag)
                     .layout().clear()
-                    .addDescriptorSetLayouts( { globalConstantsSet, textureSetLayout})
+                    .addDescriptorSetLayouts( { globalConstantsSet, textureSetLayout, boundarySetLayout})
                     .renderPass(renderPass)
                     .name("divergence")
                     .build(divergence.layout);
@@ -167,7 +171,7 @@ void FluidSolver::createPipelines() {
                     .shaderStage()
                     .fragmentShader(data_shaders_fluid_2d_divergence_free_field_frag)
                     .layout().clear()
-                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout, boundarySetLayout})
                     .renderPass(renderPass)
                     .name("divergence_free_field")
                     .build(divergenceFree.layout);
@@ -177,7 +181,7 @@ void FluidSolver::createPipelines() {
                     .shaderStage()
                     .fragmentShader(data_shaders_fluid_2d_jacobi_frag)
                     .layout().clear()
-                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout, boundarySetLayout})
                     .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(jacobi.constants))
                     .renderPass(renderPass)
                     .name("jacobi")
@@ -188,18 +192,29 @@ void FluidSolver::createPipelines() {
                     .shaderStage()
                     .fragmentShader(data_shaders_fluid_2d_add_sources_frag)
                     .layout().clear()
-                    .addDescriptorSetLayouts({textureSetLayout, textureSetLayout})
+                    .addDescriptorSetLayouts({textureSetLayout, textureSetLayout, boundarySetLayout})
                     .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(addSourcePipeline.constants))
                     .renderPass(renderPass)
                     .name("add_sources")
                     .build(addSourcePipeline.layout);
+
+    enforceBoundaryPipeline.pipeline =
+            builder
+                    .shaderStage()
+                    .fragmentShader(data_shaders_fluid_2d_enforce_boundary_frag)
+                    .layout().clear()
+                    .addDescriptorSetLayouts({textureSetLayout, boundarySetLayout})
+                    .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(enforceBoundaryPipeline.constants))
+                    .renderPass(renderPass)
+                    .name("enforce_boundary")
+                    .build(enforceBoundaryPipeline.layout);
 
     vorticity.pipeline =
             builder
                     .shaderStage()
                     .fragmentShader(data_shaders_fluid_2d_vorticity_frag)
                     .layout().clear()
-                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout})
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, boundarySetLayout})
                     .renderPass(renderPass)
                     .name("vorticity")
                     .build(vorticity.layout);
@@ -209,7 +224,7 @@ void FluidSolver::createPipelines() {
                     .shaderStage()
                     .fragmentShader(data_shaders_fluid_2d_vorticity_force_frag)
                     .layout().clear()
-                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout})
+                    .addDescriptorSetLayouts({globalConstantsSet, textureSetLayout, textureSetLayout, boundarySetLayout})
                     .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vorticityForce.constants))
                     .renderPass(renderPass)
                     .name("vorticity_force")
@@ -256,14 +271,32 @@ void FluidSolver::createDescriptorSetLayouts() {
                     .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT)
                     .createLayout();
 
-    auto sets = descriptorPool->allocate(
-            {
+    boundarySetLayout =
+            device->descriptorSetLayoutBuilder()
+                    .name("boundary_texture")
+                    .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .createLayout();
+
+    if(useDefaultBoundaryTexture) {
+        createDefaultBoundaryTexture();
+    }
+
+    std::vector<VulkanDescriptorSetLayout> layouts{
                     textureSetLayout, textureSetLayout, advectTextureSet, advectTextureSet
                     , textureSetLayout, textureSetLayout, advectTextureSet, advectTextureSet
                     , textureSetLayout, textureSetLayout, advectTextureSet, advectTextureSet
                     , textureSetLayout, textureSetLayout, textureSetLayout, samplerSet
                     , globalConstantsSet
-            });
+            };
+
+    if(useDefaultBoundaryTexture) {
+        layouts.push_back(boundarySetLayout);
+    }
+
+    auto sets = descriptorPool->allocate(layouts);
 
     vectorField.descriptorSet[0] = sets[0];
     vectorField.descriptorSet[1] = sets[1];
@@ -285,6 +318,9 @@ void FluidSolver::createDescriptorSetLayouts() {
     vorticityField.descriptorSet[0] = sets[14];
     samplerDescriptorSet = sets[15];
     globalConstantsDescriptorSet = sets[16];
+    if(useDefaultBoundaryTexture) {
+        boundaryDescriptorSet = sets[17];
+    }
 
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>(fmt::format("{}_{}", "vector_field", 0), vectorField.descriptorSet[0]);
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>(fmt::format("{}_{}", "vector_field", 1), vectorField.descriptorSet[1]);
@@ -307,6 +343,9 @@ void FluidSolver::createDescriptorSetLayouts() {
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("diffuse_solution_container", diffuseHelper.solutionDescriptorSet);
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("vorticity_field", vorticityField.descriptorSet[0]);
     device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("global_constants", globalConstantsDescriptorSet);
+    if(useDefaultBoundaryTexture) {
+        device->setName<VK_OBJECT_TYPE_DESCRIPTOR_SET>("default_boundary_texture", boundaryDescriptorSet);
+    }
 }
 
 void FluidSolver::initSimData(){
@@ -471,6 +510,7 @@ void FluidSolver::updateDescriptorSets() {
     updateDescriptorSet(vorticityField);
     updateDiffuseDescriptorSet();
     updateAdvectDescriptorSet();
+    updateBoundaryDescriptorSet();
 }
 
 void FluidSolver::updateUboDescriptorSets() {
@@ -509,4 +549,33 @@ void FluidSolver::updateAdvectDescriptorSet() {
 
     device->updateDescriptorSets(writes);
 
+}
+
+void FluidSolver::updateBoundaryDescriptorSet() {
+    if(!useDefaultBoundaryTexture) return;
+
+    auto writes = initializers::writeDescriptorSets<1>();
+
+    writes[0].dstSet = boundaryDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].descriptorCount = 1;
+    VkDescriptorImageInfo boundaryInfo{valueSampler.handle, defaultBoundaryTexture.imageView.handle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    writes[0].pImageInfo = &boundaryInfo;
+
+    device->updateDescriptorSets(writes);
+}
+
+void FluidSolver::createDefaultBoundaryTexture() {
+    std::vector<float> boundary(width * height, 0.0f);
+    for(auto y = 0u; y < height; ++y) {
+        for(auto x = 0u; x < width; ++x) {
+            if(x == 0 || y == 0 || x == width - 1 || y == height - 1) {
+                boundary[y * width + x] = 1.0f;
+            }
+        }
+    }
+
+    textures::create(*device, defaultBoundaryTexture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT,
+                     boundary.data(), {width, height, 1u}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(float));
 }

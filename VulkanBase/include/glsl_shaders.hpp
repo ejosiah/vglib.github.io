@@ -48,6 +48,7 @@ extern std::vector<uint32_t> data_shaders_fluid_2d_divergence_comp;
 extern std::vector<uint32_t> data_shaders_fluid_2d_divergence_frag;
 extern std::vector<uint32_t> data_shaders_fluid_2d_divergence_free_field_comp;
 extern std::vector<uint32_t> data_shaders_fluid_2d_divergence_free_field_frag;
+extern std::vector<uint32_t> data_shaders_fluid_2d_enforce_boundary_frag;
 extern std::vector<uint32_t> data_shaders_fluid_2d_fluid_vert;
 extern std::vector<uint32_t> data_shaders_fluid_2d_jacobi_comp;
 extern std::vector<uint32_t> data_shaders_fluid_2d_jacobi_frag;

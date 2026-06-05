@@ -5,6 +5,7 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
+#define BOUNDARY_SET 6
 #include "common_new.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
@@ -13,7 +14,8 @@ layout(set = 3, binding = 0) uniform sampler2D pressure_field;
 layout(set = 4, binding = 2) uniform writeonly image2D div_free_vector_field_u;
 layout(set = 5, binding = 2) uniform writeonly image2D div_free_vector_field_v;
 
-float p(vec2 xy) {
+float p(vec2 centerUv, vec2 sampleUv) {
+    vec2 xy = scalarBoundarySampleUv(centerUv, sampleUv);
     return texture(pressure_field, xy).x;
 }
 
@@ -25,8 +27,8 @@ vec2 w(vec2 xy) {
 }
 
 vec2 pg(vec2 uv){
-    float dudx = (p(uv + dx) - p(uv - dx))/(2*dx.x);
-    float dudy = (p(uv + dy) - p(uv - dy))/(2*dy.y);
+    float dudx = (p(uv, uv + dx) - p(uv, uv - dx))/(2*dx.x);
+    float dudy = (p(uv, uv + dy) - p(uv, uv - dy))/(2*dy.y);
 
     return vec2(dudx, dudy);
 }
@@ -35,6 +37,11 @@ void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
+    if(checkBoundary(uv)){
+        imageStore(div_free_vector_field_u, gid, vec4(0));
+        imageStore(div_free_vector_field_v, gid, vec4(0));
+        return;
+    }
 
     vec2 u = w(uv) -  dt * pg(uv)/density;
 

@@ -35,7 +35,8 @@ namespace eular {
 
         FluidSolver() = default;
 
-        FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize);
+        FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize,
+                    std::optional<VkDescriptorSet> boundaryDescriptorSet = std::nullopt);
 
         void runSimulation(VkCommandBuffer commandBuffer);
 
@@ -68,6 +69,8 @@ namespace eular {
 
         uint32_t createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field);
 
+        void createDefaultBoundaryTexture();
+
         void initGlobalConstants();
 
         void velocityStep(VkCommandBuffer commandBuffer);
@@ -90,12 +93,13 @@ namespace eular {
 
         void advectVectorField(VkCommandBuffer commandBuffer);
 
-        void macCormackAdvect(VkCommandBuffer commandBuffer, Field& field);
+        void macCormackAdvect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0);
 
-        void advect(VkCommandBuffer commandBuffer, Field& field);
+        void advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0);
 
         void advect(VkCommandBuffer commandBuffer, VkDescriptorSet inDescriptor,
-                    VkDescriptorSet outDescriptor, TimeDirection timeDirection = TimeDirection::Forward);
+                    VkDescriptorSet outDescriptor, TimeDirection timeDirection = TimeDirection::Forward,
+                    uint32_t boundaryMode = 0);
 
         void clearForces(VkCommandBuffer commandBuffer);
 
@@ -149,7 +153,11 @@ namespace eular {
         VulkanDescriptorSetLayout _imageDescriptorSetLayout;
         VulkanDescriptorSetLayout _textureDescriptorSetLayout;
         VulkanDescriptorSetLayout _samplerDescriptorSetLayout;
+        VulkanDescriptorSetLayout _boundaryDescriptorSetLayout;
         VulkanDescriptorSetLayout _debugDescriptorSetLayout;
+        VkDescriptorSet _boundaryDescriptorSet{};
+        Texture _defaultBoundaryTexture;
+        bool _useDefaultBoundaryTexture{true};
 
         std::vector<std::reference_wrapper<Quantity>> _quantities;
         VkImageType _imageType{};
@@ -190,6 +198,11 @@ namespace eular {
             uint is_vector_field{};
             uint pass{0};
         } linearSolverConstants;
+
+        struct {
+            float time_sign{1};
+            uint32_t boundary_mode{0};
+        } advectConstants;
 
 
         glm::uvec3 _groupCount{1};
@@ -236,6 +249,8 @@ namespace eular {
 
         Builder& gridSize(glm::vec2 size);
 
+        Builder& boundary(VkDescriptorSet descriptorSet);
+
         std::unique_ptr<FluidSolver> build();
 
     private:
@@ -260,5 +275,6 @@ namespace eular {
 
         std::vector<ExternalForce> _externalForces;
         std::optional<VectorFieldFunc2D> _generator;
+        std::optional<VkDescriptorSet> _boundaryDescriptorSet;
     };
 }

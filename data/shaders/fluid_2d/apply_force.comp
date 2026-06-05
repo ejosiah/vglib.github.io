@@ -5,6 +5,7 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
+#define BOUNDARY_SET 6
 #include "common_new.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u_in;
@@ -30,6 +31,12 @@ void main() {
     if(outOfBounds()) return;
 
     vec2 xy = get_uv();
+    if(checkBoundary(xy)){
+        imageStore(vector_field_u_out, gid, vec4(0));
+        imageStore(vector_field_v_out, gid, vec4(0));
+        return;
+    }
+
     vec2 u = vector_field(xy) + force_field(xy) * dt;
 
     imageStore(vector_field_u_out, gid, vec4(u.x));

@@ -4,13 +4,15 @@
 #include "DescriptorSetBuilder.hpp"
 #include <spdlog/spdlog.h>
 
-FluidSolver2D::FluidSolver2D(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, VulkanRenderPass* displayRenderPass, FileManager *fileManager, glm::vec2 gridSize)
-: FluidSolver(device, descriptorPool, displayRenderPass, fileManager, {gridSize.x, gridSize.y, 1})
+FluidSolver2D::FluidSolver2D(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, VulkanRenderPass* displayRenderPass,
+                             FileManager *fileManager, glm::vec2 gridSize, std::optional<VkDescriptorSet> boundaryDescriptorSet)
+: FluidSolver(device, descriptorPool, displayRenderPass, fileManager, {gridSize.x, gridSize.y, 1}, boundaryDescriptorSet)
 , gridSize(gridSize)
 , delta(1.0f/gridSize)
 {
     globalConstants.dx.x = delta.x;
     globalConstants.dy.y = delta.y;
+    fileManager->addSearchPath("data/shaders");
     fileManager->addSearchPath("data/shaders/fluid_2d");
 }
 
@@ -61,6 +63,7 @@ void FluidSolver2D::add(ExternalForce &&force) {
 void FluidSolver2D::runSimulation(VkCommandBuffer commandBuffer) {
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, screenQuad.vertices, &offset);
+    enforceBoundary(commandBuffer, vectorField);
     velocityStep(commandBuffer);
     quantityStep(commandBuffer);
     _elapsedTime += timeStep;
@@ -69,6 +72,7 @@ void FluidSolver2D::runSimulation(VkCommandBuffer commandBuffer) {
 void FluidSolver2D::velocityStep(VkCommandBuffer commandBuffer) {
     if(!options.advectVField) return;
 
+    auto velocityStepSection = device->section(commandBuffer, "velocity_step");
     advectVectorField(commandBuffer);
     if(options.viscosity > 0) {
         jacobi.constants.isVectorField = 1;
@@ -80,6 +84,7 @@ void FluidSolver2D::velocityStep(VkCommandBuffer commandBuffer) {
 }
 
 void FluidSolver2D::quantityStep(VkCommandBuffer commandBuffer) {
+    auto quantityStepSection = device->section(commandBuffer, "velocity_step");
     for(auto& quantity : quantities){
         quantityStep(commandBuffer, quantity);
     }
@@ -92,6 +97,7 @@ void FluidSolver2D::quantityStep(VkCommandBuffer commandBuffer, Quantity &quanti
     diffuseQuantity(commandBuffer, quantity);
     advectQuantity(commandBuffer, quantity);
     postAdvection(commandBuffer, quantity);
+    enforceBoundary(commandBuffer, quantity.field);
 }
 
 void FluidSolver2D::clearSources(VkCommandBuffer commandBuffer, Quantity &quantity) {
@@ -117,7 +123,7 @@ void FluidSolver2D::advectQuantity(VkCommandBuffer commandBuffer, Quantity &quan
     sets[0] = vectorField.descriptorSet[in];
     sets[1] = quantity.field.advectDescriptorSet[in];
 
-    advect(commandBuffer, sets,quantity.field.framebuffer[out]);
+    advect(commandBuffer, sets, quantity.field.framebuffer[out]);
     quantity.field.swap();
 }
 
@@ -142,24 +148,27 @@ void FluidSolver2D::applyExternalForces(VkCommandBuffer commandBuffer) {
             externalForce(commandBuffer, forceField.descriptorSet[in]);
         });
         forceField.swap();
+        enforceBoundary(commandBuffer, forceField);
     }
 }
 
 void FluidSolver2D::computeVorticityConfinement(VkCommandBuffer commandBuffer) {
     if(!options.vorticity) return;
     withRenderPass(commandBuffer, vorticityField.framebuffer[0], [&](auto commandBuffer){
-        static std::array<VkDescriptorSet, 2> sets;
+        static std::array<VkDescriptorSet, 3> sets;
         sets[0] = globalConstantsDescriptorSet;
         sets[1] = vectorField.descriptorSet[in];
+        sets[2] = boundaryDescriptorSet;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticity.pipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticity.layout.handle, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
     });
     withRenderPass(commandBuffer, forceField.framebuffer[out], [&](auto commandBuffer){
-        static std::array<VkDescriptorSet, 3> sets;
+        static std::array<VkDescriptorSet, 4> sets;
         sets[0] = globalConstantsDescriptorSet;
         sets[1] = vorticityField.descriptorSet[in];
         sets[2] = forceField.descriptorSet[in];
+        sets[3] = boundaryDescriptorSet;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticityForce.pipeline.handle);
         vkCmdPushConstants(commandBuffer, vorticityForce.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vorticityForce.constants), &vorticityForce.constants);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vorticityForce.layout.handle, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -189,10 +198,12 @@ void FluidSolver2D::clear(VkCommandBuffer commandBuffer, Texture &texture) {
 
 void FluidSolver2D::addSources(VkCommandBuffer commandBuffer, Field &sourceField, Field &destinationField) {
     addSourcePipeline.constants.dt = globalConstants.dt;
+    addSourcePipeline.constants.ensureBoundaryCondition = globalConstants.ensureBoundaryCondition;
     withRenderPass(commandBuffer, destinationField.framebuffer[out], [&](auto commandBuffer){
-        static std::array<VkDescriptorSet, 2> sets;
+        static std::array<VkDescriptorSet, 3> sets;
         sets[0] = sourceField.descriptorSet[in];
         sets[1] = destinationField.descriptorSet[in];
+        sets[2] = boundaryDescriptorSet;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, addSourcePipeline.pipeline.handle);
         vkCmdPushConstants(commandBuffer, addSourcePipeline.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(addSourcePipeline.constants), &addSourcePipeline.constants);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, addSourcePipeline.layout.handle
@@ -207,21 +218,47 @@ void FluidSolver2D::advectVectorField(VkCommandBuffer commandBuffer) {
     sets[0] = vectorField.descriptorSet[in];
     sets[1] = vectorField.advectDescriptorSet[in];
 
-    advect(commandBuffer, sets,vectorField.framebuffer[out]);
+    advect(commandBuffer, sets, vectorField.framebuffer[out], true);
     vectorField.swap();
+    enforceBoundary(commandBuffer, vectorField);
+}
+
+void FluidSolver2D::enforceBoundary(VkCommandBuffer commandBuffer, Field &field) {
+    if(!globalConstants.ensureBoundaryCondition) return;
+
+    enforceBoundaryPipeline.constants.ensureBoundaryCondition = globalConstants.ensureBoundaryCondition;
+    withRenderPass(commandBuffer, field.framebuffer[out], [&](auto commandBuffer){
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, screenQuad.vertices, &offset);
+
+        static std::array<VkDescriptorSet, 2> sets;
+        sets[0] = field.descriptorSet[in];
+        sets[1] = boundaryDescriptorSet;
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, enforceBoundaryPipeline.pipeline.handle);
+        vkCmdPushConstants(commandBuffer, enforceBoundaryPipeline.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                           sizeof(enforceBoundaryPipeline.constants), &enforceBoundaryPipeline.constants);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, enforceBoundaryPipeline.layout.handle,
+                                0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+    });
+    field.swap();
 }
 
 void FluidSolver2D::advect(VkCommandBuffer commandBuffer, const std::array<VkDescriptorSet, 2> &inSets,
-                           VulkanFramebuffer &framebuffer) {
+                           VulkanFramebuffer &framebuffer, bool isVectorField) {
 
 
-    static std::array<VkDescriptorSet, 4> sets;
+    static std::array<VkDescriptorSet, 5> sets;
     sets[0] = globalConstantsDescriptorSet;
     sets[1] = inSets[0];
     sets[2] = inSets[1];
     sets[3] = samplerDescriptorSet;
+    sets[4] = boundaryDescriptorSet;
+    advectPipeline.constants.isVectorField = static_cast<int>(isVectorField);
     withRenderPass(commandBuffer, framebuffer, [&](auto commandBuffer){
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, advectPipeline.pipeline.handle);
+        vkCmdPushConstants(commandBuffer, advectPipeline.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                           sizeof(advectPipeline.constants), &advectPipeline.constants);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, advectPipeline.layout.handle
                 , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
 
@@ -238,9 +275,10 @@ void FluidSolver2D::project(VkCommandBuffer commandBuffer) {
 }
 
 void FluidSolver2D::computeDivergence(VkCommandBuffer commandBuffer) {
-    static std::array<VkDescriptorSet, 2> sets;
+    static std::array<VkDescriptorSet, 3> sets;
     sets[0] = globalConstantsDescriptorSet;
     sets[1] = vectorField.descriptorSet[in];
+    sets[2] = boundaryDescriptorSet;
     withRenderPass(commandBuffer, divergenceField.framebuffer[0], [&](auto commandBuffer){
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergence.pipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergence.layout.handle
@@ -266,10 +304,11 @@ void FluidSolver2D::jacobiIteration(VkCommandBuffer commandBuffer, VkDescriptorS
                                     VkDescriptorSet solutionDescriptor, float alpha, float rBeta) {
     jacobi.constants.alpha = alpha;
     jacobi.constants.rBeta = rBeta;
-    static std::array<VkDescriptorSet, 3> sets;
+    static std::array<VkDescriptorSet, 4> sets;
     sets[0] = globalConstantsDescriptorSet;
     sets[1] = solutionDescriptor;
     sets[2] = unknownDescriptor;
+    sets[3] = boundaryDescriptorSet;
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, jacobi.pipeline.handle);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, jacobi.layout.handle
             , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -280,10 +319,11 @@ void FluidSolver2D::jacobiIteration(VkCommandBuffer commandBuffer, VkDescriptorS
 
 void FluidSolver2D::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
     withRenderPass(commandBuffer, vectorField.framebuffer[out], [&](auto commandBuffer){
-        static std::array<VkDescriptorSet, 3> sets;
+        static std::array<VkDescriptorSet, 4> sets;
         sets[0] = globalConstantsDescriptorSet;
         sets[1] = vectorField.descriptorSet[in];
         sets[2] = pressureField.descriptorSet[in];
+        sets[3] = boundaryDescriptorSet;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergenceFree.pipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, divergenceFree.layout.handle
                 , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);

@@ -7,6 +7,8 @@
 #include "glm/glm.hpp"
 #include "filemanager.hpp"
 
+#include <optional>
+
 using GpuProcess = std::function<void(VkCommandBuffer)>;
 using ExternalForce = std::function<void(VkCommandBuffer, VkDescriptorSet)>;
 
@@ -53,7 +55,8 @@ public:
 
     FluidSolver() = default;
     FluidSolver(VulkanDevice *device, VulkanDescriptorPool *descriptorPool,
-                VulkanRenderPass *displayRenderPass, FileManager *fileManager, glm::uvec3 gridSize);
+                VulkanRenderPass *displayRenderPass, FileManager *fileManager, glm::uvec3 gridSize,
+                std::optional<VkDescriptorSet> boundaryDescriptorSet = std::nullopt);
 
     void withRenderPass(VkCommandBuffer commandBuffer, const VulkanFramebuffer& framebuffer
             , GpuProcess&& process, glm::vec4 clearColor = glm::vec4(0)) const;
@@ -93,10 +96,16 @@ protected:
 
     void updateAdvectDescriptorSet();
 
+    void updateBoundaryDescriptorSet();
+
+    void createDefaultBoundaryTexture();
+
 public:
     VulkanDescriptorSetLayout samplerSet;
     VulkanDescriptorSetLayout advectTextureSet;
+    VulkanDescriptorSetLayout boundarySetLayout;
     VkDescriptorSet samplerDescriptorSet{};
+    VkDescriptorSet boundaryDescriptorSet{};
     VulkanDevice* device{};
     VulkanRenderPass* displayRenderPass{};
     VulkanDescriptorPool* descriptorPool{};
@@ -105,6 +114,9 @@ public:
     struct {
         VulkanPipeline pipeline;
         VulkanPipelineLayout layout;
+        struct {
+            int isVectorField{0};
+        } constants;
     } advectPipeline;
 
     struct {
@@ -129,8 +141,17 @@ public:
         VulkanPipelineLayout layout;
         struct {
             float dt;
+            int ensureBoundaryCondition;
         } constants;
     } addSourcePipeline;
+
+    struct {
+        VulkanPipeline pipeline;
+        VulkanPipelineLayout layout;
+        struct {
+            int ensureBoundaryCondition;
+        } constants;
+    } enforceBoundaryPipeline;
 
     struct {
         VulkanPipeline pipeline;
@@ -192,6 +213,8 @@ public:
 
     VulkanBuffer globalConstantsBuffer;
     VulkanBuffer debugBuffer;
+    Texture defaultBoundaryTexture;
+    bool useDefaultBoundaryTexture{true};
 
 public:
     VulkanRenderPass renderPass;

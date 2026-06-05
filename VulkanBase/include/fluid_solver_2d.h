@@ -11,7 +11,9 @@ class FluidSolver2D : public FluidSolver {
 public:
     FluidSolver2D() = default;
 
-    FluidSolver2D(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, VulkanRenderPass* displayRenderPass, FileManager* fileManager, glm::vec2 gridSize);
+    FluidSolver2D(VulkanDevice* device, VulkanDescriptorPool* descriptorPool, VulkanRenderPass* displayRenderPass,
+                  FileManager* fileManager, glm::vec2 gridSize,
+                  std::optional<VkDescriptorSet> boundaryDescriptorSet = std::nullopt);
 
     void init();
 
@@ -83,11 +85,14 @@ public:
 
     void addSources(VkCommandBuffer commandBuffer, Field& sourceField, Field& destinationField);
 
+    void enforceBoundary(VkCommandBuffer commandBuffer, Field& field);
+
     void advectVectorField(VkCommandBuffer commandBuffer);
 
     static void clear(VkCommandBuffer commandBuffer, Texture& texture);
 
-    void advect(VkCommandBuffer commandBuffer, const std::array<VkDescriptorSet, 2>& sets, VulkanFramebuffer& framebuffer);
+    void advect(VkCommandBuffer commandBuffer, const std::array<VkDescriptorSet, 2>& sets, VulkanFramebuffer& framebuffer,
+                bool isVectorField = false);
 
     void project(VkCommandBuffer commandBuffer);
 

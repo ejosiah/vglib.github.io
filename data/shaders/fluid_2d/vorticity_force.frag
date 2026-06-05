@@ -7,10 +7,11 @@ layout(set = 0, binding = 0) uniform Globals{
     int ensureBoundaryCondition;
 };
 
-#include "common.glsl"
-
 layout(set = 1, binding = 0) uniform sampler2D vorticityField;
 layout(set = 2, binding = 0) uniform sampler2D forceField;
+
+#define BOUNDARY_SET 3
+#include "common.glsl"
 
 layout(push_constant) uniform Constants{
     float csCale;
@@ -19,8 +20,8 @@ layout(push_constant) uniform Constants{
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 force;
 
-float vort(vec2 coord) {
-    return texture(vorticityField, st(coord)).x;
+float vort(vec2 centerUv, vec2 coord) {
+    return texture(vorticityField, scalarBoundarySampleUv(centerUv, coord)).x;
 }
 
 vec2 accumForce(vec2 coord){
@@ -28,8 +29,13 @@ vec2 accumForce(vec2 coord){
 }
 
 void main(){
-    float dudx = (abs(vort(uv + dx)) - abs(vort(uv - dx)))/(2*dx.x);
-    float dudy = (abs(vort(uv + dy)) - abs(vort(uv - dy)))/(2*dy.y);
+    if(checkBoundary(uv)){
+        force = vec4(0);
+        return;
+    }
+
+    float dudx = (abs(vort(uv, uv + dx)) - abs(vort(uv, uv - dx)))/(2*dx.x);
+    float dudy = (abs(vort(uv, uv + dy)) - abs(vort(uv, uv - dy)))/(2*dy.y);
 
     vec2 n = vec2(dudx, dudy);
 
@@ -38,7 +44,7 @@ void main(){
     float magSqr = max(epsilon, dot(n, n));
     n = n * inversesqrt(magSqr);
 
-    float vc = vort(uv);
+    float vc = vort(uv, uv);
     vec2 eps = (dx + dy) * csCale;
     force.xy = eps * vc * n * vec2(1, -1) + accumForce(uv);
 }

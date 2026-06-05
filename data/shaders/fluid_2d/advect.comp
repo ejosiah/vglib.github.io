@@ -5,6 +5,7 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
+#define BOUNDARY_SET 6
 #include "common_new.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
@@ -15,14 +16,16 @@ layout(set = 5, binding = 0) uniform sampler aSampler;
 
 layout(push_constant) uniform Constants {
     float time_sign;
+    uint boundary_mode;
 };
 
-vec2 loadVectorField(vec2 uv) {
+vec2 loadVectorField(vec2 centerUv, vec2 sampleUv) {
+    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
     vec2 u;
     u.x = texture(vector_field_u, uv).x;
     u.y = texture(vector_field_v, uv).x;
 
-    return u;
+    return reflectVelocityAtBoundary(u, centerUv, sampleUv);
 }
 
 
@@ -34,17 +37,29 @@ void updateQuantity(vec4 q) {
     imageStore(quantity_out, gid, q);
 }
 
+vec4 sampleQuantity(vec2 centerUv, vec2 sampleUv) {
+    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
+    vec4 q = getQuantity(uv);
+    q.x = reflectVelocityComponentAtBoundary(q.x, boundary_mode, centerUv, sampleUv);
+    return q;
+}
+
 void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
-    vec2 u = loadVectorField(uv);
+    if(checkBoundary(uv)){
+        updateQuantity(vec4(0));
+        return;
+    }
+
+    vec2 u = loadVectorField(uv, uv);
 
     vec2 pm = uv - 0.5 * time_sign * dt * u;
-    u = loadVectorField(pm);
+    u = loadVectorField(uv, pm);
 
     vec2 p = uv - time_sign * dt * u;
-    vec4 q = getQuantity(p);
+    vec4 q = sampleQuantity(uv, p);
 
     updateQuantity(q);
 }
