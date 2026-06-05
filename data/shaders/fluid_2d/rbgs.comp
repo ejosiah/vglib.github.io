@@ -33,17 +33,20 @@ vec4 x0(vec2 centerUv, vec2 coord){
 void main() {
     if(outOfBounds()) return;
 
-    if(pass == 0 && gid.x + gid.y % 2 == 1) return;
-    if(pass == 1 && gid.x + gid.y % 2 == 0) return;
-
-    float dx2 = dx.x * dx.x;
-    float dy2 = dy.y * dy.y;
     vec2 uv = get_uv();
     if(checkBoundary(uv)){
         imageStore(unknow_image, gid, vec4(0));
         return;
     }
 
+    uint parity = uint((gid.x + gid.y) & 1);
+    if((pass == 0u && parity == 1u) || (pass == 1u && parity == 0u)){
+        imageStore(unknow_image, gid, texture(unknown_tex, uv));
+        return;
+    }
+
+    float dx2 = dx.x * dx.x;
+    float dy2 = dy.y * dy.y;
     vec4 x =  ((x0(uv, uv + dx) + x0(uv, uv - dx)) * dy2 + (x0(uv, uv + dy) + x0(uv, uv - dy)) * dx2 + alpha * b(uv)) * rBeta;
 
     imageStore(unknow_image, gid, x);

@@ -271,7 +271,7 @@ namespace eular {
         float _dt{1.0f / 120.f};
         glm::vec2 _gridSize{0};
         std::vector<std::reference_wrapper<Quantity>> _quantities;
-        LinearSolverStrategy _linearSolverStrategy{LinearSolverStrategy::Jacobi};
+        LinearSolverStrategy _linearSolverStrategy{LinearSolverStrategy::RBGS};
 
         std::vector<ExternalForce> _externalForces;
         std::optional<VectorFieldFunc2D> _generator;
