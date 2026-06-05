@@ -2,9 +2,9 @@
 
 
 layout(set = 0, binding = 0) uniform Globals{
-    vec3 dx;
-    vec3 dy;
-    vec3 dz;
+    vec4 dx;
+    vec4 dy;
+    vec4 dz;
     float dt;
     int ensureBoundaryCondition;
 };
@@ -26,13 +26,14 @@ vec3 u(vec3 coord) {
 }
 
 vec3 pg(){
-    float dudx = (p(uv + dx) - p(uv - dx))/(2*dx.x);
-    float dudy = (p(uv + dy) - p(uv - dy))/(2*dy.y);
-    float dudz = (p(uv + dz) - p(uv - dz))/(2*dy.z);
+    float dudx = (p(uv + dx.xyz) - p(uv - dx.xyz))/(2*dx.x);
+    float dudy = (p(uv + dy.xyz) - p(uv - dy.xyz))/(2*dy.y);
+    float dudz = (p(uv + dz.xyz) - p(uv - dz.xyz))/(2*dz.z);
 
     return vec3(dudx, dudy, dudz);
 }
 
 void main() {
     velocity_out.xyz = u(uv) - pg();
+    velocity_out.w = 0;
 }

@@ -19,7 +19,7 @@ FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool *descriptorP
 void FluidSolver::initBuffers() {
     auto [size, globalConstants] = getGlobalConstants();
     globalConstantsBuffer = device->createCpuVisibleBuffer(globalConstants, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    debugBuffer = device->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU, sizeof(glm::vec4) * width * height, "debug");
+    debugBuffer = device->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU, sizeof(glm::vec4) * width * height * depth, "debug");
 }
 
 void FluidSolver::createRenderPass(){

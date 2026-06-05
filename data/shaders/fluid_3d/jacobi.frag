@@ -2,9 +2,9 @@
 
 
 layout(set = 0, binding = 0) uniform Globals{
-    vec3 dx;
-    vec3 dy;
-    vec3 dz;
+    vec4 dx;
+    vec4 dy;
+    vec4 dz;
     float dt;
     int ensureBoundaryCondition;
 };
@@ -44,9 +44,9 @@ void main(){
     float dydy = dy.y * dy.y;
     float dzdz = dz.z * dz.z;
 
-    vec4 xx = (x0(uv + dx) + x0(uv - dx)) * dydy * dzdz;
-    vec4 xy = (x0(uv + dy) + x0(uv - dy)) * dxdx * dzdz;
-    vec4 xz = (x0(uv + dz) + x0(uv - dz)) * dxdx * dydy;
+    vec4 xx = (x0(uv + dx.xyz) + x0(uv - dx.xyz)) * dydy * dzdz;
+    vec4 xy = (x0(uv + dy.xyz) + x0(uv - dy.xyz)) * dxdx * dzdz;
+    vec4 xz = (x0(uv + dz.xyz) + x0(uv - dz.xyz)) * dxdx * dydy;
 
     x = (xx + xy + xz + alpha * b(uv)) * rBeta;
 }

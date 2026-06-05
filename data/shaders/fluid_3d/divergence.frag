@@ -2,9 +2,9 @@
 
 
 layout(set = 0, binding = 0) uniform Globals{
-    vec3 dx;
-    vec3 dy;
-    vec3 dz;
+    vec4 dx;
+    vec4 dy;
+    vec4 dz;
     float dt;
     int ensureBoundaryCondition;
 };
@@ -21,9 +21,9 @@ vec3 u(vec3 coord) {
 }
 
 void main() {
-    float dudx = (u(uv + dx).x - u(uv - dx).x)/(2*dx.x);
-    float dudy = (u(uv + dy).y - u(uv - dy).y)/(2*dy.y);
-    float dudz = (u(uv + dz).z - u(uv - dz).y)/(2*dz.z);
+    float dudx = (u(uv + dx.xyz).x - u(uv - dx.xyz).x)/(2*dx.x);
+    float dudy = (u(uv + dy.xyz).y - u(uv - dy.xyz).y)/(2*dy.y);
+    float dudz = (u(uv + dz.xyz).z - u(uv - dz.xyz).z)/(2*dz.z);
 
     divOut.x = dudx + dudy + dudz;
 }

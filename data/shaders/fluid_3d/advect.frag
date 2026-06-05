@@ -1,9 +1,9 @@
 #version 450 core
 
 layout(set = 0, binding = 0) uniform Globals{
-    vec2 dx;
-    vec2 dy;
-    vec3 dz;
+    vec4 dx;
+    vec4 dy;
+    vec4 dz;
     float dt;
     int ensureBoundaryCondition;
 };
