@@ -150,7 +150,9 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureKHR(
 VKAPI_ATTR VkResult VKAPI_CALL vkSetDebugUtilsObjectNameEXT(
         VkDevice                                    device,
         const VkDebugUtilsObjectNameInfoEXT*        pNameInfo){
-    assert(pfn_vkSetDebugUtilsObjectNameEXT);
+    if(!pfn_vkSetDebugUtilsObjectNameEXT) {
+        return VK_SUCCESS;
+    }
     return pfn_vkSetDebugUtilsObjectNameEXT(device, pNameInfo);
 }
 

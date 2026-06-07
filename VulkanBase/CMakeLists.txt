@@ -17,6 +17,7 @@ find_package(OpenEXR)
 find_package(Taskflow)
 find_package(ZLIB)
 find_package(Ktx)
+find_package(nlohmann_json)
 
 
 
@@ -64,7 +65,20 @@ if (OpenCL_FOUND)
 endif()
 
 add_executable(VulkanBaseTest  ${TEST_FILES})
-target_link_libraries(VulkanBaseTest PRIVATE VulkanBase Vulkan::Vulkan  gtest::gtest)
+set(LINEAR_SOLVER_JACOBI_SPV ${CMAKE_CURRENT_BINARY_DIR}/test_shaders/linalg/jacobi.comp.spv)
+add_custom_command(
+        OUTPUT ${LINEAR_SOLVER_JACOBI_SPV}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/test_shaders/linalg
+        COMMAND ${GLSLC} -g -fshader-stage=compute --target-spv=spv1.6
+                ${CMAKE_CURRENT_LIST_DIR}/../data/shaders/linalg/jacobi.comp
+                -o ${LINEAR_SOLVER_JACOBI_SPV}
+        DEPENDS ${CMAKE_CURRENT_LIST_DIR}/../data/shaders/linalg/jacobi.comp
+        VERBATIM)
+add_custom_target(VulkanBaseTestShaders DEPENDS ${LINEAR_SOLVER_JACOBI_SPV})
+add_dependencies(VulkanBaseTest VulkanBaseTestShaders)
+file(TO_CMAKE_PATH "${LINEAR_SOLVER_JACOBI_SPV}" LINEAR_SOLVER_JACOBI_SPV_DEFINE)
+target_compile_definitions(VulkanBaseTest PRIVATE LINEAR_SOLVER_JACOBI_SPV="${LINEAR_SOLVER_JACOBI_SPV_DEFINE}")
+target_link_libraries(VulkanBaseTest PRIVATE VulkanBase Vulkan::Vulkan  gtest::gtest nlohmann_json::nlohmann_json)
 
 include(GoogleTest)
 gtest_discover_tests(VulkanBaseTest)

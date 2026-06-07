@@ -1,0 +1,39 @@
+#version 460
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) readonly buffer Coefficients {
+    float A[];
+};
+
+layout(set = 0, binding = 1) readonly buffer ColIndices {
+    uint colIndices[];
+};
+
+layout(set = 0, binding = 2) readonly buffer RowOffsets {
+    uint rowOffsets[];
+};
+
+layout(set = 0, binding = 3) readonly buffer Solutions {
+    float bs[];
+};
+
+layout(set = 0, binding = 4) readonly buffer UnknownIn {
+    float v[];
+} xs_in;
+
+layout(set = 0, binding = 5) buffer UnknownOut {
+    float v[];
+} xs_out;
+
+layout(set = 0, binding = 6) buffer Params {
+    float tolerance;
+    uint numRows;
+    uint residualCheckEnabled;
+    uint skip;
+};
+
+
+void main() {
+
+}
