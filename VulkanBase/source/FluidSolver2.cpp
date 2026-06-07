@@ -332,7 +332,7 @@ namespace eular {
 
     
     void FluidSolver::prepTextures() {
-        device->graphicsCommandPool().oneTimeCommand([&](auto commandBuffer) {
+        device->firstActiveCommandPool().oneTimeCommand([&](auto commandBuffer) {
             std::vector<VkImageMemoryBarrier2> barriers;
 
             VkImageMemoryBarrier2 barrier{
@@ -529,7 +529,7 @@ namespace eular {
     void FluidSolver::clear(VkCommandBuffer commandBuffer, Texture &texture) {
         texture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, DEFAULT_SUB_RANGE
                 , VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT
-                , VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+                , VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         VkClearColorValue color{ {0.f, 0.f, 0.f, 0.f}};
         VkImageSubresourceRange range{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -537,7 +537,7 @@ namespace eular {
 
         texture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, DEFAULT_SUB_RANGE
                 , VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
-                , VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+                , VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
     }
 
     void FluidSolver::diffuseVelocityField(VkCommandBuffer commandBuffer) {
@@ -1083,7 +1083,7 @@ namespace eular {
         };
 
 
-        _device->graphicsCommandPool().oneTimeCommand([&](auto commandBuffer){
+        _device->firstActiveCommandPool().oneTimeCommand([&](auto commandBuffer){
             vkCmdPipelineBarrier2(commandBuffer, &dInfo);
 
             const auto gs = glm::uvec2(_gridSize);
