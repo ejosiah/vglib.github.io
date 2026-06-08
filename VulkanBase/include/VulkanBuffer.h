@@ -240,7 +240,9 @@ struct VulkanBuffer{
         return size == 0;
     }
 
-    BufferRegion region(VkDeviceSize start, VkDeviceSize end = VK_WHOLE_SIZE);
+    BufferRegion region(VkDeviceSize start, VkDeviceSize end = VK_WHOLE_SIZE) const;
+
+    operator BufferRegion() const;
 
     VmaAllocator allocator{};
     VkBuffer buffer{};
@@ -258,7 +260,7 @@ struct VulkanBuffer{
 };
 
 struct BufferRegion {
-    VulkanBuffer* buffer{};
+    const VulkanBuffer* buffer{};
     VkDeviceSize offset{0};
     VkDeviceSize end{VK_WHOLE_SIZE};
 
