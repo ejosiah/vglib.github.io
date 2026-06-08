@@ -90,14 +90,12 @@ protected:
         return device.createCpuVisibleBuffer(xZero.data(), BYTE_SIZE(xZero), usage);
     }
 
-    VulkanBuffer solve(const CpuMatrix& A,
-                       const CpuVector& b,
-                       linalg::gpu::Solver::Method method,
-                       uint32_t numIterations) {
+    template<typename SolverT>
+    VulkanBuffer solve(const CpuMatrix& A, const CpuVector& b, uint32_t numIterations) {
         auto gpuSystem = createGpuSystem(A, b);
         auto unknown = createUnknownBuffer();
 
-        linalg::gpu::Solver solver{device};
+        SolverT solver{device};
         solver.init(unknown.size);
 
         execute([&](auto commandBuffer) {
@@ -111,7 +109,6 @@ protected:
                 },
                 .solution = gpuSystem.rhs,
                 .unknown = unknown,
-                .method = method,
                 .numIterations = numIterations,
             });
         });
@@ -141,7 +138,7 @@ TEST_F(LinearSolversTest, jacobiMatchesCpu) {
         .max_iterations = solverIterations,
         .tolerance = 0.0,
     });
-    const auto actual = solve(A, b, linalg::gpu::Solver::Method::Jacobi, solverIterations);
+    const auto actual = solve<gpu::linalg::JacobiSolver>(A, b, solverIterations);
 
     expectNear(expected.x, actual, 1e-4f);
 }
@@ -156,7 +153,7 @@ TEST_F(LinearSolversTest, redBlackGaussSeidelMatchesCpu) {
     const auto b = linear_system::create_vector<CpuVector>(system);
 
     const auto expected = redBlackGaussSeidel(A, b, solverIterations);
-    const auto actual = solve(A, b, linalg::gpu::Solver::Method::RedBlackGaussSeidel, solverIterations);
+    const auto actual = solve<gpu::linalg::RedBlackGaussSeidelSolver>(A, b, solverIterations);
 
     expectNear(expected, actual, 2e-4f);
 }
@@ -174,7 +171,7 @@ TEST_F(LinearSolversTest, conjugateGradientMatchesCpu) {
         .max_iterations = solverIterations,
         .tolerance = 1e-6,
     });
-    const auto actual = solve(A, b, linalg::gpu::Solver::Method::ConjugateGradient, solverIterations);
+    const auto actual = solve<gpu::linalg::ConjugateGradientSolver>(A, b, solverIterations);
 
     expectNear(expected.x, actual, 1e-3f);
 }
@@ -195,7 +192,7 @@ TEST_F(LinearSolversTest, refreshesDescriptorSetWhenUnknownBufferChanges) {
     auto gpuSystem = createGpuSystem(A, b);
     auto firstUnknown = createUnknownBuffer();
     auto secondUnknown = createUnknownBuffer();
-    linalg::gpu::Solver solver{device};
+    gpu::linalg::JacobiSolver solver{device};
     solver.init(firstUnknown.size);
 
     auto run = [&](VulkanBuffer& unknown) {
@@ -210,7 +207,6 @@ TEST_F(LinearSolversTest, refreshesDescriptorSetWhenUnknownBufferChanges) {
                 },
                 .solution = gpuSystem.rhs,
                 .unknown = unknown,
-                .method = linalg::gpu::Solver::Method::Jacobi,
                 .numIterations = solverIterations,
             });
         });
