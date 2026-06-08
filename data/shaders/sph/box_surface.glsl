@@ -31,7 +31,7 @@ vec3 closestPoint(BoxSurface box, vec3 point, OUT(vec3) o_normal, OUT(float) o_d
             if(d < o_dist){
                 res = pointOnSurface;
                 o_dist = d;
-                o_normal = face.normal;
+                o_normal = bool(box.normalFlipped) ? -face.normal : face.normal;
             }
         }
         return res;
@@ -48,7 +48,7 @@ vec3 closestPoint(BoxSurface box, vec3 point, OUT(vec3) o_normal, OUT(float) o_d
         if(cosine > o_dist){
             res = pointOnSurface;
             o_dist = cosine;
-            o_normal = face.normal;
+            o_normal = bool(box.normalFlipped) ? -face.normal : face.normal;
         }
     }
 
@@ -58,7 +58,6 @@ vec3 closestPoint(BoxSurface box, vec3 point, OUT(vec3) o_normal, OUT(float) o_d
 bool isPenetrating(BoxSurface box, vec3 position, float radius, OUT(vec3) normal, OUT(vec3) surfacePoint){
     float dist;
     surfacePoint = closestPoint(box, position, normal, dist);
-    normal *= bool(box.normalFlipped) ? -1 : 1;
     return dot(position - surfacePoint, normal) < 0 || dist < radius;
 }
 
