@@ -1,0 +1,39 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0, scalar) readonly buffer CG_Scalars {
+    float rsOld;
+    float rsNew;
+    float alpha;
+    int converged;
+};
+
+layout(set = 0, binding = 1, scalar) readonly buffer X {
+    float xs[];
+};
+
+layout(set = 0, binding = 2, scalar) readonly buffer Y_IN {
+    float ys_in[];
+};
+
+layout(set = 0, binding = 3, scalar) writeonly buffer Y_OUT {
+    float ys_out[];
+};
+
+layout(push_constant) uniform Constants {
+    float direction;    // sign is glsl function so second best name I could think of
+};
+
+void main() {
+    if(converged == 1) return;
+
+    uint gid = gl_GlobalInvocationID.x;
+
+    float a = direction * alpha;
+    float x = xs[gid];
+    float y = ys_in[gid];
+
+    ys_out[gid] = a*x + y;
+}

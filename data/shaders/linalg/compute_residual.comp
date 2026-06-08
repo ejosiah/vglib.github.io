@@ -1,0 +1,52 @@
+#version 460
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) readonly buffer Coefficients {
+    float A[];
+};
+
+layout(set = 0, binding = 1) readonly buffer ColIndices {
+    uint colIndices[];
+};
+
+layout(set = 0, binding = 2) readonly buffer RowOffsets {
+    uint rowOffsets[];
+};
+
+layout(set = 0, binding = 3) readonly buffer Solutions {
+    float bs[];
+};
+
+layout(set = 0, binding = 4) readonly buffer UnknownIn {
+    float v[];
+} xs;
+
+layout(set = 0, binding = 7) readonly buffer Params {
+    float tolerance;
+    uint numRows;
+    uint residualCheckEnabled;
+    uint skip;
+};
+
+layout(set = 1, binding = 0) writeonly buffer Residual {
+    float rs[];
+};
+
+
+void main() {
+    uint row = gl_GlobalInvocationID.x;
+    if(skip == 1 || row >= numRows) return;
+
+    uint start = rowOffsets[row];
+    uint end = rowOffsets[row+1];
+
+    float Ax = 0.0;
+    for(uint i = start; i < end; ++i) {
+        uint col = colIndices[i];
+        Ax += A[i] * xs.v[col];
+    }
+
+    rs[row] = bs[row] - Ax;
+
+}

@@ -1,0 +1,90 @@
+#version 460
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) readonly buffer Coefficients {
+    float A[];
+};
+
+layout(set = 0, binding = 1) readonly buffer ColIndices {
+    uint colIndices[];
+};
+
+layout(set = 0, binding = 2) readonly buffer RowOffsets {
+    uint rowOffsets[];
+};
+
+layout(set = 0, binding = 3) readonly buffer Solutions {
+    float bs[];
+};
+
+layout(set = 0, binding = 4) readonly buffer UnknownIn {
+    float v[];
+} xs_in;
+
+layout(set = 0, binding = 5) buffer UnknownOut {
+    float v[];
+} xs_out;
+
+layout(set = 0, binding = 6) buffer Residual {
+    float rs[];
+};
+
+layout(set = 0, binding = 7) buffer Params {
+    float tolerance;
+    uint numRows;
+    uint residualCheckEnabled;
+    uint skip;
+};
+
+layout(push_constant) uniform PassConstants {
+    uint pass;
+};
+
+void main() {
+    uint row = gl_GlobalInvocationID.x;
+    if(skip == 1 || row >= numRows) return;
+
+    if((row & 1u) != pass) {
+        xs_out.v[row] = xs_in.v[row];
+        return;
+    }
+
+    float diagonal = 0.0;
+    bool hasDiagonal = false;
+    float sum = 0.0;
+
+    uint start = rowOffsets[row];
+    uint end = rowOffsets[row + 1];
+
+    if(end == start) {
+        if(residualCheckEnabled != 0) {
+            rs[row] = bs[row];
+        }
+        xs_out.v[row] = xs_in.v[row];
+        return;
+    }
+
+    for(uint i = start; i < end; ++i) {
+        uint col = colIndices[i];
+        float value = A[i];
+
+        if(col == row) {
+            diagonal = value;
+            hasDiagonal = true;
+        } else {
+            sum += value * xs_in.v[col];
+        }
+    }
+
+    if(residualCheckEnabled != 0) {
+        rs[row] = bs[row] - (sum + diagonal * xs_in.v[row]);
+    }
+
+    if(!hasDiagonal || diagonal == 0.0) {
+        xs_out.v[row] = xs_in.v[row];
+        return;
+    }
+
+    xs_out.v[row] = (bs[row] - sum) / diagonal;
+}

@@ -1,0 +1,22 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+
+layout(local_size_x = 1) in;
+
+layout(set = 1, binding = 3, scalar) buffer CG_Scalars {
+    float rsOld;
+    float rsNew;
+    float alpha;
+    int converged;
+};
+
+layout(set = 0, binding = 7) readonly buffer Params {
+    float tolerance;
+    uint numRows;
+    uint residualCheckEnabled;
+    uint skip;
+};
+
+void main() {
+    converged = int(rsNew < tolerance);
+}

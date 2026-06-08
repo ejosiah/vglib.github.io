@@ -1,0 +1,46 @@
+#version 460
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) readonly buffer Coefficients {
+    float A[];
+};
+
+layout(set = 0, binding = 1) readonly buffer ColIndices {
+    uint colIndices[];
+};
+
+layout(set = 0, binding = 2) readonly buffer RowOffsets {
+    uint rowOffsets[];
+};
+
+layout(set = 0, binding = 7) readonly buffer Params {
+    float tolerance;
+    uint numRows;
+    uint residualCheckEnabled;
+    uint skip;
+};
+
+layout(set = 1, binding = 1) readonly buffer P {
+    float ps[];
+};
+
+layout(set = 1, binding = 2) writeonly buffer AP {
+    float aps[];
+};
+
+void main() {
+    uint row = gl_GlobalInvocationID.x;
+    if(skip == 1 || row >= numRows) return;
+
+    uint start = rowOffsets[row];
+    uint end = rowOffsets[row + 1];
+
+    float sum = 0.0;
+    for(uint i = start; i < end; ++i) {
+        uint col = colIndices[i];
+        sum += A[i] * ps[col];
+    }
+
+    aps[row] = sum;
+}

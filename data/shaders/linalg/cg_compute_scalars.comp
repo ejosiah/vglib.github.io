@@ -1,0 +1,51 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+
+#define COMPUTE_RS_OLD 0
+#define COMPUTE_ALPHA 1
+#define COMPUTE_RS_NEW 2
+#define COMPUTE_BETA 3
+
+layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 3, scalar) buffer CG_Scalars {
+    float rsOld;
+    float rsNew;
+    float alpha;
+    int converged;
+};
+
+layout(set = 0, binding = 4, scalar) readonly buffer DotResult {
+    float dotProductResult;
+};
+
+layout(push_constant) uniform Constants {
+    int compute;
+};
+
+bool invalidDenominator(float value) {
+    return isnan(value) || isinf(value) || abs(value) <= 1e-20;
+}
+
+void main() {
+    if(converged == 1) return;
+
+    if(compute == COMPUTE_RS_OLD) {
+        rsOld = dotProductResult;
+    } else if(compute == COMPUTE_ALPHA) {
+        if(invalidDenominator(dotProductResult)) {
+            converged = 1;
+            return;
+        }
+        alpha = rsOld / dotProductResult;
+    } else if(compute == COMPUTE_RS_NEW) {
+        rsNew = dotProductResult;
+    } else if(compute == COMPUTE_BETA){
+        if(invalidDenominator(rsOld)) {
+            converged = 1;
+            return;
+        }
+        alpha = rsNew / rsOld;
+        rsOld = rsNew;
+    }
+}
