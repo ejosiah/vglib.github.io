@@ -141,3 +141,76 @@ TEST_F(GpuAlgorithms, reduceAdd){
     ASSERT_NEAR(expected, actual, 0.001);
     
 }
+
+TEST_F(GpuAlgorithms, mathOperations){
+    std::vector<float> a{ 2.0f, 4.0f, 6.0f, 8.0f, 10.0f };
+    std::vector<float> b{ 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
+    std::vector<float> result(a.size());
+
+    VulkanBuffer as = device.createCpuVisibleBuffer(a.data(), BYTE_SIZE(a), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    VulkanBuffer bs = device.createCpuVisibleBuffer(b.data(), BYTE_SIZE(b), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    VulkanBuffer cs = device.createCpuVisibleBuffer(result.data(), BYTE_SIZE(result), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+    auto expect = [&](auto operation, const std::vector<float>& expected) {
+        device.computeCommandPool().oneTimeCommand([&](auto commandBuffer){
+            operation(commandBuffer, as.region(0), bs.region(0), cs.region(0));
+        });
+
+        auto actual = cs.span<float>();
+        for(size_t i = 0; i < expected.size(); ++i) {
+            ASSERT_FLOAT_EQ(expected[i], actual[i]);
+        }
+        cs.unmap();
+    };
+
+    expect(gpu::add, { 3.0f, 6.0f, 9.0f, 12.0f, 15.0f });
+    expect(gpu::subtract, { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f });
+    expect(gpu::multiply, { 2.0f, 8.0f, 18.0f, 32.0f, 50.0f });
+    expect(gpu::divide, { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f });
+}
+
+TEST_F(GpuAlgorithms, mathOperationsRespectBufferRegions){
+    constexpr size_t start = 7;
+    constexpr size_t count = 37;
+    constexpr float sentinel = -1000.0f;
+
+    std::vector<float> a(64, sentinel);
+    std::vector<float> b(64, sentinel);
+    std::vector<float> result(64, sentinel);
+
+    for(size_t i = 0; i < count; ++i) {
+        a[start + i] = static_cast<float>(i + 10);
+        b[start + i] = static_cast<float>(i + 1);
+    }
+
+    VulkanBuffer as = device.createCpuVisibleBuffer(a.data(), BYTE_SIZE(a), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    VulkanBuffer bs = device.createCpuVisibleBuffer(b.data(), BYTE_SIZE(b), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    VulkanBuffer cs = device.createCpuVisibleBuffer(result.data(), BYTE_SIZE(result), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+    const auto begin = start * sizeof(float);
+    const auto end = (start + count) * sizeof(float);
+
+    auto expect = [&](auto operation, auto expectedValue) {
+        cs.copy(result.data(), BYTE_SIZE(result), 0);
+
+        device.computeCommandPool().oneTimeCommand([&](auto commandBuffer){
+            operation(commandBuffer, as.region(begin, end), bs.region(begin, end), cs.region(begin, end));
+        });
+
+        auto actual = cs.span<float>();
+        for(size_t i = 0; i < actual.size(); ++i) {
+            if(i < start || i >= start + count) {
+                ASSERT_FLOAT_EQ(sentinel, actual[i]);
+            } else {
+                const auto index = i - start;
+                ASSERT_FLOAT_EQ(expectedValue(a[i], b[i], index), actual[i]);
+            }
+        }
+        cs.unmap();
+    };
+
+    expect(gpu::add, [](float x, float y, size_t) { return x + y; });
+    expect(gpu::subtract, [](float x, float y, size_t) { return x - y; });
+    expect(gpu::multiply, [](float x, float y, size_t) { return x * y; });
+    expect(gpu::divide, [](float x, float y, size_t) { return x / y; });
+}

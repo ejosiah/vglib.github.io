@@ -3,6 +3,7 @@
 
 extern std::vector<uint32_t> data_shaders_algorithm_add_comp;
 extern std::vector<uint32_t> data_shaders_algorithm_average_comp;
+extern std::vector<uint32_t> data_shaders_algorithm_math_operations_comp;
 extern std::vector<uint32_t> data_shaders_algorithm_reduce_output_comp;
 extern std::vector<uint32_t> data_shaders_algorithm_scan_comp;
 extern std::vector<uint32_t> data_shaders_barycenter_frag;

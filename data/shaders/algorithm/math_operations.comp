@@ -1,0 +1,45 @@
+#version 460
+
+#define OPERATION_ADD  0
+#define OPERATION_SUBTRACT 1
+#define OPERATION_MULTIPLY 2
+#define OPERATION_DIVIDE 3
+#define OPERATION_AND 4
+#define OPERATION_OR 5
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) readonly buffer ArgA {
+    float as[];
+};
+
+layout(set = 0, binding = 1) readonly buffer ArgB {
+    float bs[];
+};
+
+layout(set = 0, binding = 2) writeonly buffer ArgC {
+    float cs[];
+};
+
+layout(push_constant) uniform Constants {
+    uint operation;
+    uint count;
+};
+
+float applyOperator(float a, float b){
+    switch(operation) {
+        case OPERATION_ADD: return a + b;
+        case OPERATION_SUBTRACT: return a - b;
+        case OPERATION_MULTIPLY: return a * b;
+        case OPERATION_DIVIDE: return a / b;
+        default: return 0.0;
+    }
+}
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if(gid >= count) {
+        return;
+    }
+    cs[gid] = applyOperator(as[gid], bs[gid]);
+}

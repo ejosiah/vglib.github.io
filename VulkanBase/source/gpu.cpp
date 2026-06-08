@@ -8,6 +8,16 @@
 #include "glsl_shaders.hpp"
 
 namespace gpu {
+    static VulkanDescriptorPool* g_descriptorPool{};
+
+    static VulkanDescriptorPool createDescriptorPool(VulkanDevice& device) {
+        constexpr uint32_t maxSets = 4;
+        std::vector<VkDescriptorPoolSize> poolSizes{
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 9 }
+        };
+
+        return device.createDescriptorPool(maxSets, poolSizes);
+    }
 
     std::string resource(const std::string &name) {
         auto res = g_fileMgr->getFullPath(name);
@@ -15,7 +25,7 @@ namespace gpu {
         return res->string();
     }
 
-    static void addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std::vector<VulkanBuffer *> &buffers){
+    static void addBufferMemoryBarriers(VkCommandBuffer commandBuffer, const std::vector<const VulkanBuffer *> &buffers){
         std::vector<VkBufferMemoryBarrier> barriers(buffers.size());
 
         for(int i = 0; i < buffers.size(); i++) {
@@ -70,14 +80,13 @@ namespace gpu {
         VulkanDescriptorSetLayout inoutSetLayout;
     };
 
-    class PrefixScan : public ComputePipelines{
+    class PrefixScan : public ComputePipelines {
     public:
         PrefixScan()
             :ComputePipelines(g_device){}
             
         void init() {
             bufferOffsetAlignment = g_device->getLimits().minStorageBufferOffsetAlignment;
-            createDescriptorPool();
             createDescriptorSet();
             createPipelines();
         }
@@ -128,15 +137,6 @@ namespace gpu {
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("reduce"), 0, COUNT(sets), sets.data(), 0, nullptr);
             vkCmdPushConstants(commandBuffer, layout("reduce"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(reduceConstants), &reduceConstants);
             vkCmdDispatch(commandBuffer, 1, 1, 1);
-        }
-
-        void createDescriptorPool(){
-            constexpr uint maxSets = 3;
-            std::vector<VkDescriptorPoolSize> poolSizes{
-                    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, maxSets * 2}
-            };
-
-            descriptorPool = device->createDescriptorPool(maxSets, poolSizes);
         }
 
         void updateDataDescriptorSets(VulkanBuffer &buffer){
@@ -207,7 +207,8 @@ namespace gpu {
                         .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
                 .createLayout();
 
-            auto sets = descriptorPool.allocate({ inoutSetLayout, inoutSetLayout, inoutSetLayout });
+            assert(g_descriptorPool != nullptr);
+            auto sets = g_descriptorPool->allocate({ inoutSetLayout, inoutSetLayout, inoutSetLayout });
             dataDescriptorSet = sets[0];
             sumScanDescriptorSet = sets[1];
             finalSumDescriptorSet = sets[2];
@@ -259,7 +260,6 @@ namespace gpu {
         VulkanDescriptorSetLayout setLayout;
         VulkanDescriptorSetLayout inoutSetLayout;
         uint32_t bufferOffsetAlignment{};
-        VulkanDescriptorPool descriptorPool;
         int numWorkGroups{};
 
         struct {
@@ -273,16 +273,129 @@ namespace gpu {
         } reduceConstants;
     };
 
-    static PrefixScan* g_scan{nullptr};
+    class MathOperations : public ComputePipelines {
+    public:
+        MathOperations()
+            : ComputePipelines(g_device) {}
+
+        void init() {
+            createDescriptorSetLayout();
+            createDescriptorSet();
+            createPipelines();
+        }
+
+        void execute(VkCommandBuffer commandBuffer, const BufferRegion& as, const BufferRegion& bs, const BufferRegion& cs, Operation operation) {
+            const auto count = sizeAsFloat(as);
+            if(count == 0) {
+                return;
+            }
+
+            assert(sizeAsFloat(bs) >= count);
+            assert(sizeAsFloat(cs) >= count);
+
+            updateDescriptorSet(as, bs, cs);
+            PushConstants constants{
+                static_cast<uint32_t>(operation),
+                count
+            };
+            const auto gx = (count + WorkGroupSize - 1u)/WorkGroupSize;
+            const std::array<VkDescriptorSet, 1> sets{ descriptorSet_ };
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("math_operations"));
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("math_operations"), 0, COUNT(sets), sets.data(), 0, nullptr);
+            vkCmdPushConstants(commandBuffer, layout("math_operations"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
+            vkCmdDispatch(commandBuffer, gx, 1, 1);
+
+            addBufferMemoryBarriers(commandBuffer, { cs.buffer });
+        }
+
+    private:
+        static constexpr uint32_t WorkGroupSize = 32;
+
+        struct PushConstants {
+            uint32_t operation;
+            uint32_t count;
+        };
+
+        void createDescriptorSetLayout() {
+            descriptorSetLayout_ =
+                device->descriptorSetLayoutBuilder()
+                    .name("gpu_math_algorithms")
+                    .binding(0)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(1)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .binding(2)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .createLayout();
+        }
+
+        void createDescriptorSet() {
+            assert(g_descriptorPool != nullptr);
+            descriptorSet_ = g_descriptorPool->allocate({ descriptorSetLayout_ }).front();
+        }
+
+        void updateDescriptorSet(const BufferRegion& as, const BufferRegion& bs, const BufferRegion& cs) {
+            std::array<VkDescriptorBufferInfo, 3> infos{{
+                { as.buffer->buffer, as.offset, size(as) },
+                { bs.buffer->buffer, bs.offset, size(bs) },
+                { cs.buffer->buffer, cs.offset, size(cs) }
+            }};
+
+            auto writes = initializers::writeDescriptorSets<3>(descriptorSet_);
+            for(uint32_t i = 0; i < COUNT(writes); ++i) {
+                writes[i].dstBinding = i;
+                writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                writes[i].descriptorCount = 1;
+                writes[i].pBufferInfo = &infos[i];
+            }
+
+            device->updateDescriptorSets(writes);
+        }
+
+        std::vector<PipelineMetaData> pipelineMetaData() override {
+            return {
+                {
+                    "math_operations",
+                    data_shaders_algorithm_math_operations_comp,
+                    { &descriptorSetLayout_ },
+                    { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstants) } }
+                }
+            };
+        }
+
+        static VkDeviceSize size(const BufferRegion& region) {
+            return region.end == VK_WHOLE_SIZE ? region.buffer->size - region.offset : region.size();
+        }
+
+        static uint32_t sizeAsFloat(const BufferRegion& region) {
+            return static_cast<uint32_t>(size(region)/sizeof(float));
+        }
+
+        VulkanDescriptorSetLayout descriptorSetLayout_;
+        VkDescriptorSet descriptorSet_{};
+    };
+
+    static PrefixScan* g_scan{};
     static AlgorithmPipelines* g_algoPipelines{};
+    static MathOperations* g_mathOperations{};
 
     void init(VulkanDevice &device, FileManager &fileManager) {
         g_device = &device;
         g_fileMgr = &fileManager;
+        g_descriptorPool = new VulkanDescriptorPool{ createDescriptorPool(device) };
         g_scan = new PrefixScan{};
         g_algoPipelines = new AlgorithmPipelines{};
+        g_mathOperations = new MathOperations{};
         g_scan->init();
         g_algoPipelines->init();
+        g_mathOperations->init();
 
         if(device.queueFamilyIndex.compute.has_value()){
             g_commandPool = const_cast<VulkanCommandPool*>(&device.computeCommandPool());
@@ -304,6 +417,12 @@ namespace gpu {
     void shutdown(){
         delete g_scan;
         delete g_algoPipelines;
+        delete g_mathOperations;
+        delete g_descriptorPool;
+        g_scan = nullptr;
+        g_algoPipelines = nullptr;
+        g_mathOperations = nullptr;
+        g_descriptorPool = nullptr;
     }
 
     float average(VulkanBuffer &buffer) {
@@ -348,6 +467,26 @@ namespace gpu {
     void reduce(VkCommandBuffer commandBuffer, VkDescriptorSet inOutDescriptorSet, VulkanBuffer& input, Operation operation) {
         assert(g_scan != nullptr);
         g_scan->reduce(commandBuffer, input, inOutDescriptorSet);
+    }
+
+    void add(VkCommandBuffer commandBuffer, const BufferRegion& a, const BufferRegion& b, const BufferRegion& c) {
+        assert(g_mathOperations != nullptr);
+        g_mathOperations->execute(commandBuffer, a, b, c, Operation::ADD);
+    }
+
+    void subtract(VkCommandBuffer commandBuffer, const BufferRegion& a, const BufferRegion& b, const BufferRegion& c) {
+        assert(g_mathOperations != nullptr);
+        g_mathOperations->execute(commandBuffer, a, b, c, Operation::SUBTRACT);
+    }
+
+    void multiply(VkCommandBuffer commandBuffer, const BufferRegion& a, const BufferRegion& b, const BufferRegion& c) {
+        assert(g_mathOperations != nullptr);
+        g_mathOperations->execute(commandBuffer, a, b, c, Operation::MULTIPLY);
+    }
+
+    void divide(VkCommandBuffer commandBuffer, const BufferRegion& a, const BufferRegion& b, const BufferRegion& c) {
+        assert(g_mathOperations != nullptr);
+        g_mathOperations->execute(commandBuffer, a, b, c, Operation::DIVIDE);
     }
 
     float lastSum() {
