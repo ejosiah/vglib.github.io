@@ -64,9 +64,11 @@ public:
     static void transferWriteToHostRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
 
     [[deprecated("user version without buffer specification")]]
-    static void transferWriteToComputeWrite(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);
+    static void transferWriteToComputeWrite(VkCommandBuffer commandBuffer, const VulkanBuffer& buffers);
 
     static void transferWriteToComputeWrite(VkCommandBuffer commandBuffer);
+
+    static void transferReadWriteToComputeReadWrite(VkCommandBuffer commandBuffer);
 
     [[deprecated("user version without buffer specification")]]
     static void transferWriteToFragmentRead(VkCommandBuffer commandBuffer, VulkanBuffer& buffers);

@@ -207,7 +207,7 @@ void Barrier::transferWriteToHostRead(VkCommandBuffer commandBuffer, VulkanBuffe
                          VK_NULL_HANDLE, 1, &barrier, 0, VK_NULL_HANDLE);
 }
 
-void Barrier::transferWriteToComputeWrite(VkCommandBuffer commandBuffer, VulkanBuffer& buffer) {
+void Barrier::transferWriteToComputeWrite(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer) {
     VkBufferMemoryBarrier barrier{};
 
     barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -228,6 +228,17 @@ void Barrier::transferWriteToComputeWrite(VkCommandBuffer commandBuffer) {
     barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1,
+                         &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
+}
+
+void Barrier::transferReadWriteToComputeReadWrite(VkCommandBuffer commandBuffer) {
+    VkMemoryBarrier barrier{};
+
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1,
                          &barrier, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
