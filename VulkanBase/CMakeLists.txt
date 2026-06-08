@@ -33,7 +33,7 @@ add_definitions(
 
 set(CONAN_LIBS_DEP  assimp::assimp glm::glm glfw stb::stb spdlog::spdlog imgui::imgui
                     gtest::gtest argparse::argparse Bullet::Bullet EnTT::EnTT meshoptimizer::meshoptimizer
-                    openexr::openexr Taskflow::Taskflow ZLIB::ZLIB Freetype::Freetype KTX::ktx)
+                    openexr::openexr Taskflow::Taskflow ZLIB::ZLIB Freetype::Freetype KTX::ktx nlohmann_json::nlohmann_json)
 
 
 set(VGLIB_INCLUDE_DIRS

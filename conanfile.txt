@@ -15,6 +15,7 @@ openexr/3.3.2
 taskflow/3.4.0
 zlib/1.2.13
 ktx/4.4.2
+nlohmann_json/3.11.3
 
 [generators]
 CMakeDeps
