@@ -23,8 +23,10 @@ public:
     , _cleanup{ cleaner }
     , _name{ name }
     {
-        counts[_handle]++; // TODO might race
-        spdlog::debug("ref added, {} references to {}[{}]", counts[_handle].load(), _name, _handle);
+        if(_handle != 0) {
+            counts[_handle]++; // TODO might race
+            spdlog::debug("ref added, {} references to {}[{}]", counts[_handle].load(), _name, _handle);
+        }
     }
 
     RefCounted(const RefCounted& source)
@@ -32,32 +34,31 @@ public:
     {}
 
     RefCounted(RefCounted&& source) noexcept
-    : _handle( std::exchange(_handle, 0) )
-    , _cleanup( std::exchange(_cleanup, VoidCleaner ))
-    , _name( std::exchange(_name, ""))
+    : _handle( std::exchange(source._handle, 0) )
+    , _cleanup( std::exchange(source._cleanup, VoidCleaner ))
+    , _name( std::exchange(source._name, ""))
     {}
 
 
     virtual ~RefCounted() {
-        if(_handle != 0 && decrementRef() == 0) {
-            spdlog::debug("no more references to {}[{}], deletion in progress", _name, _handle);
-            _cleanup(_handle);
-            spdlog::debug("{}[{}] successfully deleted", _name, _handle);
-        }
+        releaseRef();
     }
 
     void copyRef(const RefCounted& source) {
-        if(this != &source && _handle != 0) {
-            _handle = source._handle;
-            _cleanup = source._cleanup;
-            _name = source._name;
+        if(this != &source) {
+            releaseRef();
+            copyFrom(source);
             incrementRef();
         }
     }
 
     void moveRef(RefCounted&& source) noexcept {
+        if(this == &source) {
+            return;
+        }
+        releaseRef();
         _handle = std::exchange(source._handle, 0);
-        _cleanup = std::exchange(source._cleanup, ResourceCleaner{});
+        _cleanup = std::exchange(source._cleanup, VoidCleaner);
         _name = std::exchange(source._name, "");
     }
 
@@ -67,12 +68,29 @@ public:
     }
 
 private:
-    void incrementRef() const {
-        auto itr = counts.find(_handle);
-        if(itr != counts.end()){
-            ++itr->second;
+    void copyFrom(const RefCounted& source) {
+        _handle = source._handle;
+        _cleanup = source._cleanup;
+        _name = source._name;
+    }
+
+    void releaseRef() {
+        if(_handle != 0 && decrementRef() == 0) {
+            spdlog::debug("no more references to {}[{}], deletion in progress", _name, _handle);
+            _cleanup(_handle);
+            spdlog::debug("{}[{}] successfully deleted", _name, _handle);
         }
-        spdlog::debug("ref added, {} references to {}[{}]", itr->second.load(), _name, _handle);
+        _handle = 0;
+        _cleanup = VoidCleaner;
+        _name.clear();
+    }
+
+    void incrementRef() const {
+        if(_handle != 0) {
+            auto& count = counts[_handle];
+            ++count;
+            spdlog::debug("ref added, {} references to {}[{}]", count.load(), _name, _handle);
+        }
     }
 
     [[nodiscard]] uint32_t decrementRef() const {
