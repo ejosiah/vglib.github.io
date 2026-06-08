@@ -1,5 +1,6 @@
 #include "VulkanFixture.hpp"
 #include "PrefixSum.hpp"
+#include <cmath>
 
 class PrefixScanTest : public VulkanFixture{
 protected:
@@ -140,7 +141,26 @@ TEST_F(PrefixScanTest, accumulateFloat) {
     auto expected = std::accumulate(data.begin(), data.end(), 0.f);
     auto result = gpuResult.span<float>().front();
 
-    ASSERT_EQ(expected, result);
+    ASSERT_NEAR(expected, result, std::abs(expected) * 1e-3f);
+}
+
+TEST_F(PrefixScanTest, accumulateFloatSingleWorkGroup) {
+    std::vector<float> data(256);
+    auto rng = rngFunc<float>(0, 100, 1 << 8);
+    std::generate(begin(data), end(data), [&]{ return rng(); });
+
+    VulkanBuffer gpuData = device.createCpuVisibleBuffer(data.data(), BYTE_SIZE(data), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    float x = 0;
+    VulkanBuffer gpuResult = device.createCpuVisibleBuffer(&x, sizeof(x), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+    execute([&](auto commandBuffer){
+        _prefix_sum.accumulate(commandBuffer, gpuData, gpuResult, Operation::Add, DataType::Float);
+    });
+
+    auto expected = std::accumulate(data.begin(), data.end(), 0.f);
+    auto result = gpuResult.span<float>().front();
+
+    ASSERT_NEAR(expected, result, std::abs(expected) * 1e-4f);
 }
 
 TEST_F(PrefixScanTest, scanWithMaxOperation) {

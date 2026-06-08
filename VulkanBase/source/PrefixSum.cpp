@@ -104,7 +104,6 @@ void PrefixSum::max(VkCommandBuffer commandBuffer, const BufferRegion& data,  Vu
 }
 
 
-
 void PrefixSum::accumulate(VkCommandBuffer commandBuffer, VulkanBuffer& data, VulkanBuffer& result, Operation operation, DataType dataType) {
     accumulate(commandBuffer, { &data, 0, data.size}, result, operation, dataType);
 }
@@ -228,9 +227,10 @@ void PrefixSum::scanInternal(VkCommandBuffer commandBuffer, BufferRegion data, O
 }
 
 void PrefixSum::copySum(VkCommandBuffer commandBuffer, VulkanBuffer& dst) {
-    VkBufferCopy cRegion{0, 0, DataUnitSize };
+    VkDeviceSize last = (constants.N - 1) * DataUnitSize;
+    VkBufferCopy cRegion{last, 0, DataUnitSize };
 
-    Barrier::computeWriteToTransferRead(commandBuffer, { sumOfSumsBuffer });
-    vkCmdCopyBuffer(commandBuffer, sumOfSumsBuffer, dst, 1, &cRegion);
+    Barrier::computeWriteToTransferRead(commandBuffer, { internalDataBuffer });
+    vkCmdCopyBuffer(commandBuffer, internalDataBuffer, dst, 1, &cRegion);
     Barrier::transferWriteToComputeRead(commandBuffer, { dst });
 }
