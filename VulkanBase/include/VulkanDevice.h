@@ -430,12 +430,16 @@ struct VulkanDevice{
 
     inline void copy(const VulkanBuffer& source, const VulkanBuffer& destination, VkDeviceSize size, VkDeviceSize srcOffset = 0u, VkDeviceSize dstOffset = 0u) const {
         commandPoolFor(*findFirstActiveQueue()).oneTimeCommand([&](auto cmdBuffer){
-            VkBufferCopy copy{};
-            copy.size = size;
-            copy.srcOffset = srcOffset;
-            copy.dstOffset = dstOffset;
-            vkCmdCopyBuffer(cmdBuffer, source, destination, 1u, &copy);
+            copy(cmdBuffer, source, destination, size, srcOffset, dstOffset);
         });
+    }
+
+    void copy(VkCommandBuffer commandBuffer, const VulkanBuffer& source, const VulkanBuffer& destination, VkDeviceSize size, VkDeviceSize srcOffset = 0u, VkDeviceSize dstOffset = 0u) const {
+        VkBufferCopy copy{};
+        copy.size = size;
+        copy.srcOffset = srcOffset;
+        copy.dstOffset = dstOffset;
+        vkCmdCopyBuffer(commandBuffer, source, destination, 1u, &copy);
     }
 
     inline VulkanBuffer createCpuVisibleBuffer(const void* data, VkDeviceSize size, VkBufferUsageFlags usage, std::set<uint32_t> queueIndices = {}) const {

@@ -1,0 +1,64 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+
+layout(local_size_x = 32) in;
+
+struct Entry {
+    float value;
+    uint row;
+    uint col;
+};
+
+layout(set = 0, binding = 0, scalar)  buffer CSRMatrix {
+    float values[];
+};
+
+layout(set = 0, binding = 1, scalar)  buffer ColIndices {
+    uint colIndices[];
+};
+
+layout(set = 0, binding = 2, scalar)  buffer RowOffsets {
+    uint rowOffsets[];
+};
+
+layout(set = 0, binding = 3, scalar) buffer Counts {
+    uint rowCount;
+    uint colCount;
+    uint nonZeroCount;
+};
+
+layout(set = 0, binding = 4, scalar) readonly buffer Source {
+    uint count;
+    Entry entries[];
+} source;
+
+layout(set = 0, binding = 5, scalar) readonly buffer Flags {
+    int flags[];
+};
+
+layout(set = 0, binding = 6, scalar) readonly buffer Offsets {
+    int offsets[];
+};
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+
+    if(gid == 0) {
+        uint numElements = rowCount * colCount;
+        uint last = numElements - 1;
+        nonZeroCount = flags[last] + offsets[last];
+    }
+
+    if(gid >= source.count) return;
+
+
+    Entry entry = source.entries[gid];
+
+    uint srcIndex = entry.row * colCount + entry.col;
+    uint dstIndex = offsets[srcIndex];
+
+    values[dstIndex] = entry.value;
+    colIndices[dstIndex] = entry.col;
+    atomicAdd(rowOffsets[entry.row], 1);
+}

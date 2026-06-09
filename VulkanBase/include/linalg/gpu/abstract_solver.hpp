@@ -2,18 +2,12 @@
 
 #include "ComputePipelins.hpp"
 #include "VulkanDevice.h"
+#include "csr_matrix.hpp"
 
 #include <array>
 #include <vector>
 
 namespace gpu::linalg {
-    struct CSRMatrix {
-        VulkanBuffer values;
-        VulkanBuffer colIndices;
-        VulkanBuffer rowOffsets;
-        uint32_t numRows{};
-        uint32_t numCols{};
-    };
 
     class AbstractSolver {
     public:

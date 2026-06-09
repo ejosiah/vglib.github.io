@@ -83,6 +83,7 @@ extern std::vector<uint32_t> data_shaders_grid_frag;
 extern std::vector<uint32_t> data_shaders_grid_vert;
 extern std::vector<uint32_t> data_shaders_less_than_equal_comp;
 extern std::vector<uint32_t> data_shaders_linalg_axpy_comp;
+extern std::vector<uint32_t> data_shaders_linalg_build_csr_matrix_comp;
 extern std::vector<uint32_t> data_shaders_linalg_cg_check_convergence_comp;
 extern std::vector<uint32_t> data_shaders_linalg_cg_compute_scalars_comp;
 extern std::vector<uint32_t> data_shaders_linalg_compute_ap_comp;
