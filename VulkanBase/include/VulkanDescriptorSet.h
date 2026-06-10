@@ -35,6 +35,8 @@ struct VulkanDescriptorPool : RefCounted {
         copyRef(source);
         this->device = source.device;
         this->pool = source.pool;
+
+        return *this;
     }
 
     VulkanDescriptorPool& operator=(VulkanDescriptorPool&& source) noexcept {

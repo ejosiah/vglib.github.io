@@ -481,6 +481,7 @@ namespace gpu {
 
     void multiply(VkCommandBuffer commandBuffer, const BufferRegion& a, const BufferRegion& b, const BufferRegion& c) {
         assert(g_mathOperations != nullptr);
+        // BUG: This updates a shared descriptor set; repeated calls while recording the same command buffer can invalidate it.
         g_mathOperations->execute(commandBuffer, a, b, c, Operation::MULTIPLY);
     }
 
