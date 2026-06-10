@@ -1108,7 +1108,7 @@ namespace eular {
             rbgsSolver(commandBuffer, _divergenceField, _pressureField);
         }else if (isConjugateGradientSolver()){
             constexpr auto index = 0u;
-            const auto pressureScale = -(rho * _delta.x * _delta.x * _delta.y * _delta.y) / dt;
+            const auto pressureScale = -1;
 
             assignScaled(commandBuffer, _divergenceField, _cg[index].params.solution, _cg[index].rhsDescriptorSet, pressureScale);
             assign(commandBuffer, _pressureField[in], _cg[index].params.unknown);
