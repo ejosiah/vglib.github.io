@@ -2,7 +2,6 @@
 
 #include "Barrier.hpp"
 #include "glsl_shaders.hpp"
-#include "gpu/algorithm.h"
 
 namespace gpu::linalg {
     ConjugateGradientSolver::ConjugateGradientSolver(VulkanDevice& device): AbstractSolver(device), prefixSum_{&device} {}
@@ -34,6 +33,10 @@ namespace gpu::linalg {
                     .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
                 .binding(4)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .binding(5)
                     .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                     .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
@@ -100,8 +103,9 @@ namespace gpu::linalg {
         VkDescriptorBufferInfo aPInfo{cg.Ap, 0, VK_WHOLE_SIZE};
         VkDescriptorBufferInfo cgScalarInfo{cg.scalars, 0, VK_WHOLE_SIZE};
         VkDescriptorBufferInfo dotProductInfo{cg.dotProductResult, 0, VK_WHOLE_SIZE};
+        VkDescriptorBufferInfo dotProductIntermediateInfo{cg.dotProductIntermediate, 0, VK_WHOLE_SIZE};
 
-        auto writes = initializers::writeDescriptorSets<8>();
+        auto writes = initializers::writeDescriptorSets<9>();
 
         writes[0].dstSet = cgDescriptorSet_;
         writes[0].dstBinding = 0;
@@ -133,23 +137,29 @@ namespace gpu::linalg {
         writes[4].descriptorCount = 1;
         writes[4].pBufferInfo = &dotProductInfo;
 
-        writes[5].dstSet = axpyDescriptorSet0_;
-        writes[5].dstBinding = 0;
+        writes[5].dstSet = cgDescriptorSet_;
+        writes[5].dstBinding = 5;
         writes[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[5].descriptorCount = 1;
-        writes[5].pBufferInfo = &cgScalarInfo;
+        writes[5].pBufferInfo = &dotProductIntermediateInfo;
 
-        writes[6].dstSet = axpyDescriptorSet1_;
+        writes[6].dstSet = axpyDescriptorSet0_;
         writes[6].dstBinding = 0;
         writes[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[6].descriptorCount = 1;
         writes[6].pBufferInfo = &cgScalarInfo;
 
-        writes[7].dstSet = axpyDescriptorSet2_;
+        writes[7].dstSet = axpyDescriptorSet1_;
         writes[7].dstBinding = 0;
         writes[7].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[7].descriptorCount = 1;
         writes[7].pBufferInfo = &cgScalarInfo;
+
+        writes[8].dstSet = axpyDescriptorSet2_;
+        writes[8].dstBinding = 0;
+        writes[8].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[8].descriptorCount = 1;
+        writes[8].pBufferInfo = &cgScalarInfo;
 
         device_->updateDescriptorSets(writes);
     }
@@ -243,6 +253,12 @@ namespace gpu::linalg {
                 .layouts = {&descriptorSetLayout, &cgDescriptorSetLayout},
             },
             {
+                .name = "cg_dot_product_terms",
+                .shadePath = data_shaders_linalg_cg_dot_product_comp,
+                .layouts = {&cgDescriptorSetLayout},
+                .ranges = {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(DotProductConstants)}},
+            },
+            {
                 .name = "cg_compute_scalars",
                 .shadePath = data_shaders_linalg_cg_compute_scalars_comp,
                 .layouts = {&cgDescriptorSetLayout},
@@ -263,18 +279,18 @@ namespace gpu::linalg {
 
         computeResidual(commandBuffer, params);
         assign(commandBuffer, cg.residual, cg.p, vectorSize);
-        dot(commandBuffer, cg.residual, cg.residual);
+        dot(commandBuffer, DotProductInput::ResidualResidual);
         computeRsOld(commandBuffer);
 
         for(auto itr = 0u; itr < params.numIterations; ++itr) {
             computeAp(commandBuffer);
-            dot(commandBuffer, cg.p, cg.Ap);
+            dot(commandBuffer, DotProductInput::PAp);
             computeAlpha(commandBuffer);
 
             x_plus_alpha_p(commandBuffer);
             r_minus_alpha_Ap(commandBuffer);
 
-            dot(commandBuffer, cg.residual, cg.residual);
+            dot(commandBuffer, DotProductInput::ResidualResidual);
             computeRsNew(commandBuffer);
             checkConvergence(commandBuffer);
             computeBeta(commandBuffer);
@@ -350,8 +366,18 @@ namespace gpu::linalg {
         axpy(commandBuffer, axpyDescriptorSet2_, 1.0f);
     }
 
-    void ConjugateGradientSolver::dot(VkCommandBuffer commandBuffer, const VulkanBuffer& a, const VulkanBuffer& b) {
-        ::gpu::multiply(commandBuffer, a, b, cg.dotProductIntermediate);
+    void ConjugateGradientSolver::dot(VkCommandBuffer commandBuffer, DotProductInput input) {
+        const DotProductConstants constants{
+            .count = constants_.numRows,
+            .input = static_cast<uint32_t>(input)
+        };
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute_.pipeline("cg_dot_product_terms"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute_.layout("cg_dot_product_terms"), 0, 1, &cgDescriptorSet_, 0, nullptr);
+        vkCmdPushConstants(commandBuffer, compute_.layout("cg_dot_product_terms"), VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                           sizeof(constants), &constants);
+        vkCmdDispatch(commandBuffer, groupCount(constants.count), 1, 1);
+
         Barrier::computeWriteToTransferRead(commandBuffer, {cg.dotProductIntermediate});
         prefixSum_.accumulate(commandBuffer, cg.dotProductIntermediate, cg.dotProductResult, ::Operation::Add, ::DataType::Float);
         Barrier::computeWriteToRead(commandBuffer);

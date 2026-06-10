@@ -15,7 +15,7 @@ namespace gpu::linalg {
         ConjugateGradientSolver & init(VkDeviceSize reserveSize) override;
 
     private:
-        static constexpr uint32_t cgBindingCount = 5;
+        static constexpr uint32_t cgBindingCount = 6;
         static constexpr uint32_t axpyBindingCount = 4;
 
         struct CGScalars {
@@ -23,6 +23,16 @@ namespace gpu::linalg {
             float rsNew{};
             float alpha{};
             int converged{};
+        };
+
+        enum class DotProductInput : uint32_t {
+            ResidualResidual,
+            PAp
+        };
+
+        struct DotProductConstants {
+            uint32_t count{};
+            uint32_t input{};
         };
 
         void createSolverDescriptorSetLayouts() override;
@@ -69,7 +79,7 @@ namespace gpu::linalg {
 
         void r_plus_beta_p(VkCommandBuffer commandBuffer);
 
-        void dot(VkCommandBuffer commandBuffer, const VulkanBuffer& a, const VulkanBuffer& b);
+        void dot(VkCommandBuffer commandBuffer, DotProductInput input);
 
         void axpy(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, float sign);
 

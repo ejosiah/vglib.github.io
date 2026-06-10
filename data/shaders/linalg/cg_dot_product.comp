@@ -1,0 +1,42 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+
+#define DOT_RESIDUAL_RESIDUAL 0u
+#define DOT_P_AP 1u
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0, scalar) readonly buffer Residual {
+    float rs[];
+};
+
+layout(set = 0, binding = 1, scalar) readonly buffer P {
+    float ps[];
+};
+
+layout(set = 0, binding = 2, scalar) readonly buffer AP {
+    float aps[];
+};
+
+layout(set = 0, binding = 5, scalar) writeonly buffer DotTerms {
+    float terms[];
+};
+
+layout(push_constant, scalar) uniform Constants {
+    uint count;
+    uint dotInput;
+};
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if(gid >= count) return;
+
+    if(dotInput == DOT_RESIDUAL_RESIDUAL) {
+        terms[gid] = rs[gid] * rs[gid];
+    } else if(dotInput == DOT_P_AP) {
+        terms[gid] = ps[gid] * aps[gid];
+    } else {
+        terms[gid] = 0.0;
+    }
+}
