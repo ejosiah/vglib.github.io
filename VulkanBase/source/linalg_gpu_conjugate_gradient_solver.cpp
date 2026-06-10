@@ -7,6 +7,12 @@
 namespace gpu::linalg {
     ConjugateGradientSolver::ConjugateGradientSolver(VulkanDevice& device): AbstractSolver(device), prefixSum_{&device} {}
 
+    ConjugateGradientSolver & ConjugateGradientSolver::init(VkDeviceSize reserveSize) {
+        AbstractSolver::init(reserveSize);
+
+        return *this;
+    }
+
     void ConjugateGradientSolver::createSolverDescriptorSetLayouts() {
         cgDescriptorSetLayout =
             device_->descriptorSetLayoutBuilder()
@@ -57,7 +63,8 @@ namespace gpu::linalg {
 
     void ConjugateGradientSolver::createSolverBuffers(VkDeviceSize reserveSize) {
         CGScalars scalars{};
-        cg.scalars = device_->createDeviceLocalBuffer(&scalars, sizeof(scalars), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        cg.scalars = device_->createDeviceLocalBuffer(&scalars, sizeof(scalars),
+                                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
         device_->setName<VK_OBJECT_TYPE_BUFFER>("cg_scalar_buffer", cg.scalars.buffer);
 
         cg.residual = device_->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_GPU_ONLY, reserveSize, "cg_residual_buffer");
@@ -250,6 +257,9 @@ namespace gpu::linalg {
 
     void ConjugateGradientSolver::solveImpl(VkCommandBuffer commandBuffer, const Params& params) {
         const auto vectorSize = params.Coefficients.numRows * sizeof(float);
+
+        vkCmdFillBuffer(commandBuffer, cg.scalars, 0, sizeof(CGScalars), 0);
+        Barrier::transferWriteToComputeRead(commandBuffer, cg.scalars);
 
         computeResidual(commandBuffer, params);
         assign(commandBuffer, cg.residual, cg.p, vectorSize);

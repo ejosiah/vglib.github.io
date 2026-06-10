@@ -25,7 +25,7 @@ namespace gpu::linalg {
 
         CSRMatrixBuilder(VulkanDevice& device);
 
-        void init(CSRMatrix& matrix, VulkanBuffer source, VulkanBuffer flags);
+        CSRMatrixBuilder& init(CSRMatrix& matrix, VulkanBuffer source, VulkanBuffer flags);
 
         void build(VkCommandBuffer cmd, CSRMatrix& matrix, const VulkanBuffer &source, const VulkanBuffer &flags);
 

@@ -4,6 +4,7 @@
 #include "VulkanDescriptorSet.h"
 #include <array>
 #include <functional>
+#include <utility>
 
 namespace eular {
 
@@ -12,6 +13,7 @@ namespace eular {
         std::array<VkDescriptorSet, 2> descriptorSet{};
 
         void swap() {
+            std::swap((*this)[0], (*this)[1]);
             std::swap(descriptorSet[0], descriptorSet[1]);
         }
     };

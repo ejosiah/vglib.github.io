@@ -1,5 +1,8 @@
 #include "fluid/FluidSolver2.hpp"
+#include "Barrier.hpp"
 #include "glsl_shaders.hpp"
+
+#include <algorithm>
 
 namespace eular {
     
@@ -18,6 +21,7 @@ namespace eular {
     
     void FluidSolver::init() {
         initGlobalConstants();
+        initConjugateGradientSupport();
         createSamplers();
         initFields();
         createDescriptorSetLayouts();
@@ -113,6 +117,58 @@ namespace eular {
         prepTextures();
     }
 
+    bool FluidSolver::isJacobiSolver() const {
+        return linearSolverStrategy == LinearSolverStrategy::Jacobi;
+    }
+
+    bool FluidSolver::isRbgsSolver() const {
+        return linearSolverStrategy == LinearSolverStrategy::RBGS;
+    }
+
+    bool FluidSolver::isConjugateGradientSolver() const {
+        return linearSolverStrategy == LinearSolverStrategy::ConjugateGradient;
+    }
+
+    void FluidSolver::initConjugateGradientSupport() {
+        if (!isConjugateGradientSolver()) return;
+
+        auto unknownCount = static_cast<uint32_t>(_gridSize.x * _gridSize.y);
+        auto vectorSize = static_cast<VkDeviceSize>(unknownCount) * sizeof(float);
+        auto maxNonZeroCount = static_cast<VkDeviceSize>(unknownCount) * cgStencilEntriesPerRow;
+
+        for (auto i = 0; i < 2; ++i) {
+            auto& cg = _cg[i];
+            auto& A = cg.params.Coefficients;
+
+            A.values = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                                            maxNonZeroCount * sizeof(float), fmt::format("fluid_cg_values_{}", i));
+            A.colIndices = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                                                maxNonZeroCount * sizeof(uint32_t), fmt::format("fluid_cg_column_indices_{}", i));
+            A.rowOffsets = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                                                (static_cast<VkDeviceSize>(unknownCount) + 1) * sizeof(uint32_t), fmt::format("fluid_cg_row_offsets_{}", i));
+            A.counts = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                                            3 * sizeof(uint32_t), fmt::format("fluid_cg_counts_{}", i));
+            A.numRows = unknownCount;
+            A.numCols = unknownCount;
+
+            cg.params.unknown = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                                     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                     VMA_MEMORY_USAGE_GPU_ONLY, vectorSize, fmt::format("fluid_cg_unknown_{}", i));
+            cg.params.solution = device->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                      VMA_MEMORY_USAGE_GPU_ONLY, vectorSize, fmt::format("fluid_cg_rhs_{}", i));
+
+            cg.solver = gpu::linalg::ConjugateGradientSolver{*device};
+            cg.solver.init(vectorSize);
+            cg.params.numIterations = options.poissonIterations;
+            cg.params.id = i;
+            cg.constants.gridSize = glm::uvec2(_gridSize);
+            cg.constants.ensureBoundaryCondition = static_cast<uint32_t>(options.ensureBoundaryCondition);
+        }
+
+    }
+
     void FluidSolver::createDescriptorSetLayouts() {
         uniformsSetLayout =
             device->descriptorSetLayoutBuilder()
@@ -189,6 +245,36 @@ namespace eular {
                 .descriptorCount(20)
                 .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
+
+        cgDescriptorSetLayout =
+            device->descriptorSetLayoutBuilder()
+                .name("fluid_cg_stencil_matrix_descriptor_set_layout")
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .binding(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .binding(2)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                .binding(3)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+            .createLayout();
+
+        cgVectorDescriptorSetLayout =
+            device->descriptorSetLayoutBuilder()
+                .name("fluid_cg_vector_descriptor_set_layout")
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+            .createLayout();
     }
 
     void FluidSolver::updateDescriptorSets() {
@@ -197,15 +283,30 @@ namespace eular {
             layouts.push_back(_boundaryDescriptorSetLayout);
         }
 
+        const auto cgMatrixSetOffset = layouts.size();
+        if (isConjugateGradientSolver()) {
+            layouts.push_back(cgDescriptorSetLayout);
+            layouts.push_back(cgDescriptorSetLayout);
+            layouts.push_back(cgVectorDescriptorSetLayout);
+            layouts.push_back(cgVectorDescriptorSetLayout);
+        }
+
         auto sets = _descriptorPool->allocate(layouts);
         uniformDescriptorSet = sets[0];
         _valueSamplerDescriptorSet = sets[1];
         _linearSamplerDescriptorSet = sets[2];
+
         if(_useDefaultBoundaryTexture) {
             _boundaryDescriptorSet = sets[3];
         }
+        if (isConjugateGradientSolver()) {
+            _cg[0].descriptorSet = sets[cgMatrixSetOffset];
+            _cg[1].descriptorSet = sets[cgMatrixSetOffset + 1];
+            _cg[0].rhsDescriptorSet = sets[cgMatrixSetOffset + 2];
+            _cg[1].rhsDescriptorSet = sets[cgMatrixSetOffset + 3];
+        }
 
-        auto writes = initializers::writeDescriptorSets<46>();
+        auto writes = initializers::writeDescriptorSets<64>();
 
         auto writeOffset = 0u;
 
@@ -213,8 +314,7 @@ namespace eular {
         writes[writeOffset].dstBinding = 0;
         writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         writes[writeOffset].descriptorCount = 1;
-        auto info = VkDescriptorBufferInfo{ globalConstants.gpu, 0, VK_WHOLE_SIZE };
-        writes[writeOffset].pBufferInfo = &info;
+        writes[writeOffset].pBufferInfo = new VkDescriptorBufferInfo{ globalConstants.gpu, 0, VK_WHOLE_SIZE };
         ++writeOffset;
 
         writes[writeOffset].dstSet = _valueSamplerDescriptorSet;
@@ -244,6 +344,33 @@ namespace eular {
             ++writeOffset;
         }
 
+        if (isConjugateGradientSolver()) {
+            for (auto i = 0; i < 2; ++i) {
+                const std::array<VulkanBuffer*, 4> buffers{
+                    &_cg[i].params.Coefficients.values,
+                    &_cg[i].params.Coefficients.colIndices,
+                    &_cg[i].params.Coefficients.rowOffsets,
+                    &_cg[i].params.Coefficients.counts
+                };
+
+                for(auto binding = 0u; binding < buffers.size(); ++binding) {
+                    writes[writeOffset].dstSet = _cg[i].descriptorSet;
+                    writes[writeOffset].dstBinding = binding;
+                    writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    writes[writeOffset].descriptorCount = 1;
+                    writes[writeOffset].pBufferInfo = new VkDescriptorBufferInfo { *buffers[binding], 0, VK_WHOLE_SIZE };
+                    ++writeOffset;
+                }
+
+                writes[writeOffset].dstSet = _cg[i].rhsDescriptorSet;
+                writes[writeOffset].dstBinding = 0;
+                writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                writes[writeOffset].descriptorCount = 1;
+                writes[writeOffset].pBufferInfo = new VkDescriptorBufferInfo { _cg[i].params.solution, 0, VK_WHOLE_SIZE };
+                ++writeOffset;
+            }
+        }
+
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.u);
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.v);
         writeOffset = createDescriptorSet(writes, writeOffset, _divergenceField);
@@ -256,7 +383,8 @@ namespace eular {
         device->updateDescriptorSets(writes);
 
         for(auto& write : writes) {
-            delete write.pImageInfo;
+            if (write.pImageInfo) delete write.pImageInfo;
+            if (write.pBufferInfo) delete write.pBufferInfo;
 
         }
     }
@@ -497,6 +625,18 @@ namespace eular {
                       },
                       .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants) } }
                 },
+                {
+                    .name = "generate_coefficients",
+                    .shadePath = data_shaders_fluid_2d_generate_coefficients_comp,
+                    .layouts = { &_boundaryDescriptorSetLayout, &cgDescriptorSetLayout },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_cg[0].constants) } }
+                },
+                {
+                    .name = "copy_scaled_to_buffer",
+                    .shadePath = data_shaders_fluid_2d_copy_scaled_to_buffer_comp,
+                    .layouts = { &_fieldDescriptorSetLayout, &cgVectorDescriptorSetLayout },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ScaledFieldCopyConstants) } }
+                }
         };
     }
 
@@ -543,23 +683,34 @@ namespace eular {
     void FluidSolver::diffuseVelocityField(VkCommandBuffer commandBuffer) {
         if(options.viscosity <= 0) return;
         const auto rho = options.density;
-        linearSolverConstants.is_vector_field = 1;
-        diffuse(commandBuffer, _vectorField.u, options.viscosity/rho);
-        linearSolverConstants.is_vector_field = 2;
-        diffuse(commandBuffer, _vectorField.v, options.viscosity/rho);
-        linearSolverConstants.is_vector_field = 0;
+
+        diffuse(commandBuffer, _vectorField.u, options.viscosity/rho, 1);
+        diffuse(commandBuffer, _vectorField.v, options.viscosity/rho, 2);
+        linearSolverConstants.vector_field_component = 0;
+        if(!isConjugateGradientSolver()) {
+            addComputeBarrier(commandBuffer, {&_vectorField.u[in], &_vectorField.v[in]});
+        }
         project(commandBuffer);
     }
 
-    void FluidSolver::diffuse(VkCommandBuffer commandBuffer, Field& field, float rate) {
+    void FluidSolver::diffuse(VkCommandBuffer commandBuffer, Field& field, float rate, uint32_t vectorFieldComponent) {
         if(rate <= 0) return;
         const auto dt = options.timeStep;
         linearSolverConstants.alpha = (_delta.x * _delta.x * _delta.x * _delta.y)/(dt * rate);
         linearSolverConstants.rBeta = 1.0f/((2.0f * glm::dot(_delta, _delta)) + linearSolverConstants.alpha);
-        if(linearSolverStrategy == LinearSolverStrategy::Jacobi) {
+        linearSolverConstants.vector_field_component = vectorFieldComponent;
+        if(isJacobiSolver()) {
             jacobiSolver(commandBuffer, field, field);
-        }else {
+        }else if(isRbgsSolver()) {
             rbgsSolver(commandBuffer, field, field);
+        }else {
+            const auto index = vectorFieldComponent == 2 ? 1u : 0u;
+            assign(commandBuffer, field[in], _cg[index].params.solution);
+            assign(commandBuffer, field[in], _cg[index].params.unknown);
+            setDiffuseConstants(index, rate, vectorFieldComponent);
+            conjugateGradientSolve(commandBuffer, index);
+            assign(commandBuffer, _cg[index].params.unknown, field[out]);
+            field.swap();
         }
     }
 
@@ -573,8 +724,14 @@ namespace eular {
     }
 
     void FluidSolver::advectVectorField(VkCommandBuffer commandBuffer) {
-        advect(commandBuffer, _vectorField.u, 1);
-        advect(commandBuffer, _vectorField.v, 2);
+        if(options.macCormackAdvection) {
+            advect(commandBuffer, _vectorField.u, 1);
+            advect(commandBuffer, _vectorField.v, 2);
+        }else {
+            advect(commandBuffer, _vectorField.u, 1, false);
+            advect(commandBuffer, _vectorField.v, 2, false);
+            addComputeBarrier(commandBuffer, {&_vectorField.u[out], &_vectorField.v[out]});
+        }
         _vectorField.swap();
 
     }
@@ -596,8 +753,8 @@ namespace eular {
     }
 
     void FluidSolver::macCormackAdvect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode) {
-        advect(commandBuffer, field.descriptorSet[in], _macCormackData.descriptorSet[in], TimeDirection::Forward, boundaryMode);
-        advect(commandBuffer, _macCormackData.descriptorSet[in], _macCormackData.descriptorSet[out], TimeDirection::Backword, boundaryMode);
+        advect(commandBuffer, field.descriptorSet[in], _macCormackData.descriptorSet[in], TimeDirection::Forward, boundaryMode, &_macCormackData[in]);
+        advect(commandBuffer, _macCormackData.descriptorSet[in], _macCormackData.descriptorSet[out], TimeDirection::Backword, boundaryMode, &_macCormackData[out]);
 
         auto& vf = _vectorField;
         static std::array<VkDescriptorSet, 8> sets;
@@ -617,19 +774,19 @@ namespace eular {
         vkCmdPushConstants(commandBuffer, layout("maccormack"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants), &advectConstants);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("maccormack"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, field[out]);
     }
 
-    void FluidSolver::advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode) {
+    void FluidSolver::advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode, bool addBarrier) {
         if(options.macCormackAdvection){
             macCormackAdvect(commandBuffer, field, boundaryMode);
         }else {
-            advect(commandBuffer, field.descriptorSet[in], field.descriptorSet[out], TimeDirection::Forward, boundaryMode);
+            advect(commandBuffer, field.descriptorSet[in], field.descriptorSet[out], TimeDirection::Forward, boundaryMode, addBarrier ? &field[out] : nullptr);
         }
     }
 
     void FluidSolver::advect(VkCommandBuffer commandBuffer, VkDescriptorSet inDescriptor, VkDescriptorSet outDescriptor,
-                             TimeDirection timeDirection, uint32_t boundaryMode) {
+                             TimeDirection timeDirection, uint32_t boundaryMode, Texture* writeTexture) {
 
         auto& vf = _vectorField;
         static std::array<VkDescriptorSet, 7> sets;
@@ -648,7 +805,9 @@ namespace eular {
         vkCmdPushConstants(commandBuffer, layout("advect"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants), &advectConstants);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("advect"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        if(writeTexture) {
+            addComputeBarrier(commandBuffer, *writeTexture);
+        }
     }
 
 
@@ -658,7 +817,7 @@ namespace eular {
             sets[0] = _forceField.descriptorSet[in];
             sets[1] = _forceField.descriptorSet[out];
             externalForce(commandBuffer, sets, _groupCount);
-            addComputeBarrier(commandBuffer);
+            addComputeBarrier(commandBuffer, _forceField[out]);
             _forceField.swap();
         }
     }
@@ -676,7 +835,7 @@ namespace eular {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("apply_force"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("apply_force"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, {&_vectorField.u[out], &_vectorField.v[out]});
 
         _vectorField.swap();
     }
@@ -704,7 +863,7 @@ namespace eular {
             vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
 
             if(i < N - 1) {
-                addComputeBarrier(commandBuffer);
+                addComputeBarrier(commandBuffer, unknown[out]);
             }
 
             unknown.swap();
@@ -728,7 +887,7 @@ namespace eular {
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("rbgs"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
             vkCmdPushConstants(commandBuffer, layout("rbgs"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants), &linearSolverConstants);
             vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-            addComputeBarrier(commandBuffer);
+            addComputeBarrier(commandBuffer, unknown[out]);
             unknown.swap();
 
             sets[2] = unknown.descriptorSet[in];
@@ -739,30 +898,97 @@ namespace eular {
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("rbgs"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
             vkCmdPushConstants(commandBuffer, layout("rbgs"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(linearSolverConstants), &linearSolverConstants);
             vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-            unknown.swap();
 
             if(i < N - 1) {
-                addComputeBarrier(commandBuffer);
+                addComputeBarrier(commandBuffer, unknown[out]);
             }
+            unknown.swap();
         }
     }
 
-    void FluidSolver::addComputeBarrier(VkCommandBuffer commandBuffer) {
-        static VkMemoryBarrier2 barrier {
-            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT
-        };
+    void FluidSolver::conjugateGradientSolve(VkCommandBuffer commandBuffer, uint32_t index) {
+        buildCoefficientMatrix(commandBuffer, index);
+        _cg[index].solver.solve(commandBuffer, _cg[index].params);
+    }
 
-        static VkDependencyInfo dInfo {
-            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-            .memoryBarrierCount = 1,
-            .pMemoryBarriers = &barrier
-        };
+    void FluidSolver::buildCoefficientMatrix(VkCommandBuffer commandBuffer, uint32_t index) {
+        auto unknownCount = _cg[index].params.Coefficients.numRows;
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("generate_coefficients"));
+        const std::array<VkDescriptorSet, 2> sets{_boundaryDescriptorSet, _cg[index].descriptorSet};
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("generate_coefficients"), 0,
+                                COUNT(sets), sets.data(), 0, nullptr);
 
-        vkCmdPipelineBarrier2(commandBuffer, &dInfo);
+        for(auto offset = 0u; offset < unknownCount; offset += cgRowsPerBatch) {
+            auto batchSize = std::min(cgRowsPerBatch, unknownCount - offset);
+            _cg[index].constants.batchOffset = offset;
+            _cg[index].constants.batchSize = batchSize;
+            _cg[index].constants.ensureBoundaryCondition = static_cast<uint32_t>(options.ensureBoundaryCondition);
+            vkCmdPushConstants(commandBuffer, layout("generate_coefficients"), VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                               sizeof(_cg[index].constants), &_cg[index].constants);
+            vkCmdDispatch(commandBuffer, (batchSize + 31u) / 32u, 1, 1);
+        }
+
+        auto& A = _cg[index].params.Coefficients;
+        Barrier::computeWriteToRead(commandBuffer, {A.values, A.colIndices, A.rowOffsets, A.counts});
+    }
+
+    void FluidSolver::setDiffuseConstants(uint32_t index, float rate, uint32_t vectorFieldComponent) {
+        auto& constants = _cg[index].constants;
+        constants.identity = 1.0f;
+        constants.vectorFieldComponent = vectorFieldComponent;
+
+        const auto rateTime = options.timeStep * rate;
+        constants.alpha = {
+            rateTime / (_delta.x * _delta.x),
+            rateTime / (_delta.y * _delta.y)
+        };
+    }
+
+    void FluidSolver::setPressureConstants(uint32_t index) {
+        auto& constants = _cg[index].constants;
+        constants.identity = 0.0f;
+        constants.vectorFieldComponent = 0;
+        constants.alpha = {
+            _delta.y * _delta.y,
+            _delta.x * _delta.x
+        };
+    }
+
+    void FluidSolver::assign(VkCommandBuffer commandBuffer, Texture &from, VulkanBuffer &to) {
+        textures::copy(commandBuffer, from, to, { from.width, from.height});
+        Barrier::transferWriteToComputeRead(commandBuffer, to);
+    }
+
+    void FluidSolver::assignScaled(VkCommandBuffer commandBuffer, Field& from, VulkanBuffer& to, VkDescriptorSet toDescriptorSet, float scale) {
+        const ScaledFieldCopyConstants constants{
+            .scale = scale,
+            .count = static_cast<uint32_t>(_gridSize.x * _gridSize.y)
+        };
+        const std::array<VkDescriptorSet, 2> sets{from.descriptorSet[in], toDescriptorSet};
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("copy_scaled_to_buffer"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("copy_scaled_to_buffer"), 0,
+                                COUNT(sets), sets.data(), 0, nullptr);
+        vkCmdPushConstants(commandBuffer, layout("copy_scaled_to_buffer"), VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                           sizeof(constants), &constants);
+        vkCmdDispatch(commandBuffer, (constants.count + 31u) / 32u, 1, 1);
+        Barrier::computeWriteToRead(commandBuffer, {to});
+    }
+
+    void FluidSolver::assign(VkCommandBuffer commandBuffer, VulkanBuffer &from, Texture &to) {
+        Barrier::computeWriteToTransferRead(commandBuffer, {from});
+        textures::transfer(commandBuffer, from, to.image, {to.width, to.height}, VK_IMAGE_LAYOUT_GENERAL);
+    }
+
+    void FluidSolver::addComputeBarrier(VkCommandBuffer commandBuffer, Texture& texture) {
+        addComputeBarrier(commandBuffer, {&texture});
+    }
+
+    void FluidSolver::addComputeBarrier(VkCommandBuffer commandBuffer, std::initializer_list<Texture*> textures) {
+        for(auto texture : textures) {
+            Barriers::push(texture->image, DEFAULT_SUB_RANGE, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, texture->image.currentLayout, texture->image.currentLayout);
+        }
+        Barriers::flush(commandBuffer);
     }
 
     void FluidSolver::computeDivergence(VkCommandBuffer commandBuffer) {
@@ -778,7 +1004,7 @@ namespace eular {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, _divergenceField[in]);
     }
 
     void FluidSolver::solvePressure(VkCommandBuffer commandBuffer) {
@@ -786,14 +1012,24 @@ namespace eular {
         const auto dt = options.timeStep;
         linearSolverConstants.alpha = -(rho * _delta.x * _delta.x * _delta.y * _delta.y)/dt;
         linearSolverConstants.rBeta = (1.0f/(2.0f * glm::dot(_delta, _delta)));
-        linearSolverConstants.is_vector_field = false;
+        linearSolverConstants.vector_field_component = false;
 
-        if(linearSolverStrategy == LinearSolverStrategy::Jacobi) {
+        if(isJacobiSolver()) {
             jacobiSolver(commandBuffer, _divergenceField, _pressureField);
-        }else {
+        }else if (isRbgsSolver()){
             rbgsSolver(commandBuffer, _divergenceField, _pressureField);
+        }else if (isConjugateGradientSolver()){
+            constexpr auto index = 0u;
+            const auto pressureScale = -(rho * _delta.x * _delta.x * _delta.y * _delta.y) / dt;
+
+            assignScaled(commandBuffer, _divergenceField, _cg[index].params.solution, _cg[index].rhsDescriptorSet, pressureScale);
+            assign(commandBuffer, _pressureField[in], _cg[index].params.unknown);
+            setPressureConstants(index);
+            conjugateGradientSolve(commandBuffer, index);
+            assign(commandBuffer, _cg[index].params.unknown, _pressureField[out]);
+            _pressureField.swap();
         }
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, _pressureField[in]);
     }
 
     void FluidSolver::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
@@ -811,7 +1047,7 @@ namespace eular {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence_free_field"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence_free_field"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, {&vf.u[out], &vf.v[out]});
     }
 
 
@@ -845,7 +1081,7 @@ namespace eular {
 
     void FluidSolver::updateSources(VkCommandBuffer commandBuffer, Quantity &quantity) {
         quantity.update(commandBuffer, quantity.source, _groupCount);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, quantity.source[in]);
     }
 
     void FluidSolver::addSource(VkCommandBuffer commandBuffer, Quantity &quantity) {
@@ -859,13 +1095,16 @@ namespace eular {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("add_sources"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("add_sources"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, quantity.field[out]);
         quantity.field.swap();
     }
 
     void FluidSolver::diffuseQuantity(VkCommandBuffer commandBuffer, Quantity &quantity) {
-        linearSolverConstants.is_vector_field = false;
+        linearSolverConstants.vector_field_component = false;
         diffuse(commandBuffer, quantity.field, quantity.diffuseRate);
+        if(quantity.diffuseRate > 0 && !isConjugateGradientSolver()) {
+            addComputeBarrier(commandBuffer, quantity.field[in]);
+        }
     }
 
     void FluidSolver::advectQuantity(VkCommandBuffer commandBuffer, Quantity &quantity) {
@@ -876,7 +1115,7 @@ namespace eular {
     void FluidSolver::postAdvection(VkCommandBuffer commandBuffer, Quantity &quantity) {
         for(auto& postAdvect : quantity.postAdvectActions) {
             if(postAdvect(commandBuffer, quantity.field, _groupCount)) {
-                addComputeBarrier(commandBuffer);
+                addComputeBarrier(commandBuffer, quantity.field[out]);
                 quantity.field.swap();
             }
         }
@@ -893,7 +1132,7 @@ namespace eular {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("vorticity"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("vorticity"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, _vorticityField[in]);
     }
 
     void FluidSolver::applyVorticity(VkCommandBuffer commandBuffer) {
@@ -908,7 +1147,7 @@ namespace eular {
         vkCmdPushConstants(commandBuffer, layout("vorticity_force"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &options.vorticityConfinementScale);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("vorticity_force"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer);
+        addComputeBarrier(commandBuffer, _forceField[out]);
         _forceField.swap();
     }
 

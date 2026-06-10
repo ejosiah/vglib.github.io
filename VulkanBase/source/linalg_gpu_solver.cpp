@@ -20,7 +20,7 @@ namespace gpu::linalg {
 
     AbstractSolver::AbstractSolver(VulkanDevice& device): device_{&device} {}
 
-    void AbstractSolver::init(VkDeviceSize reserveSize) {
+    AbstractSolver& AbstractSolver::init(VkDeviceSize reserveSize) {
         if(!device_) {
             throw std::runtime_error{"gpu::linalg::AbstractSolver requires a VulkanDevice before init"};
         }
@@ -51,6 +51,8 @@ namespace gpu::linalg {
         compute_ = ComputePipelines{device_, pipelineMetaData()};
         compute_.createPipelines();
         afterCreatePipelines();
+
+        return *this;
     }
 
     void AbstractSolver::solve(VkCommandBuffer commandBuffer, const Params& params) {

@@ -5,7 +5,9 @@
 #include "ComputePipelins.hpp"
 #include "VulkanDevice.h"
 #include "Field.hpp"
+#include "linalg/gpu/conjugate_gradient_solver.hpp"
 
+#include <initializer_list>
 #include <memory>
 #include <optional>
 
@@ -14,7 +16,7 @@ namespace eular {
     enum class TimeDirection { Forward, Backword };
 
     enum class LinearSolverStrategy  {
-        Jacobi, RBGS
+        Jacobi, RBGS, ConjugateGradient
     };
 
 
@@ -61,6 +63,14 @@ namespace eular {
 
         void initFields();
 
+        void initConjugateGradientSupport();
+
+        bool isJacobiSolver() const;
+
+        bool isRbgsSolver() const;
+
+        bool isConjugateGradientSolver() const;
+
         void createSamplers();
 
         void createDescriptorSetLayouts();
@@ -95,11 +105,11 @@ namespace eular {
 
         void macCormackAdvect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0);
 
-        void advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0);
+        void advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0, bool addBarrier = true);
 
         void advect(VkCommandBuffer commandBuffer, VkDescriptorSet inDescriptor,
                     VkDescriptorSet outDescriptor, TimeDirection timeDirection = TimeDirection::Forward,
-                    uint32_t boundaryMode = 0);
+                    uint32_t boundaryMode = 0, Texture* writeTexture = nullptr);
 
         void clearForces(VkCommandBuffer commandBuffer);
 
@@ -117,7 +127,7 @@ namespace eular {
 
         void diffuseVelocityField(VkCommandBuffer commandBuffer);
 
-        void diffuse(VkCommandBuffer commandBuffer, Field& field, float rate);
+        void diffuse(VkCommandBuffer commandBuffer, Field& field, float rate, uint32_t vectorFieldComponent = 0);
 
         void project(VkCommandBuffer commandBuffer);
 
@@ -127,11 +137,27 @@ namespace eular {
 
         void computeDivergenceFreeField(VkCommandBuffer commandBuffer);
 
-        void addComputeBarrier(VkCommandBuffer commandBuffer);
+        void addComputeBarrier(VkCommandBuffer commandBuffer, Texture& texture);
+
+        void addComputeBarrier(VkCommandBuffer commandBuffer, std::initializer_list<Texture*> textures);
 
         void jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown);
 
         void rbgsSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown);
+
+        void conjugateGradientSolve(VkCommandBuffer commandBuffer, uint32_t index);
+
+        void buildCoefficientMatrix(VkCommandBuffer commandBuffer, uint32_t index);
+
+        void setDiffuseConstants(uint32_t index, float rate, uint32_t vectorFieldComponent);
+
+        void setPressureConstants(uint32_t index);
+
+        void assign(VkCommandBuffer commandBuffer, Texture& from, VulkanBuffer& to);
+
+        void assignScaled(VkCommandBuffer commandBuffer, Field& from, VulkanBuffer& to, VkDescriptorSet toDescriptorSet, float scale);
+
+        void assign(VkCommandBuffer commandBuffer, VulkanBuffer& from, Texture& to);
 
         std::vector<PipelineMetaData> pipelineMetaData() final;
 
@@ -195,7 +221,7 @@ namespace eular {
         struct {
             float alpha{};
             float rBeta{};
-            uint is_vector_field{};
+            uint vector_field_component{};
             uint pass{0};
         } linearSolverConstants;
 
@@ -211,6 +237,36 @@ namespace eular {
 
         VulkanSampler _valueSampler;
         VulkanSampler _linearSampler;
+
+        struct ScaledFieldCopyConstants {
+            float scale{};
+            uint32_t count{};
+        };
+
+
+
+        struct {
+            gpu::linalg::AbstractSolver::Params params{};
+            gpu::linalg::ConjugateGradientSolver solver;
+            VkDescriptorSet descriptorSet{};
+            VkDescriptorSet rhsDescriptorSet{};
+
+            struct {
+                glm::uvec2 gridSize{};
+                glm::vec2 alpha{};
+                float identity{};
+                uint32_t batchOffset{};
+                uint32_t batchSize{};
+                uint32_t ensureBoundaryCondition{};
+                uint32_t vectorFieldComponent{};
+            } constants;
+        } _cg[2];
+
+        VulkanDescriptorSetLayout cgDescriptorSetLayout;
+        VulkanDescriptorSetLayout cgVectorDescriptorSetLayout;
+
+        static constexpr uint32_t cgStencilEntriesPerRow = 5;
+        static constexpr uint32_t cgRowsPerBatch = 4096;
 
         VkDescriptorSet _valueSamplerDescriptorSet{};
         VkDescriptorSet _linearSamplerDescriptorSet{};

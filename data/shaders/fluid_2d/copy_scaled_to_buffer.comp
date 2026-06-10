@@ -1,0 +1,25 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) uniform sampler2D sourceField;
+
+layout(set = 1, binding = 0, scalar) writeonly buffer Target {
+    float values[];
+};
+
+layout(push_constant, scalar) uniform Constants {
+    float scale;
+    uint count;
+};
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    if(index >= count) return;
+
+    ivec2 size = textureSize(sourceField, 0);
+    ivec2 cell = ivec2(int(index % uint(size.x)), int(index / uint(size.x)));
+    values[index] = scale * texelFetch(sourceField, cell, 0).x;
+}

@@ -12,6 +12,8 @@ namespace gpu::linalg {
 
         explicit ConjugateGradientSolver(VulkanDevice& device);
 
+        ConjugateGradientSolver & init(VkDeviceSize reserveSize) override;
+
     private:
         static constexpr uint32_t cgBindingCount = 5;
         static constexpr uint32_t axpyBindingCount = 4;

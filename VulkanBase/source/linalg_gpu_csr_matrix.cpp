@@ -8,7 +8,7 @@ namespace gpu::linalg {
     CSRMatrixBuilder::CSRMatrixBuilder(VulkanDevice &device)
     : device_{&device} {}
 
-    void CSRMatrixBuilder::init(CSRMatrix &matrix, VulkanBuffer source, VulkanBuffer flags) {
+    CSRMatrixBuilder& CSRMatrixBuilder::init(CSRMatrix &matrix, VulkanBuffer source, VulkanBuffer flags) {
         createDescriptorSetLayout();
         const std::array<VkDescriptorPoolSize, 1> poolSizes{{
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7},
@@ -21,6 +21,8 @@ namespace gpu::linalg {
         compute_.createPipelines();
         prefixSum_ = PrefixSum{device_};
         prefixSum_.init();
+
+        return *this;
     }
 
     void CSRMatrixBuilder::build(VkCommandBuffer cmd, CSRMatrix &matrix, const VulkanBuffer &source, const VulkanBuffer &flags) {

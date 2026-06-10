@@ -26,7 +26,7 @@ namespace gpu::linalg {
 
         virtual ~AbstractSolver() = default;
 
-        void init(VkDeviceSize reserveSize);
+        virtual AbstractSolver& init(VkDeviceSize reserveSize);
 
         void solve(VkCommandBuffer commandBuffer, const Params& params);
 
