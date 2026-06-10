@@ -67,6 +67,8 @@ namespace gpu::linalg {
 
         virtual void solveImpl(VkCommandBuffer commandBuffer, const Params& params) = 0;
 
+        void allocateDescriptorSets();
+
         VulkanDevice* device_{};
         ComputePipelines compute_;
         VulkanDescriptorPool descriptorPool_;

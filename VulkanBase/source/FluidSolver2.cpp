@@ -955,7 +955,51 @@ namespace eular {
     }
 
     void FluidSolver::assign(VkCommandBuffer commandBuffer, Texture &from, VulkanBuffer &to) {
-        textures::copy(commandBuffer, from, to, { from.width, from.height});
+        VkImageSubresourceRange subresourceRange{};
+        subresourceRange.aspectMask = from.aspectMask;
+        subresourceRange.baseMipLevel = 0;
+        subresourceRange.levelCount = 1;
+        subresourceRange.baseArrayLayer = 0;
+        subresourceRange.layerCount = 1;
+
+        const auto oldLayout = from.image.currentLayout;
+        if(oldLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+            const auto srcAccess = oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
+                ? VK_ACCESS_NONE
+                : VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            const auto srcStage = oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
+                ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
+                : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
+            from.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange,
+                                        srcAccess,
+                                        VK_ACCESS_TRANSFER_READ_BIT,
+                                        srcStage,
+                                        VK_PIPELINE_STAGE_TRANSFER_BIT);
+        }
+
+        VkBufferImageCopy region{};
+        region.bufferOffset = 0;
+        region.bufferRowLength = 0;
+        region.bufferImageHeight = 0;
+        region.imageSubresource.aspectMask = from.aspectMask;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageOffset = {0, 0, 0};
+        region.imageExtent = {from.width, from.height, 1};
+
+        vkCmdCopyImageToBuffer(commandBuffer, from.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, to, 1, &region);
+
+        const auto finalLayout = oldLayout == VK_IMAGE_LAYOUT_UNDEFINED ? VK_IMAGE_LAYOUT_GENERAL : oldLayout;
+        if(finalLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+            from.image.transitionLayout(commandBuffer, finalLayout, subresourceRange,
+                                        VK_ACCESS_TRANSFER_READ_BIT,
+                                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        }
+
         Barrier::transferWriteToComputeRead(commandBuffer, to);
     }
 

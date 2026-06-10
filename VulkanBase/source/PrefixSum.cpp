@@ -31,10 +31,6 @@ void PrefixSum::createDescriptorSet() {
                 .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                 .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
         .createLayout();
-
-    auto sets = descriptorPool.allocate({ setLayout, setLayout });
-    descriptorSet = sets.front();
-    sumScanDescriptorSet = sets.back();
 }
 
 std::vector<PipelineMetaData> PrefixSum::pipelineMetaData() {
@@ -127,6 +123,10 @@ void PrefixSum::resizeInternalBuffer() {
 }
 
 void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
+    auto sets = descriptorPool.allocate({ setLayout, setLayout });
+    descriptorSet = sets.front();
+    sumScanDescriptorSet = sets.back();
+
     stagingBuffer = device->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, buffer.size);
     size_t numItems = buffer.sizeAs<int>();
     uint32_t sumsSize = glm::ceil(static_cast<float>(numItems)/static_cast<float>(ITEMS_PER_WORKGROUP)) * sizeof(uint32_t);
@@ -164,7 +164,7 @@ void PrefixSum::updateDataDescriptorSets(VulkanBuffer &buffer) {
 }
 
 void PrefixSum::createDescriptorPool() {
-    constexpr uint maxSets = 2;
+    constexpr uint maxSets = 64;
     std::vector<VkDescriptorPoolSize> poolSizes{
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, maxSets * 2}
     };

@@ -5,6 +5,10 @@
 #include <stdexcept>
 
 namespace gpu::linalg {
+    namespace {
+        constexpr auto descriptorSetGroups = 64u;
+    }
+
     uint32_t AbstractSolver::groupCount(uint32_t numRows) {
         return (numRows + localSize - 1) / localSize;
     }
@@ -38,16 +42,6 @@ namespace gpu::linalg {
 
         createSolverBuffers(reserveSize);
 
-        auto layouts = std::vector<VulkanDescriptorSetLayout>{descriptorSetLayout};
-        auto solverLayouts = solverDescriptorSetLayouts();
-        layouts.insert(layouts.end(), solverLayouts.begin(), solverLayouts.end());
-
-        auto sets = descriptorPool_.allocate(layouts);
-        descriptorSet_ = sets[0];
-        std::vector<VkDescriptorSet> solverSets(sets.begin() + 1, sets.end());
-        bindSolverDescriptorSets(solverSets);
-        writeSolverDescriptorSets();
-
         compute_ = ComputePipelines{device_, pipelineMetaData()};
         compute_.createPipelines();
         afterCreatePipelines();
@@ -59,6 +53,7 @@ namespace gpu::linalg {
         const auto shouldUpdateDescriptorSet = preCheck(params);
         updateConstants(params);
         if(shouldUpdateDescriptorSet) {
+            allocateDescriptorSets();
             updateDescriptorSets(params);
         }
 
@@ -149,12 +144,25 @@ namespace gpu::linalg {
     }
 
     void AbstractSolver::createDescriptorPool() {
-        const auto maxSets = 1u + solverDescriptorSetCount();
+        const auto setsPerGroup = 1u + solverDescriptorSetCount();
+        const auto maxSets = descriptorSetGroups * setsPerGroup;
         const std::array<VkDescriptorPoolSize, 1> poolSizes{{
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, bindingCount + solverStorageDescriptorCount()},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSetGroups * (bindingCount + solverStorageDescriptorCount())},
         }};
 
         descriptorPool_ = device_->createDescriptorPool(maxSets, poolSizes);
+    }
+
+    void AbstractSolver::allocateDescriptorSets() {
+        auto layouts = std::vector<VulkanDescriptorSetLayout>{descriptorSetLayout};
+        auto solverLayouts = solverDescriptorSetLayouts();
+        layouts.insert(layouts.end(), solverLayouts.begin(), solverLayouts.end());
+
+        auto sets = descriptorPool_.allocate(layouts);
+        descriptorSet_ = sets[0];
+        std::vector<VkDescriptorSet> solverSets(sets.begin() + 1, sets.end());
+        bindSolverDescriptorSets(solverSets);
+        writeSolverDescriptorSets();
     }
 
     void AbstractSolver::updateConstants(const Params& params) {
