@@ -112,11 +112,11 @@ void main() {
     ivec2 cell = ivec2(int(row % gridSize.x), int(row / gridSize.x));
 
     if(isObstacle(cell)) {
-        writeEntry(base, 0u, 1.0, row);
+        writeEntry(base, 0u, 0.0, row);
         writeEntry(base, 1u, 0.0, row);
         writeEntry(base, 2u, 0.0, row);
         writeEntry(base, 3u, 0.0, row);
-        writeEntry(base, 4u, 0.0, row);
+        writeEntry(base, 4u, 1.0, row);
         return;
     }
 
@@ -124,9 +124,9 @@ void main() {
     float ay = alpha.y;
     float centerValue = identity + 2.0 * (ax + ay);
 
-    writeNeighbor(base, 1u, centerValue, cell, cell + ivec2(-1, 0), ax);
-    writeNeighbor(base, 2u, centerValue, cell, cell + ivec2(1, 0), ax);
-    writeNeighbor(base, 3u, centerValue, cell, cell + ivec2(0, -1), ay);
-    writeNeighbor(base, 4u, centerValue, cell, cell + ivec2(0, 1), ay);
-    writeEntry(base, 0u, centerValue, row);
+    writeNeighbor(base, 0u, centerValue, cell, cell + ivec2(-1, 0), ax);
+    writeNeighbor(base, 1u, centerValue, cell, cell + ivec2(1, 0), ax);
+    writeNeighbor(base, 2u, centerValue, cell, cell + ivec2(0, -1), ay);
+    writeNeighbor(base, 3u, centerValue, cell, cell + ivec2(0, 1), ay);
+    writeEntry(base, 4u, centerValue, row);
 }
