@@ -70,27 +70,29 @@ namespace eular {
         _pressureField.name = "pressure_field";
         _macCormackData.name = "macCormack_intermediate_data";
 
-
-        textures::createNoTransition(*device, _vectorField.u[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _vectorField.u[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _vectorField.v[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _vectorField.v[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-
-        textures::createNoTransition(*device, _forceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _forceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        auto addressMode = options.ensureBoundaryCondition ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
 
-        textures::createNoTransition(*device, _vorticityField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _vorticityField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _vectorField.u[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.u[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.v[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.v[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
 
-        textures::createNoTransition(*device, _divergenceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _divergenceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _forceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _forceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
 
-        textures::createNoTransition(*device, _pressureField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _pressureField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
-        textures::createNoTransition(*device, _macCormackData[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-        textures::createNoTransition(*device, _macCormackData[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        textures::createNoTransition(*device, _vorticityField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vorticityField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+
+        textures::createNoTransition(*device, _divergenceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _divergenceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+
+        textures::createNoTransition(*device, _pressureField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _pressureField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+
+        textures::createNoTransition(*device, _macCormackData[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _macCormackData[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
 
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 0), _vectorField.u[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 1), _vectorField.u[1].image.image);
@@ -663,7 +665,15 @@ namespace eular {
                     .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\copy_scaled_to_buffer.comp.spv)",
                     .layouts = { &_fieldDescriptorSetLayout, &cgVectorDescriptorSetLayout },
                     .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ScaledFieldCopyConstants) } }
-                }
+                },
+                {                    .name = "boundary_check",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\boundary_check.comp.spv)",
+                    .layouts =  {
+                        &uniformsSetLayout, &_boundaryDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                        &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                    },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t) } }
+                },
         };
     }
 
@@ -1149,6 +1159,8 @@ namespace eular {
             _pressureField.swap();
         }
         addComputeBarrier(commandBuffer, _pressureField[in]);
+        if (!isConjugateGradientSolver()) {
+        }
     }
 
     void FluidSolver::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
@@ -1168,6 +1180,46 @@ namespace eular {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence_free_field"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer, {&vf.u[out], &vf.v[out]});
+    }
+
+    void FluidSolver::boundaryCheck(VkCommandBuffer commandBuffer, VectorField &field) {
+        if(!options.ensureBoundaryCondition) return;
+
+        static std::array<VkDescriptorSet, 6> sets;
+
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _boundaryDescriptorSet;
+        sets[2] = field.u.descriptorSet[in];
+        sets[3] = field.u.descriptorSet[out];
+        sets[4] = field.v.descriptorSet[in];
+        sets[5] = field.v.descriptorSet[out];
+
+        auto mode = static_cast<uint32_t>(BoundaryMode::VectorField);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("boundary_check"));
+        vkCmdPushConstants(commandBuffer, layout("boundary_check"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(mode), &mode);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("boundary_check"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer, {&field.u[out], &field.v[out]});
+        field.swap();
+    }
+
+    void FluidSolver::boundaryCheck(VkCommandBuffer commandBuffer, Field &field) {
+        if(!options.ensureBoundaryCondition) return;
+
+        static std::array<VkDescriptorSet, 4> sets;
+
+        sets[0] = uniformDescriptorSet;
+        sets[1] = _boundaryDescriptorSet;
+        sets[2] = field.descriptorSet[in];
+        sets[3] = field.descriptorSet[out];
+
+        auto mode = static_cast<uint32_t>(BoundaryMode::ScalarField);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("boundary_check"));
+        vkCmdPushConstants(commandBuffer, layout("boundary_check"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(mode), &mode);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("boundary_check"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer, field[out]);
+        field.swap();
     }
 
 

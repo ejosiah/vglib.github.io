@@ -21,24 +21,15 @@ layout(push_constant, scalar) uniform Constants {
 
 vec4 b(vec2 coord){
     vec4 _b = texture(solution, coord);
-//    if(is_vector_field == 1){
-//        return applyBoundaryCondition(coord, _b);
-//    }
     return _b;
 }
 
 vec4 x0(vec2 centerUv, vec2 coord){
-    vec4 _x0 = texture(unknown, scalarBoundarySampleUv(centerUv, coord));
-    _x0.x = reflectVelocityComponentAtBoundary(_x0.x, is_vector_field, centerUv, coord);
-    return _x0;
+    return texture(unknown, st(coord));
 }
 void main() {
     vec2 uv = get_uv();
     if(outOfBounds()) return;
-    if(checkBoundary(uv)){
-        imageStore(unknow_image, gid, vec4(0));
-        return;
-    }
 
     float dxdx = dx.x * dx.x;
     float dydy = dy.y * dy.y;

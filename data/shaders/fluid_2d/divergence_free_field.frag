@@ -18,7 +18,7 @@ layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 velocity_out;
 
 float p(vec2 centerUv, vec2 coord) {
-    return texture(pressure, scalarBoundarySampleUv(centerUv, coord)).x;
+    return texture(pressure, st(coord)).x;
 }
 
 vec2 u(vec2 coord) {
@@ -33,11 +33,6 @@ vec2 pg(vec2 coord){
 }
 
 void main() {
-    if(checkBoundary(uv)){
-        velocity_out = vec4(0);
-        return;
-    }
-
     velocity_out.xy = u(uv) - pg(uv);
     velocity_out.zw = vec2(0);
 }

@@ -40,40 +40,9 @@ uint rowOf(ivec2 cell) {
     return uint(cell.y) * gridSize.x + uint(cell.x);
 }
 
-bool outsideGrid(ivec2 cell) {
-    return cell.x < 0 || cell.y < 0 || cell.x >= int(gridSize.x) || cell.y >= int(gridSize.y);
-}
-
-bool isObstacle(ivec2 cell) {
-    if(ensureBoundaryCondition == 0u) return false;
-    if(outsideGrid(cell)) return true;
-
-    vec2 uv = (vec2(cell) + 0.5) / vec2(gridSize);
-    ivec2 size = textureSize(boundaryField, 0);
-    ivec2 coord = clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - ivec2(1));
-    return texelFetch(boundaryField, coord, 0).r > 0.5;
-}
-
 ivec2 coefficientCell(ivec2 cell) {
-    if(ensureBoundaryCondition != 0u) return cell;
-
     ivec2 size = ivec2(gridSize);
     return ivec2((cell.x + size.x) % size.x, (cell.y + size.y) % size.y);
-}
-
-vec2 boundaryNormal(ivec2 center, ivec2 sampleCell) {
-    ivec2 offset = sampleCell - center;
-    if(abs(offset.x) > abs(offset.y)) return vec2(sign(float(offset.x)), 0.0);
-    if(abs(offset.y) > 0) return vec2(0.0, sign(float(offset.y)));
-    return vec2(0.0);
-}
-
-float boundaryCenterAdjustment(float weight, ivec2 center, ivec2 sampleCell) {
-    vec2 normal = boundaryNormal(center, sampleCell);
-    bool reflectedComponent =
-        (vectorFieldComponent == 1u && abs(normal.x) > 0.0) ||
-        (vectorFieldComponent == 2u && abs(normal.y) > 0.0);
-    return reflectedComponent ? weight : -weight;
 }
 
 void writeEntry(uint base, uint slot, float value, uint col) {
@@ -82,12 +51,6 @@ void writeEntry(uint base, uint slot, float value, uint col) {
 }
 
 void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 center, ivec2 sampleCell, float weight) {
-    if(isObstacle(sampleCell)) {
-        centerValue += boundaryCenterAdjustment(weight, center, sampleCell);
-        writeEntry(base, slot, 0.0, rowOf(center));
-        return;
-    }
-
     writeEntry(base, slot, -weight, rowOf(coefficientCell(sampleCell)));
 }
 
@@ -110,15 +73,6 @@ void main() {
 
     uint base = row * ENTRIES_PER_ROW;
     ivec2 cell = ivec2(int(row % gridSize.x), int(row / gridSize.x));
-
-    if(isObstacle(cell)) {
-        writeEntry(base, 0u, 0.0, row);
-        writeEntry(base, 1u, 0.0, row);
-        writeEntry(base, 2u, 0.0, row);
-        writeEntry(base, 3u, 0.0, row);
-        writeEntry(base, 4u, 1.0, row);
-        return;
-    }
 
     float ax = alpha.x;
     float ay = alpha.y;

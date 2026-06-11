@@ -14,21 +14,17 @@ layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
 layout(set = 3, binding = 2) uniform writeonly image2D divergence_field;
 
 vec2 F(vec2 centerUv, vec2 sampleUv) {
-    vec2 xy = scalarBoundarySampleUv(centerUv, sampleUv);
+    vec2 xy = st(sampleUv);
     vec2 u;
     u.x = texture(vector_field_u, xy).x;
     u.y = texture(vector_field_v, xy).x;
-    return reflectVelocityAtBoundary(u, centerUv, sampleUv);
+    return u;
 }
 
 void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
-    if(checkBoundary(uv)){
-        imageStore(divergence_field, gid, vec4(0));
-        return;
-    }
 
     float dudx = (F(uv, uv + dx).x - F(uv, uv - dx).x)/(2*dx.x);
     float dudy = (F(uv, uv + dy).y - F(uv, uv - dy).y)/(2*dy.y);

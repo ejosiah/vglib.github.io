@@ -15,10 +15,5 @@ layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 value;
 
 void main(){
-    if(checkBoundary(uv)){
-        value = vec4(0);
-        return;
-    }
-
     value = texture(sourceField, uv) * sourceDt + texture(destinationField, uv);
 }

@@ -1,0 +1,102 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_debug_printf : enable
+
+#define BOUNDARY_MODE_VECTOR_FIELD 0u
+#define BOUNDARY_MODE_SCALAR_FIELD 1u
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#include "common_new.glsl"
+
+
+layout(set = 1, binding = 0) uniform  sampler2D boundaryField;
+
+layout(set = 2, binding = 0) uniform sampler2D field_0;
+layout(set = 3, binding = 2) uniform writeonly  image2D field_0_out;
+
+layout(set = 4, binding = 0) uniform sampler2D field_1;
+layout(set = 5, binding = 2) uniform writeonly  image2D field_1_out;
+
+
+layout(push_constant) uniform Cosntants {
+    uint mode;
+};
+
+float boundary(ivec2 coord) {
+    return texelFetch(boundaryField, coord, 0).r;
+}
+
+bool isObstacle(ivec2 coord){
+    return boundary(coord) > 0.5;
+}
+
+ivec2 range(ivec2 coord) {
+    return clamp(coord, ivec2(0), grid_size - 1);
+}
+
+vec2 vectorField(ivec2 coord) {
+    float u = texelFetch(field_0, coord, 0).x;
+    float v = texelFetch(field_1, coord, 0).x;
+
+    return vec2(u, v);
+}
+
+void updateVectorField(ivec2 coord, vec2 u) {
+    imageStore(field_0_out, coord, vec4(u.x));
+    imageStore(field_1_out, coord, vec4(u.y));
+}
+
+void updateQuantity(ivec2 coord, vec4 q) {
+    imageStore(field_0_out, coord, q);
+}
+
+vec2 getGradient(ivec2 coord) {
+    float phiL = boundary(range(coord - ivec2(1, 0)));
+    float phiR = boundary(range(coord + ivec2(1, 0)));
+    float phiB = boundary(range(coord - ivec2(0, 1)));
+    float phiT = boundary(range(coord + ivec2(0, 1)));
+
+    return vec2(phiR - phiL, phiT - phiB);
+}
+
+vec4 getQuantity(ivec2 coord) {
+    return texelFetch(field_0, coord, 0);
+}
+
+void main() {
+    if(outOfBounds()) return;
+
+    if (mode == BOUNDARY_MODE_SCALAR_FIELD) {
+        vec4 q = getQuantity(gid);
+
+        if (isObstacle(gid)) {
+            vec2 grad = getGradient(gid);
+            float mag = length(grad);
+
+            if (mag > 1e-6) {
+                vec2 n = -grad / mag;
+                ivec2 neighbour = range(gid + ivec2(sign(n)));
+                q = getQuantity(neighbour);
+            }
+        }
+
+        updateQuantity(gid, q);
+    } else if (mode == BOUNDARY_MODE_VECTOR_FIELD) {
+        vec2 u = vectorField(gid);
+
+        if (isObstacle(gid)) {
+            vec2 grad = getGradient(gid);
+            float mag = length(grad);
+
+            if (mag > 1e-6) {
+                vec2 n = -grad / mag;
+                u = u - dot(u, n) * n;
+            }
+        }
+
+        updateVectorField(gid, u);
+    }
+}

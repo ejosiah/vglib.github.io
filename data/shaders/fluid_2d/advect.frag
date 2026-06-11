@@ -22,20 +22,12 @@ layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 quantityOut;
 
 vec4 sampleQuantity(vec2 centerUv, vec2 sampleUv){
-    vec2 resolvedUv = scalarBoundarySampleUv(centerUv, sampleUv);
+    vec2 resolvedUv = st(sampleUv);
     vec4 q = texture(sampler2D(quantity, linerSampler), resolvedUv);
-    if(bool(isVectorField)){
-        q.xy = reflectVelocityAtBoundary(q.xy, centerUv, sampleUv);
-    }
     return q;
 }
 
 void main(){
-    if(checkBoundary(uv)){
-        quantityOut = vec4(0);
-        return;
-    }
-
     vec2 u = texture(vectorField, uv).xy;
 
     vec2 p = uv - dt * u;

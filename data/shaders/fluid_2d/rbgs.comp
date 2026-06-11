@@ -25,19 +25,13 @@ vec4 b(vec2 coord){
 }
 
 vec4 x0(vec2 centerUv, vec2 coord){
-    vec4 _x0 = texture(unknown_tex, scalarBoundarySampleUv(centerUv, coord));
-    _x0.x = reflectVelocityComponentAtBoundary(_x0.x, is_vector_field, centerUv, coord);
-    return _x0;
+    return texture(unknown_tex, st(coord));
 }
 
 void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
-    if(checkBoundary(uv)){
-        imageStore(unknow_image, gid, vec4(0));
-        return;
-    }
 
     uint parity = uint((gid.x + gid.y) & 1);
     if((pass == 0u && parity == 1u) || (pass == 1u && parity == 0u)){

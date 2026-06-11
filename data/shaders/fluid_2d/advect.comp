@@ -17,16 +17,15 @@ layout(set = 5, binding = 0) uniform sampler aSampler;
 
 layout(push_constant) uniform Constants {
     float time_sign;
-    uint boundary_mode;
 };
 
 vec2 loadVectorField(vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
+    vec2 uv = st(sampleUv);
     vec2 u;
     u.x = texture(vector_field_u, uv).x;
     u.y = texture(vector_field_v, uv).x;
 
-    return reflectVelocityAtBoundary(u, centerUv, sampleUv);
+    return u;
 }
 
 
@@ -39,20 +38,13 @@ void updateQuantity(vec4 q) {
 }
 
 vec4 sampleQuantity(vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
-    vec4 q = getQuantity(uv);
-    q.x = reflectVelocityComponentAtBoundary(q.x, boundary_mode, centerUv, sampleUv);
-    return q;
+    return getQuantity(st(sampleUv));
 }
 
 void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
-    if(checkBoundary(uv)){
-        updateQuantity(vec4(0));
-        return;
-    }
 
     vec2 u = loadVectorField(uv, uv);
 

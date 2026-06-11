@@ -21,7 +21,7 @@ layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 force;
 
 float vort(vec2 centerUv, vec2 coord) {
-    return texture(vorticityField, scalarBoundarySampleUv(centerUv, coord)).x;
+    return texture(vorticityField, st(coord)).x;
 }
 
 vec2 accumForce(vec2 coord){
@@ -29,11 +29,6 @@ vec2 accumForce(vec2 coord){
 }
 
 void main(){
-    if(checkBoundary(uv)){
-        force = vec4(0);
-        return;
-    }
-
     float dudx = (abs(vort(uv, uv + dx)) - abs(vort(uv, uv - dx)))/(2*dx.x);
     float dudy = (abs(vort(uv, uv + dy)) - abs(vort(uv, uv - dy)))/(2*dy.y);
 

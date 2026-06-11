@@ -18,10 +18,6 @@ void main() {
     if(gid.x >= grid_size.x || gid.y >= grid_size.y) return;
 
     vec2 uv = get_uv();
-    if(checkBoundary(uv)){
-        imageStore(destination_field, gid, vec4(0));
-        return;
-    }
 
     vec4 result = texture(source_field, uv) * dt + texture(accumulated_field, uv);
 
