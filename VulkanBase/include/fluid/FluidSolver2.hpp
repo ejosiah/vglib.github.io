@@ -7,6 +7,7 @@
 #include "Field.hpp"
 #include "linalg/gpu/conjugate_gradient_solver.hpp"
 
+#include <array>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -53,6 +54,8 @@ namespace eular {
         std::vector<VulkanDescriptorSetLayout> forceFieldSetLayouts();
 
         std::vector<VulkanDescriptorSetLayout> sourceFieldSetLayouts();
+
+        std::vector<VkDescriptorSet> debugFieldDescriptorSets() const;
 
         VectorField& vectorField();
 
@@ -293,11 +296,11 @@ namespace eular {
 
         Builder& poissonIterations(int value);
 
+        Builder& diffuseIterations(int value);
+
         Builder& viscosity(float value);
 
         Builder& ensureBoundaryCondition(bool flag);
-
-        Builder& poissonEquationSolver(LinearSolverStrategy strategy);
 
         Builder& vorticityConfinementScale(float scale);
 
@@ -306,6 +309,24 @@ namespace eular {
         Builder& gridSize(glm::vec2 size);
 
         Builder& boundary(VkDescriptorSet descriptorSet);
+
+        Builder& enableProjection();
+
+        Builder& disableProjection();
+
+        Builder& useMacCormackAdvection();
+
+        Builder& useStandingAdvection();
+
+        Builder& enableAdvection();
+
+        Builder& disableAdvection();
+
+        Builder& useJacobiSolver();
+
+        Builder& useConjugateGradientSolver();
+
+        Builder& useGaussSeidelSolver();
 
         std::unique_ptr<FluidSolver> build();
 
@@ -321,6 +342,7 @@ namespace eular {
         bool _project = true;
         bool _ensureBoundaryCondition = true;
         int _poissonIterations = 30;
+        int _diffuseIterations = 30;
         float _viscosity = 0;
         float _vorticityConfinementScale{0};
         float _density{1};
@@ -330,7 +352,7 @@ namespace eular {
         LinearSolverStrategy _linearSolverStrategy{LinearSolverStrategy::RBGS};
 
         std::vector<ExternalForce> _externalForces;
-        std::optional<VectorFieldFunc2D> _generator;
+        std::optional<VectorFieldFunc2D> _generator{[](float, float) { return glm::vec2{0.0f}; }};
         std::optional<VkDescriptorSet> _boundaryDescriptorSet;
     };
 }

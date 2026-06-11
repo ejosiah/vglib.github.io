@@ -2,6 +2,7 @@
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_debug_printf : enable
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
@@ -33,6 +34,10 @@ void main() {
     float dudy = (F(uv, uv + dy).y - F(uv, uv - dy).y)/(2*dy.y);
 
     float div = dudx + dudy;
+
+//    if(isnan(div)) {
+//        debugPrintfEXT("v: [%f, %f]\n", F(uv, uv).x, F(uv, uv).y);
+//    }
 
     imageStore(divergence_field, gid, vec4(div));
 }

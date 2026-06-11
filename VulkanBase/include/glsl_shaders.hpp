@@ -46,6 +46,7 @@ extern std::vector<uint32_t> data_shaders_fluid_2d_apply_force_comp;
 extern std::vector<uint32_t> data_shaders_fluid_2d_combine_vector_field_comp_comp;
 extern std::vector<uint32_t> data_shaders_fluid_2d_compute_stream_lines_comp;
 extern std::vector<uint32_t> data_shaders_fluid_2d_copy_scaled_to_buffer_comp;
+extern std::vector<uint32_t> data_shaders_fluid_2d_debug_fields_frag;
 extern std::vector<uint32_t> data_shaders_fluid_2d_divergence_comp;
 extern std::vector<uint32_t> data_shaders_fluid_2d_divergence_frag;
 extern std::vector<uint32_t> data_shaders_fluid_2d_divergence_free_field_comp;

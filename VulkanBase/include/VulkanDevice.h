@@ -956,9 +956,15 @@ struct VulkanDevice{
         return { commandBuffer, name, color};
     }
 
-
 private:
     void* _enabledExtensions{};
 };
+
+#ifndef NDEBUG
+#define VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, label) \
+    [[maybe_unused]] auto label##Section = (device)->section((commandBuffer), #label)
+#else
+#define VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, label)
+#endif
 
 #include "DescriptorSetBuilder.hpp"

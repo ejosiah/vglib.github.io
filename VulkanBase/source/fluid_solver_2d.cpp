@@ -72,7 +72,7 @@ void FluidSolver2D::runSimulation(VkCommandBuffer commandBuffer) {
 void FluidSolver2D::velocityStep(VkCommandBuffer commandBuffer) {
     if(!options.advectVField) return;
 
-    auto velocityStepSection = device->section(commandBuffer, "velocity_step");
+    VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, velocity_step);
     advectVectorField(commandBuffer);
     if(options.viscosity > 0) {
         jacobi.constants.isVectorField = 1;
@@ -84,7 +84,7 @@ void FluidSolver2D::velocityStep(VkCommandBuffer commandBuffer) {
 }
 
 void FluidSolver2D::quantityStep(VkCommandBuffer commandBuffer) {
-    auto quantityStepSection = device->section(commandBuffer, "velocity_step");
+    VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, velocity_step);
     for(auto& quantity : quantities){
         quantityStep(commandBuffer, quantity);
     }

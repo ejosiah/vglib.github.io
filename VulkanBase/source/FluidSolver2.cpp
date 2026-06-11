@@ -1,6 +1,5 @@
 #include "fluid/FluidSolver2.hpp"
 #include "Barrier.hpp"
-#include "glsl_shaders.hpp"
 
 #include <algorithm>
 
@@ -531,6 +530,34 @@ namespace eular {
             };
 
             vkCmdPipelineBarrier2(commandBuffer, &dInfo);
+
+            auto clearTexture = [&](Texture& texture) {
+                texture.image.currentLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+                VkClearColorValue zero{{0.0f, 0.0f, 0.0f, 0.0f}};
+                vkCmdClearColorImage(commandBuffer, texture.image, VK_IMAGE_LAYOUT_GENERAL, &zero, 1, &DEFAULT_SUB_RANGE);
+            };
+
+            clearTexture(_vectorField.u[0]);
+            clearTexture(_vectorField.u[1]);
+            clearTexture(_vectorField.v[0]);
+            clearTexture(_vectorField.v[1]);
+            clearTexture(_forceField[0]);
+            clearTexture(_forceField[1]);
+            clearTexture(_vorticityField[0]);
+            clearTexture(_vorticityField[1]);
+            clearTexture(_divergenceField[0]);
+            clearTexture(_divergenceField[1]);
+            clearTexture(_pressureField[0]);
+            clearTexture(_pressureField[1]);
+            clearTexture(_macCormackData[0]);
+            clearTexture(_macCormackData[1]);
+
+            Barriers::pushAndFlush(commandBuffer,
+                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT);
         });
     }
     
@@ -538,7 +565,7 @@ namespace eular {
         return {
                 {
                     .name = "advect",
-                    .shadePath = data_shaders_fluid_2d_advect_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_samplerDescriptorSetLayout,
@@ -548,7 +575,7 @@ namespace eular {
                 },
                 {
                     .name = "apply_force",
-                    .shadePath = data_shaders_fluid_2d_apply_force_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\apply_force.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
@@ -557,7 +584,7 @@ namespace eular {
                 },
                 {
                         .name = "add_sources",
-                        .shadePath = data_shaders_fluid_2d_add_sources_comp,
+                        .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
                         .layouts =  {
                                 &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                                 &_fieldDescriptorSetLayout, &_boundaryDescriptorSetLayout
@@ -565,7 +592,7 @@ namespace eular {
                 },
                 {
                     .name = "jacobi",
-                    .shadePath = data_shaders_fluid_2d_jacobi_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\jacobi.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_boundaryDescriptorSetLayout
@@ -574,7 +601,7 @@ namespace eular {
                 },
                 {
                     .name = "rbgs",
-                    .shadePath = data_shaders_fluid_2d_rbgs_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\rbgs.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_boundaryDescriptorSetLayout,
@@ -583,7 +610,7 @@ namespace eular {
                 },
                 {
                     .name = "divergence",
-                    .shadePath = data_shaders_fluid_2d_divergence_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_boundaryDescriptorSetLayout
@@ -591,7 +618,7 @@ namespace eular {
                 },
                 {
                     .name = "divergence_free_field",
-                    .shadePath = data_shaders_fluid_2d_divergence_free_field_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence_free_field.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout,  &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
@@ -600,7 +627,7 @@ namespace eular {
                 },
                 {
                     .name = "vorticity",
-                    .shadePath = data_shaders_fluid_2d_vorticity_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_boundaryDescriptorSetLayout
@@ -608,7 +635,7 @@ namespace eular {
                 },
                 {
                     .name = "vorticity_force",
-                    .shadePath = data_shaders_fluid_2d_vorticity_force_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity_force.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_boundaryDescriptorSetLayout
@@ -617,7 +644,7 @@ namespace eular {
                 },
                 {
                     .name = "maccormack",
-                    .shadePath = data_shaders_fluid_2d_maccormack_advection_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\maccormack_advection.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
                             &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
@@ -627,13 +654,13 @@ namespace eular {
                 },
                 {
                     .name = "generate_coefficients",
-                    .shadePath = data_shaders_fluid_2d_generate_coefficients_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\generate_coefficients.comp.spv)",
                     .layouts = { &_boundaryDescriptorSetLayout, &cgDescriptorSetLayout },
                     .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(_cg[0].constants) } }
                 },
                 {
                     .name = "copy_scaled_to_buffer",
-                    .shadePath = data_shaders_fluid_2d_copy_scaled_to_buffer_comp,
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\copy_scaled_to_buffer.comp.spv)",
                     .layouts = { &_fieldDescriptorSetLayout, &cgVectorDescriptorSetLayout },
                     .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ScaledFieldCopyConstants) } }
                 }
@@ -644,7 +671,7 @@ namespace eular {
     void FluidSolver::velocityStep(VkCommandBuffer commandBuffer) {
         if(!options.advectVField) return;
 
-        auto velocityStepSection = device->section(commandBuffer, "velocity_step");
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, velocity_step);
         advectVectorField(commandBuffer);
         diffuseVelocityField(commandBuffer);
         clearForces(commandBuffer);
@@ -660,6 +687,7 @@ namespace eular {
 
     
     void FluidSolver::applyForces(VkCommandBuffer commandBuffer) {
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, apply_forces);
         applyExternalForces(commandBuffer);
         computeVorticityConfinement(commandBuffer);
         addForcesToVectorField(commandBuffer, _forceField);
@@ -683,7 +711,7 @@ namespace eular {
     void FluidSolver::diffuseVelocityField(VkCommandBuffer commandBuffer) {
         if(options.viscosity <= 0) return;
         const auto rho = options.density;
-
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, diffuse);
         diffuse(commandBuffer, _vectorField.u, options.viscosity/rho, 1);
         diffuse(commandBuffer, _vectorField.v, options.viscosity/rho, 2);
         linearSolverConstants.vector_field_component = 0;
@@ -716,7 +744,7 @@ namespace eular {
 
     void FluidSolver::project(VkCommandBuffer commandBuffer) {
         if(!options.project) return;
-
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, projection);
         computeDivergence(commandBuffer);
         solvePressure(commandBuffer);
         computeDivergenceFreeField(commandBuffer);
@@ -724,6 +752,7 @@ namespace eular {
     }
 
     void FluidSolver::advectVectorField(VkCommandBuffer commandBuffer) {
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, advect);
         if(options.macCormackAdvection) {
             advect(commandBuffer, _vectorField.u, 1);
             advect(commandBuffer, _vectorField.v, 2);
@@ -737,7 +766,7 @@ namespace eular {
     }
 
     void FluidSolver::quantityStep(VkCommandBuffer commandBuffer) {
-        auto quantityStepSection = device->section(commandBuffer, "velocity_step");
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, quantity_step);
         for(auto& quantity : _quantities) {
             quantityStep(commandBuffer, quantity);
         }
@@ -1080,6 +1109,7 @@ namespace eular {
     }
 
     void FluidSolver::computeDivergence(VkCommandBuffer commandBuffer) {
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, compute_divergence);
         auto& vf = _vectorField;
         static std::array<VkDescriptorSet, 5> sets;
 
@@ -1096,6 +1126,7 @@ namespace eular {
     }
 
     void FluidSolver::solvePressure(VkCommandBuffer commandBuffer) {
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, solve_pressure);
         const auto rho = options.density;
         const auto dt = options.timeStep;
         linearSolverConstants.alpha = -(rho * _delta.x * _delta.x * _delta.y * _delta.y)/dt;
@@ -1121,6 +1152,7 @@ namespace eular {
     }
 
     void FluidSolver::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, compute_divergence_free_field);
         auto& vf = _vectorField;
         static std::array<VkDescriptorSet, 7> sets;
 
@@ -1255,6 +1287,25 @@ namespace eular {
         return _pressureField;
     }
 
+    std::vector<VkDescriptorSet> FluidSolver::debugFieldDescriptorSets() const {
+        std::vector<VkDescriptorSet> sets{
+            _vectorField.u.descriptorSet[in],
+            _vectorField.v.descriptorSet[in],
+            _pressureField.descriptorSet[in],
+            _divergenceField.descriptorSet[in],
+            _forceField.descriptorSet[in],
+            _vorticityField.descriptorSet[in],
+            _macCormackData.descriptorSet[in],
+        };
+
+        for(const auto& quantity : _quantities) {
+            sets.push_back(quantity.get().field.descriptorSet[in]);
+            sets.push_back(quantity.get().source.descriptorSet[in]);
+        }
+
+        return sets;
+    }
+
     FluidSolver::Builder::Builder(VulkanDevice *device, VulkanDescriptorPool *descriptorPool)
     : _device(device)
     , _descriptorPool(descriptorPool){}
@@ -1284,6 +1335,11 @@ namespace eular {
         return *this;
     }
 
+    FluidSolver::Builder & FluidSolver::Builder::diffuseIterations(int value) {
+        _diffuseIterations = value;
+        return *this;
+    }
+
     FluidSolver::Builder& FluidSolver::Builder::viscosity(float value) {
         _viscosity = value;
         return *this;
@@ -1294,11 +1350,6 @@ namespace eular {
         return *this;
     }
 
-    FluidSolver::Builder& FluidSolver::Builder::poissonEquationSolver(LinearSolverStrategy strategy) {
-        _linearSolverStrategy = strategy;
-        return *this;
-    }
-
     FluidSolver::Builder& FluidSolver::Builder::gridSize(glm::vec2 size) {
         _gridSize = size;
         return *this;
@@ -1306,6 +1357,51 @@ namespace eular {
 
     FluidSolver::Builder& FluidSolver::Builder::boundary(VkDescriptorSet descriptorSet) {
         _boundaryDescriptorSet = descriptorSet;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::enableProjection() {
+        _project = true;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::disableProjection() {
+        _project = false;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::useMacCormackAdvection() {
+        _macCormackAdvection = true;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::useStandingAdvection() {
+        _macCormackAdvection = false;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::enableAdvection() {
+        _advectVField = true;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::disableAdvection() {
+        _advectVField = false;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::useJacobiSolver() {
+        _linearSolverStrategy = LinearSolverStrategy::Jacobi;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::useConjugateGradientSolver() {
+        _linearSolverStrategy = LinearSolverStrategy::ConjugateGradient;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::useGaussSeidelSolver() {
+        _linearSolverStrategy = LinearSolverStrategy::RBGS;
         return *this;
     }
 
@@ -1382,11 +1478,11 @@ namespace eular {
 
         VkImageMemoryBarrier2 barrier{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1398,9 +1494,11 @@ namespace eular {
         };
         std::vector<VkImageMemoryBarrier2> barriers;
         barrier.image = solver._vectorField.u[0].image;
+        barrier.oldLayout = solver._vectorField.u[0].image.currentLayout;
         barriers.push_back(barrier);
 
         barrier.image = solver._vectorField.v[0].image;
+        barrier.oldLayout = solver._vectorField.v[0].image.currentLayout;
         barriers.push_back(barrier);
 
         VkDependencyInfo dInfo {
@@ -1444,6 +1542,9 @@ namespace eular {
             barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
 
             vkCmdPipelineBarrier2(commandBuffer, &dInfo);
+
+            solver._vectorField.u[0].image.currentLayout = VK_IMAGE_LAYOUT_GENERAL;
+            solver._vectorField.v[0].image.currentLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         });
     }

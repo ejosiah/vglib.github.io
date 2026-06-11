@@ -17,7 +17,8 @@ void main(){
     float x = texture(pressure_field, vUv).x;
     float a = min_max[1].data;
     float b = min_max[0].data;
-    float t = (x - a)/(b - a);
+    float range = b - a;
+    float t = abs(range) > 1e-6 ? (x - a) / range : 0.5;
 
     fragColor.r = sin(.5 * PI * t);
     fragColor.b = sin(PI * t);
