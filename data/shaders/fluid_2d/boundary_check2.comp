@@ -1,0 +1,148 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "common_new.glsl"
+
+#define BOUNDARY_MODE_SCALAR_FIELD 0u
+#define BOUNDARY_MODE_VECTOR_FIELD_COMP_U 1u
+#define BOUNDARY_MODE_VECTOR_FIELD_COMP_V 2u
+
+layout(set = 1, binding = 0) uniform  sampler2D boundaryField;
+
+layout(set = 2, binding = 0) uniform sampler2D field;
+layout(set = 3, binding = 2) uniform writeonly  image2D field_out;
+
+struct Coords {
+    ivec2 self;
+    ivec4 neighbours;
+};
+
+layout(push_constant) uniform Constants {
+    uint mode;
+    uint pass;
+};
+
+bool isCorner(ivec2 coord) {
+    ivec2 cMax = grid_size - 1;
+    return (coord.x == 0 && coord.y == 0)
+    || (coord.x == cMax.x && coord.y == 0)
+    || (coord.x == cMax.x && coord.y == cMax.y)
+    || (coord.x == 0 && coord.y == cMax.y);
+}
+
+float boundary(ivec2 coord) {
+    return texelFetch(boundaryField, coord, 0).r;
+}
+
+bool isObstacle(ivec2 coord){
+    return boundary(coord) > 0.5;
+}
+
+ivec2 range(ivec2 coord) {
+    return clamp(coord, ivec2(0), grid_size - 1);
+}
+
+void updateQuantity(ivec2 coord, vec4 q) {
+    imageStore(field_out, coord, q);
+}
+
+vec4 getQuantity(ivec2 coord) {
+    return texelFetch(field, coord, 0);
+}
+
+bool shouldFlip(vec2 n) {
+    if(mode == BOUNDARY_MODE_VECTOR_FIELD_COMP_U) {
+        return abs(n.x) > 0.0;
+    }
+
+    if(mode == BOUNDARY_MODE_VECTOR_FIELD_COMP_V) {
+        return abs(n.y) > 0.0;
+    }
+
+    return false;
+}
+
+vec4 applyBoundaryMode(vec4 q, vec2 n) {
+    if(shouldFlip(n)) {
+        q.x = -q.x;
+    }
+
+    return q;
+}
+
+vec4 sampleBoundaryNeighbour(ivec2 coord, ivec2 offset) {
+    vec4 q = getQuantity(range(coord + offset));
+    return applyBoundaryMode(q, vec2(offset));
+}
+
+vec2 getGradient(ivec2 coord) {
+
+    if(coord.x == 0 && coord.y == 0) {
+        return vec2(-1, -1);
+    }
+
+    if(coord.x == grid_size.x - 1 && coord.y == 0) {
+        return vec2(1, -1);
+    }
+
+    if(coord.x == grid_size.x - 1 && coord.y == grid_size.y - 1) {
+        return vec2(1, 1);
+    }
+
+    if(coord.x == 0 && coord.y == grid_size.y - 1) {
+        return vec2(-1, 1);
+    }
+
+    float L = boundary(range(coord - ivec2(1, 0)));
+    float R = boundary(range(coord + ivec2(1, 0)));
+    float B = boundary(range(coord - ivec2(0, 1)));
+    float T = boundary(range(coord + ivec2(0, 1)));
+
+    return vec2(R - L, T - B);
+}
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+void main() {
+    if(outOfBounds()) return;
+
+    if(pass == 0u) {
+        vec4 q = getQuantity(gid);
+
+        if(!isCorner(gid) && isObstacle(gid)) {
+            vec2 grad = getGradient(gid);
+            float mag = length(grad);
+
+            if (mag > 1e-6) {
+                vec2 n = -grad / mag;
+                q = sampleBoundaryNeighbour(gid, ivec2(sign(n)));
+            }
+        }
+
+        updateQuantity(gid, q);
+    } else {
+        if(!isCorner(gid)) {
+            updateQuantity(gid, getQuantity(gid));
+        }
+
+        int index = gid.y * grid_size.x + gid.x;
+        if(index > 3) return;
+
+        ivec2 cMax = grid_size - 1;
+        Coords coords[4] = Coords[4](
+            Coords(ivec2(0, 0), ivec4(1, 0, 0, 1)),
+            Coords(ivec2(cMax.x, 0), ivec4(-1, 0, 0, 1)),
+            Coords(cMax, ivec4(-1, 0, 0, -1)),
+            Coords(ivec2(0, cMax.y), ivec4(1, 0, 0, -1))
+        );
+        Coords coord = coords[index];
+
+        if(!isObstacle(coord.self)) return;
+
+        vec4 q0 = sampleBoundaryNeighbour(coord.self, coord.neighbours.xy);
+        vec4 q1 = sampleBoundaryNeighbour(coord.self, coord.neighbours.zw);
+        vec4 q = 0.5 * (q0 + q1);
+        updateQuantity(coord.self, q);
+    }
+}

@@ -56,11 +56,11 @@ void main() {
     vec2 p = uv - time_sign * dt * u;
     vec4 q = sampleQuantity(uv, p);
 
-    if(gid.x == 2 && gid.y == 2) {
-        debugPrintfEXT("u_uv: [%f, %f], old_u: [%f, %f], new_u: [%f, %f], q_uv: [%f, %f], q: [%f, %f, %f, %f]\n"
-        , pm.x, pm.y, old_u.x, old_u.y, u.x, u.y, p.x, p.y, q.x, q.y, q.z, q.w);
-
-    }
+//    if(gid.x == 2 && gid.y == 2) {
+//        debugPrintfEXT("u_uv: [%f, %f], old_u: [%f, %f], new_u: [%f, %f], q_uv: [%f, %f], q: [%f, %f, %f, %f]\n"
+//        , pm.x, pm.y, old_u.x, old_u.y, u.x, u.y, p.x, p.y, q.x, q.y, q.z, q.w);
+//
+//    }
 
     updateQuantity(q);
 }

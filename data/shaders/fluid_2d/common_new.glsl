@@ -22,6 +22,10 @@ bool outOfBounds() {
     return gid.x >= grid_size.x || gid.y >= grid_size.y;
 }
 
+bool outOfBounds(ivec2 coord) {
+    return coord.x < 0 || coord.y < 0 || coord.x >= grid_size.x || coord.y >= grid_size.y;
+}
+
 vec2 get_uv() {
     return (vec2(gid) + 0.5)/grid_size.xy;
 }

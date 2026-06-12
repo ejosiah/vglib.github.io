@@ -4,13 +4,12 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_debug_printf : enable
 
-#define BOUNDARY_MODE_VECTOR_FIELD 0u
-#define BOUNDARY_MODE_SCALAR_FIELD 1u
+#define BOUNDARY_MODE_SCALAR_FIELD 0u
+#define BOUNDARY_MODE_VECTOR_FIELD 3u
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
 #include "common_new.glsl"
-
 
 layout(set = 1, binding = 0) uniform  sampler2D boundaryField;
 
@@ -24,6 +23,16 @@ layout(set = 5, binding = 2) uniform writeonly  image2D field_1_out;
 layout(push_constant) uniform Cosntants {
     uint mode;
 };
+
+bool log = gid.x == (0) && gid.y == (0) && mode == BOUNDARY_MODE_SCALAR_FIELD;
+
+bool isCorner(ivec2 coord) {
+    ivec2 cMax = grid_size - 1;
+    return (coord.x == 0 && coord.y == 0)
+    || (coord.x == cMax.x && coord.y == 0)
+    || (coord.x == cMax.x && coord.y == cMax.y)
+    || (coord.x == 0 && coord.y == cMax.y);
+}
 
 float boundary(ivec2 coord) {
     return texelFetch(boundaryField, coord, 0).r;
@@ -50,16 +59,34 @@ void updateVectorField(ivec2 coord, vec2 u) {
 }
 
 void updateQuantity(ivec2 coord, vec4 q) {
+
     imageStore(field_0_out, coord, q);
 }
 
 vec2 getGradient(ivec2 coord) {
-    float phiL = boundary(range(coord - ivec2(1, 0)));
-    float phiR = boundary(range(coord + ivec2(1, 0)));
-    float phiB = boundary(range(coord - ivec2(0, 1)));
-    float phiT = boundary(range(coord + ivec2(0, 1)));
 
-    return vec2(phiR - phiL, phiT - phiB);
+    if(coord.x == 0 && coord.y == 0) {
+        return vec2(-1, -1);
+    }
+
+    if(coord.x == grid_size.x - 1 && coord.y == 0) {
+        return vec2(1, -1);
+    }
+
+    if(coord.x == grid_size.x - 1 && coord.y == grid_size.y - 1) {
+        return vec2(1, 1);
+    }
+
+    if(coord.x == 0 && coord.y == grid_size.y - 1) {
+        return vec2(-1, 1);
+    }
+
+    float L = boundary(range(coord - ivec2(1, 0)));
+    float R = boundary(range(coord + ivec2(1, 0)));
+    float B = boundary(range(coord - ivec2(0, 1)));
+    float T = boundary(range(coord + ivec2(0, 1)));
+
+    return vec2(R - L, T - B);
 }
 
 vec4 getQuantity(ivec2 coord) {
@@ -76,24 +103,34 @@ void main() {
             vec2 grad = getGradient(gid);
             float mag = length(grad);
 
+            float old_q = q.x;
             if (mag > 1e-6) {
                 vec2 n = -grad / mag;
                 ivec2 neighbour = range(gid + ivec2(sign(n)));
                 q = getQuantity(neighbour);
+                ivec2 ni = neighbour;
+                if(log){
+                    debugPrintfEXT("n: [%d, %d], old_q: [%f], new_q: [%f]\n", ni.x, ni.y, old_q, q.x);
+                }
             }
         }
 
         updateQuantity(gid, q);
     } else if (mode == BOUNDARY_MODE_VECTOR_FIELD) {
         vec2 u = vectorField(gid);
-
         if (isObstacle(gid)) {
             vec2 grad = getGradient(gid);
+            vec2 g = sign(grad);
             float mag = length(grad);
 
+            vec2 old_u = u;
+            vec2 n = grad;
             if (mag > 1e-6) {
-                vec2 n = -grad / mag;
+                n = -grad / mag;
                 u = u - dot(u, n) * n;
+            }
+            if(log) {
+                debugPrintfEXT("n: [%f, %f], old_u: [%f, %f], new_u: [%f, %f]\n", n.x, n.y, old_u.x, old_u.y, u.x, u.y);
             }
         }
 

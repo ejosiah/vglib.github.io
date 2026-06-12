@@ -20,7 +20,7 @@ namespace eular {
         Jacobi, RBGS, ConjugateGradient
     };
 
-    enum class BoundaryMode : uint32_t { VectorField, ScalarField };
+    enum class BoundaryMode : uint32_t { ScalarField, VectorField_U, VectorField_V, VectorField };
 
     using VectorFieldSource3D = std::vector<glm::vec3>;
     using VectorFieldSource2D = std::vector<glm::vec2>;
@@ -144,6 +144,8 @@ namespace eular {
         void boundaryCheck(VkCommandBuffer commandBuffer, VectorField& field);
 
         void boundaryCheck(VkCommandBuffer commandBuffer, Field& field);
+
+        void boundaryCheck(VkCommandBuffer commandBuffer, Field& field, BoundaryMode mode);
 
         void addComputeBarrier(VkCommandBuffer commandBuffer, Texture& texture);
 
