@@ -766,7 +766,6 @@ namespace eular {
         computeDivergence(commandBuffer);
         solvePressure(commandBuffer);
         computeDivergenceFreeField(commandBuffer);
-        _vectorField.swap();
     }
 
     void FluidSolver::advectVectorField(VkCommandBuffer commandBuffer) {
