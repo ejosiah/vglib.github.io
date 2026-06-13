@@ -24,16 +24,17 @@ vec2 F(vec2 centerUv, vec2 sampleUv) {
 void main() {
     if(outOfBounds()) return;
 
+    if(boundaryHasZeroGradient(gid)) {
+        imageStore(divergence_field, gid, vec4(0.0));
+        return;
+    }
+
     vec2 uv = get_uv();
 
     float dudx = (F(uv, uv + dx).x - F(uv, uv - dx).x)/(2*dx.x);
     float dudy = (F(uv, uv + dy).y - F(uv, uv - dy).y)/(2*dy.y);
 
     float div = dudx + dudy;
-
-//    if(isnan(div)) {
-//        debugPrintfEXT("v: [%f, %f]\n", F(uv, uv).x, F(uv, uv).y);
-//    }
 
     imageStore(divergence_field, gid, vec4(div));
 }

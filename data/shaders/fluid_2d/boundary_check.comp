@@ -24,7 +24,7 @@ layout(push_constant) uniform Cosntants {
     uint mode;
 };
 
-bool log = gid.x == (0) && gid.y == (0) && mode == BOUNDARY_MODE_SCALAR_FIELD;
+bool log = gid.x == (0) && gid.y == (0);
 
 bool isCorner(ivec2 coord) {
     ivec2 cMax = grid_size - 1;
@@ -65,21 +65,21 @@ void updateQuantity(ivec2 coord, vec4 q) {
 
 vec2 getGradient(ivec2 coord) {
 
-    if(coord.x == 0 && coord.y == 0) {
-        return vec2(-1, -1);
-    }
-
-    if(coord.x == grid_size.x - 1 && coord.y == 0) {
-        return vec2(1, -1);
-    }
-
-    if(coord.x == grid_size.x - 1 && coord.y == grid_size.y - 1) {
-        return vec2(1, 1);
-    }
-
-    if(coord.x == 0 && coord.y == grid_size.y - 1) {
-        return vec2(-1, 1);
-    }
+//    if(coord.x == 0 && coord.y == 0) {
+//        return vec2(-1, -1);
+//    }
+//
+//    if(coord.x == grid_size.x - 1 && coord.y == 0) {
+//        return vec2(1, -1);
+//    }
+//
+//    if(coord.x == grid_size.x - 1 && coord.y == grid_size.y - 1) {
+//        return vec2(1, 1);
+//    }
+//
+//    if(coord.x == 0 && coord.y == grid_size.y - 1) {
+//        return vec2(-1, 1);
+//    }
 
     float L = boundary(range(coord - ivec2(1, 0)));
     float R = boundary(range(coord + ivec2(1, 0)));
@@ -103,14 +103,15 @@ void main() {
             vec2 grad = getGradient(gid);
             float mag = length(grad);
 
-            float old_q = q.x;
+            vec4 old_q = q;
+            q = vec4(0);
             if (mag > 1e-6) {
                 vec2 n = -grad / mag;
                 ivec2 neighbour = range(gid + ivec2(sign(n)));
                 q = getQuantity(neighbour);
                 ivec2 ni = neighbour;
                 if(log){
-                    debugPrintfEXT("n: [%d, %d], old_q: [%f], new_q: [%f]\n", ni.x, ni.y, old_q, q.x);
+                    debugPrintfEXT("n: [%d, %d], old_q: [%f], new_q: [%f]\n", ni.x, ni.y, old_q.x, q.x);
                 }
             }
         }
@@ -125,11 +126,13 @@ void main() {
 
             vec2 old_u = u;
             vec2 n = grad;
+            u = vec2(0);
             if (mag > 1e-6) {
                 n = -grad / mag;
                 u = u - dot(u, n) * n;
             }
             if(log) {
+
                 debugPrintfEXT("n: [%f, %f], old_u: [%f, %f], new_u: [%f, %f]\n", n.x, n.y, old_u.x, old_u.y, u.x, u.y);
             }
         }

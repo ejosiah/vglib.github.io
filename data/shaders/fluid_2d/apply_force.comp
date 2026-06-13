@@ -31,8 +31,15 @@ void main() {
     if(outOfBounds()) return;
 
     vec2 xy = get_uv();
+    vec2 u = vector_field(xy);
 
-    vec2 u = vector_field(xy) + force_field(xy) * dt;
+    if(boundaryIsSolid(gid)) {
+        imageStore(vector_field_u_out, gid, vec4(u.x));
+        imageStore(vector_field_v_out, gid, vec4(u.y));
+        return;
+    }
+
+    u += force_field(xy) * dt;
 
     imageStore(vector_field_u_out, gid, vec4(u.x));
     imageStore(vector_field_v_out, gid, vec4(u.y));
