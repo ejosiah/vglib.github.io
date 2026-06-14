@@ -9,6 +9,8 @@
 namespace eular {
 
     struct Field : std::array<Texture, 2> {
+        inline static VulkanDescriptorSetLayout descriptorSetLayout{};
+
         std::string name;
         std::array<VkDescriptorSet, 2> descriptorSet{};
 

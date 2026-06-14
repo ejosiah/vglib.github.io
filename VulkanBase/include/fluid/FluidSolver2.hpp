@@ -5,7 +5,9 @@
 #include "ComputePipelins.hpp"
 #include "VulkanDevice.h"
 #include "Field.hpp"
+#include "common.hpp"
 #include "linalg/gpu/conjugate_gradient_solver.hpp"
+#include "linalg/gpu/jacobi_solver.hpp"
 #include "linalg/gpu/red_black_gauss_seidel_solver.hpp"
 
 #include <array>
@@ -14,22 +16,6 @@
 #include <optional>
 
 namespace eular {
-
-    enum class TimeDirection { Forward, Backword };
-
-    enum class LinearSolverStrategy  {
-        Jacobi, RBGS, ConjugateGradient
-    };
-
-    using VectorFieldSource3D = std::vector<glm::vec3>;
-    using VectorFieldSource2D = std::vector<glm::vec2>;
-
-    using DivergenceField = Field;
-    using PressureField = Field;
-    using ForceField = Field;
-    using VorticityField = Field;
-
-    using ExternalForce = std::function<void(VkCommandBuffer, std::span<VkDescriptorSet>, glm::uvec3)>;
 
     class FluidSolver : public ComputePipelines {
     public:
@@ -70,13 +56,7 @@ namespace eular {
 
         void initFields();
 
-        void initConjugateGradientSupport();
-
-        bool isJacobiSolver() const;
-
-        bool isRbgsSolver() const;
-
-        bool isConjugateGradientSolver() const;
+        void initLinearSolverSupport();
 
         void createSamplers();
 
@@ -148,11 +128,7 @@ namespace eular {
 
         void addComputeBarrier(VkCommandBuffer commandBuffer, std::initializer_list<Texture*> textures);
 
-        void jacobiSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown);
-
-        void rbgsSolver(VkCommandBuffer commandBuffer, Field& solution, Field& unknown);
-
-        void conjugateGradientSolve(VkCommandBuffer commandBuffer, uint32_t index);
+        void solveLinearSystem(VkCommandBuffer commandBuffer, uint32_t index);
 
         void buildCoefficientMatrix(VkCommandBuffer commandBuffer, uint32_t index);
 
@@ -226,13 +202,6 @@ namespace eular {
         } options;
 
         struct {
-            float alpha{};
-            float rBeta{};
-            uint vector_field_component{};
-            uint pass{0};
-        } linearSolverConstants;
-
-        struct {
             float time_sign{1};
             uint32_t boundary_mode{0};
         } advectConstants;
@@ -252,9 +221,9 @@ namespace eular {
 
 
 
-        struct {
+        struct LinearSystem {
             gpu::linalg::AbstractSolver::Params params{};
-            gpu::linalg::ConjugateGradientSolver solver;
+            std::unique_ptr<gpu::linalg::AbstractSolver> solver;
             VkDescriptorSet descriptorSet{};
             VkDescriptorSet rhsDescriptorSet{};
 
@@ -267,19 +236,16 @@ namespace eular {
                 uint32_t ensureBoundaryCondition{};
                 uint32_t vectorFieldComponent{};
             } constants;
-        } _cg[2];
+        } _linearSystems[2];
 
-        VulkanDescriptorSetLayout cgDescriptorSetLayout;
-        VulkanDescriptorSetLayout cgVectorDescriptorSetLayout;
+        VulkanDescriptorSetLayout linearSystemDescriptorSetLayout;
+        VulkanDescriptorSetLayout linearSystemVectorDescriptorSetLayout;
 
-        static constexpr uint32_t cgStencilEntriesPerRow = 5;
-        static constexpr uint32_t cgRowsPerBatch = 4096;
+        static constexpr uint32_t linearSystemStencilEntriesPerRow = 5;
+        static constexpr uint32_t linearSystemRowsPerBatch = 4096;
 
         VkDescriptorSet _valueSamplerDescriptorSet{};
         VkDescriptorSet _linearSamplerDescriptorSet{};
-
-        static constexpr uint32_t in = 0;
-        static constexpr uint32_t out = 1;
 
         std::vector<ExternalForce> _externalForces;
         float _elapsedTime{};
