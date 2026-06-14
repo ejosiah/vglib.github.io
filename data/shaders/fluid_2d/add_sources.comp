@@ -6,7 +6,7 @@
 #extension GL_EXT_samplerless_texture_functions : enable
 
 #define BOUNDARY_SET 4
-#include "common_new.glsl"
+#include "common.glsl"
 
 layout(local_size_x = 32, local_size_y = 32) in;
 

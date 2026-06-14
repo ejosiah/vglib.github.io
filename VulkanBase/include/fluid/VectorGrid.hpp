@@ -44,6 +44,8 @@ namespace eular {
 
         VulkanDescriptorSetLayout fieldDescriptorSetLayout() const;
 
+        virtual void advectVectorField(VkCommandBuffer commandBuffer) = 0;
+
         virtual void advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0,
             bool addBarrier = true) = 0;
 

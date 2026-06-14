@@ -84,6 +84,10 @@ void writeEntry(uint base, uint slot, float value, uint col) {
 }
 
 void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 center, ivec2 sampleCell, float weight) {
+    if(ensureBoundaryCondition == 0u) {
+        sampleCell = coefficientCell(sampleCell);
+    }
+
     if(outsideGrid(sampleCell)) {
         if(isObstacle(sampleCell)) {
             centerValue += boundaryCenterAdjustment(weight, center, sampleCell);

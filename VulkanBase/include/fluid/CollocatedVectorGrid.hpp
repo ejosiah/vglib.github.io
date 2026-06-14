@@ -13,7 +13,7 @@ namespace eular {
 
         ~CollocatedVectorGrid() override = default;
 
-        void advectVectorField(VkCommandBuffer commandBuffer);
+        void advectVectorField(VkCommandBuffer commandBuffer) override;
 
         void advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0,
             bool addBarrier = true) override;

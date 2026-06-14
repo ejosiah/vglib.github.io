@@ -5,6 +5,7 @@
 #include "ComputePipelins.hpp"
 #include "VulkanDevice.h"
 #include "Field.hpp"
+#include "VectorGrid.hpp"
 #include "common.hpp"
 #include "linalg/gpu/conjugate_gradient_solver.hpp"
 #include "linalg/gpu/jacobi_solver.hpp"
@@ -54,6 +55,8 @@ namespace eular {
     protected:
         void init();
 
+        void initVectorGrid();
+
         void initFields();
 
         void initLinearSolverSupport();
@@ -63,6 +66,8 @@ namespace eular {
         void createDescriptorSetLayouts();
 
         void updateDescriptorSets();
+
+        void updateFieldDescriptorSets();
 
         uint32_t createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field);
 
@@ -103,8 +108,6 @@ namespace eular {
         void applyForces(VkCommandBuffer commandBuffer);
 
         void applyExternalForces(VkCommandBuffer commandBuffer);
-
-        void addForcesToVectorField(VkCommandBuffer commandBuffer, ForceField& sourceField);
 
         void computeVorticityConfinement(VkCommandBuffer commandBuffer);
 
@@ -151,17 +154,10 @@ namespace eular {
     private:
         VulkanDescriptorPool* _descriptorPool{};
 
-        VectorField _vectorField;
-        DivergenceField _divergenceField;
         PressureField _pressureField;
-        ForceField _forceField;
         VorticityField _vorticityField;
-        Field _macCormackData;
+        std::unique_ptr<VectorGrid> _vectorGrid;
 
-        VulkanDescriptorSetLayout _fieldDescriptorSetLayout;
-        VulkanDescriptorSetLayout _imageDescriptorSetLayout;
-        VulkanDescriptorSetLayout _textureDescriptorSetLayout;
-        VulkanDescriptorSetLayout _samplerDescriptorSetLayout;
         VulkanDescriptorSetLayout _boundaryDescriptorSetLayout;
         VulkanDescriptorSetLayout _debugDescriptorSetLayout;
         VkDescriptorSet _boundaryDescriptorSet{};
@@ -212,7 +208,6 @@ namespace eular {
         VkDescriptorSet uniformDescriptorSet{};
 
         VulkanSampler _valueSampler;
-        VulkanSampler _linearSampler;
 
         struct ScaledFieldCopyConstants {
             float scale{};
@@ -243,9 +238,6 @@ namespace eular {
 
         static constexpr uint32_t linearSystemStencilEntriesPerRow = 5;
         static constexpr uint32_t linearSystemRowsPerBatch = 4096;
-
-        VkDescriptorSet _valueSamplerDescriptorSet{};
-        VkDescriptorSet _linearSamplerDescriptorSet{};
 
         std::vector<ExternalForce> _externalForces;
         float _elapsedTime{};

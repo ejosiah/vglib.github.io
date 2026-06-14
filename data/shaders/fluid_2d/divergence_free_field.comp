@@ -6,7 +6,7 @@
 layout(local_size_x = 32, local_size_y = 32) in;
 
 #define BOUNDARY_SET 6
-#include "common_new.glsl"
+#include "common.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
 layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
