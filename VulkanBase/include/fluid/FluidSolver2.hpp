@@ -61,6 +61,10 @@ namespace eular {
 
         PressureField& pressureField();
 
+        Texture& boundaryTexture();
+
+        const Texture& boundaryTexture() const;
+
     protected:
         void init();
 

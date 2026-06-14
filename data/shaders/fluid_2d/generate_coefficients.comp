@@ -44,14 +44,16 @@ bool outsideGrid(ivec2 cell) {
     return cell.x < 0 || cell.y < 0 || cell.x >= int(gridSize.x) || cell.y >= int(gridSize.y);
 }
 
-bool isObstacle(ivec2 cell) {
-    if(ensureBoundaryCondition == 0u) return false;
-    if(outsideGrid(cell)) return true;
-
+bool boundaryTextureIsSolid(ivec2 cell) {
     vec2 uv = (vec2(cell) + 0.5) / vec2(gridSize);
     ivec2 size = textureSize(boundaryField, 0);
     ivec2 coord = clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - ivec2(1));
     return texelFetch(boundaryField, coord, 0).r > 0.5;
+}
+
+bool isObstacle(ivec2 cell) {
+    if(ensureBoundaryCondition == 0u) return false;
+    return boundaryTextureIsSolid(cell);
 }
 
 ivec2 coefficientCell(ivec2 cell) {
@@ -82,6 +84,16 @@ void writeEntry(uint base, uint slot, float value, uint col) {
 }
 
 void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 center, ivec2 sampleCell, float weight) {
+    if(outsideGrid(sampleCell)) {
+        if(isObstacle(sampleCell)) {
+            centerValue += boundaryCenterAdjustment(weight, center, sampleCell);
+        } else {
+            centerValue -= weight;
+        }
+        writeEntry(base, slot, 0.0, rowOf(center));
+        return;
+    }
+
     if(isObstacle(sampleCell)) {
         centerValue += boundaryCenterAdjustment(weight, center, sampleCell);
         writeEntry(base, slot, 0.0, rowOf(center));

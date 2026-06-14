@@ -1291,6 +1291,14 @@ namespace eular {
         return _pressureField;
     }
 
+    Texture &FluidSolver::boundaryTexture() {
+        return _defaultBoundaryTexture;
+    }
+
+    const Texture &FluidSolver::boundaryTexture() const {
+        return _defaultBoundaryTexture;
+    }
+
     std::vector<VkDescriptorSet> FluidSolver::debugFieldDescriptorSets() const {
         std::vector<VkDescriptorSet> sets{
             _vectorField.u.descriptorSet[in],

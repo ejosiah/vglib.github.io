@@ -11,10 +11,6 @@ bool outsideDomain(vec2 uv){
 }
 
 bool isObstacle(vec2 uv){
-    if(outsideDomain(uv)){
-        return true;
-    }
-
     ivec2 size = textureSize(boundaryField, 0);
     ivec2 coord = clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - ivec2(1));
     return texelFetch(boundaryField, coord, 0).r > 0.5;
