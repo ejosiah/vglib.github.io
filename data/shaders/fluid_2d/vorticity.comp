@@ -13,12 +13,12 @@ layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
 layout(set = 3, binding = 2) uniform writeonly image2D vorticity_field;
 
 vec2 u(vec2 centerUv, vec2 sampleUv) {
-    vec2 coord = st(sampleUv);
+    vec2 coord = scalarBoundarySampleUv(centerUv, sampleUv);
     vec2 u;
     u.x = texture(vector_field_u, coord).x;
     u.y = texture(vector_field_v, coord).x;
 
-    return u;
+    return reflectVelocityAtBoundary(u, centerUv, sampleUv);
 }
 
 
@@ -26,6 +26,10 @@ void main(){
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
+    if(checkBoundary(uv)){
+        imageStore(vorticity_field, gid, vec4(0));
+        return;
+    }
 
     float dudx = (u(uv, uv + dx).x - u(uv, uv - dx).x)/(2*dx.x);
     float dudy = (u(uv, uv + dy).y - u(uv, uv - dy).y)/(2*dy.y);

@@ -6,6 +6,7 @@
 #include "VulkanDevice.h"
 #include "Field.hpp"
 #include "linalg/gpu/conjugate_gradient_solver.hpp"
+#include "linalg/gpu/red_black_gauss_seidel_solver.hpp"
 
 #include <array>
 #include <initializer_list>
@@ -19,8 +20,6 @@ namespace eular {
     enum class LinearSolverStrategy  {
         Jacobi, RBGS, ConjugateGradient
     };
-
-    enum class BoundaryMode : uint32_t { ScalarField, VectorField_U, VectorField_V, VectorField };
 
     using VectorFieldSource3D = std::vector<glm::vec3>;
     using VectorFieldSource2D = std::vector<glm::vec2>;
@@ -140,12 +139,6 @@ namespace eular {
         void solvePressure(VkCommandBuffer commandBuffer);
 
         void computeDivergenceFreeField(VkCommandBuffer commandBuffer);
-
-        void boundaryCheck(VkCommandBuffer commandBuffer, VectorField& field);
-
-        void boundaryCheck(VkCommandBuffer commandBuffer, Field& field);
-
-        void boundaryCheck(VkCommandBuffer commandBuffer, Field& field, BoundaryMode mode);
 
         void addComputeBarrier(VkCommandBuffer commandBuffer, Texture& texture);
 

@@ -17,15 +17,16 @@ layout(set = 6, binding = 2) uniform writeonly image2D quantity_out;
 
 layout(push_constant) uniform Constants {
     float time_sign;
+    uint boundary_mode;
 };
 
 vec2 loadVectorField(vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = st(sampleUv);
+    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
     vec2 u;
     u.x = texture(vector_field_u, uv).x;
     u.y = texture(vector_field_v, uv).x;
 
-    return u;
+    return reflectVelocityAtBoundary(u, centerUv, sampleUv);
 }
 
 void updateQuantity(vec4 q) {
@@ -33,18 +34,25 @@ void updateQuantity(vec4 q) {
 }
 
 vec4 sampleField(sampler2D field, vec2 centerUv, vec2 sampleUv) {
-    return texture(field, st(sampleUv));
+    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
+    vec4 q = texture(field, uv);
+    q.x = reflectVelocityComponentAtBoundary(q.x, boundary_mode, centerUv, sampleUv);
+    return q;
 }
 
 void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
+    if(checkBoundary(uv)){
+        updateQuantity(vec4(0));
+        return;
+    }
 
     vec2 u = loadVectorField(uv, uv);
 
     vec2 rawP = uv - dt * u;
-    vec2 p = st(rawP);
+    vec2 p = scalarBoundarySampleUv(uv, rawP);
 
     vec2 p0 = floor(p/(dx + dy) - 0.5) + 0.5;
     p0  = p0 * (dx + dy);
@@ -66,5 +74,6 @@ void main() {
 
     vec4 q = (ph1_n1h + 0.5 * (ph1n - ph1_nh));
     q = clamp(q, qMin, qMax);
+    q.x = reflectVelocityComponentAtBoundary(q.x, boundary_mode, uv, rawP);
     updateQuantity(q);
 }

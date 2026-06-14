@@ -23,14 +23,24 @@ layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 quantityOut;
 
 vec4 sampleQuantity(vec2 centerUv, vec2 sampleUv){
-    return texture(sampler2D(quantity, linerSampler), st(sampleUv));
+    vec2 resolvedUv = scalarBoundarySampleUv(centerUv, sampleUv);
+    vec4 q = texture(sampler2D(quantity, linerSampler), resolvedUv);
+    if(bool(isVectorField)){
+        q.xy = reflectVelocityAtBoundary(q.xy, centerUv, sampleUv);
+    }
+    return q;
 }
 
 void main(){
+    if(checkBoundary(uv)){
+        quantityOut = vec4(0);
+        return;
+    }
+
     vec2 u = texture(vectorField, uv).xy;
 
     vec2 rawBacktraceUv = uv - dt * u;
-    vec2 backtraceUv = st(rawBacktraceUv);
+    vec2 backtraceUv = scalarBoundarySampleUv(uv, rawBacktraceUv);
 
     vec2 p = backtraceUv/(dx + dy);
 
@@ -48,4 +58,7 @@ void main(){
     vec4 q3 = sampleQuantity(uv, p3);
 
     quantityOut = mix(mix(q0, q1, t.x), mix(q2, q3, t.x), t.y);
+    if(bool(isVectorField)){
+        quantityOut.xy = reflectVelocityAtBoundary(quantityOut.xy, uv, rawBacktraceUv);
+    }
 }

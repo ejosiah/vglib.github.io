@@ -666,22 +666,6 @@ namespace eular {
                     .layouts = { &_fieldDescriptorSetLayout, &cgVectorDescriptorSetLayout },
                     .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ScaledFieldCopyConstants) } }
                 },
-                {   .name = "boundary_check",
-                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\boundary_check.comp.spv)",
-                    .layouts =  {
-                        &uniformsSetLayout, &_boundaryDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                        &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
-                    },
-                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t) } }
-                },
-                {   .name = "boundary_check2",
-                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\boundary_check2.comp.spv)",
-                    .layouts =  {
-                        &uniformsSetLayout, &_boundaryDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                        &_fieldDescriptorSetLayout
-                    },
-                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t) } }
-                },
         };
     }
 
@@ -779,7 +763,6 @@ namespace eular {
             addComputeBarrier(commandBuffer, {&_vectorField.u[out], &_vectorField.v[out]});
         }
         _vectorField.swap();
-        boundaryCheck(commandBuffer, _vectorField);
 
     }
 
@@ -796,9 +779,7 @@ namespace eular {
         addSource(commandBuffer, quantity);
         diffuseQuantity(commandBuffer, quantity);
         advectQuantity(commandBuffer, quantity);
-        boundaryCheck(commandBuffer, quantity.field);
         postAdvection(commandBuffer, quantity);
-        boundaryCheck(commandBuffer, quantity.field);
     }
 
     void FluidSolver::macCormackAdvect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode) {
@@ -916,7 +897,6 @@ namespace eular {
             }
 
             unknown.swap();
-            boundaryCheck(commandBuffer, unknown);
         }
     }
 
@@ -953,7 +933,6 @@ namespace eular {
                 addComputeBarrier(commandBuffer, unknown[out]);
             }
             unknown.swap();
-            boundaryCheck(commandBuffer, unknown);
         }
     }
 
@@ -1145,7 +1124,6 @@ namespace eular {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer, _divergenceField[in]);
-        boundaryCheck(commandBuffer, _divergenceField);
     }
 
     void FluidSolver::solvePressure(VkCommandBuffer commandBuffer) {
@@ -1194,74 +1172,6 @@ namespace eular {
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
         addComputeBarrier(commandBuffer, {&vf.u[out], &vf.v[out]});
         vf.swap();
-        boundaryCheck(commandBuffer, vf);
-    }
-
-    void FluidSolver::boundaryCheck(VkCommandBuffer commandBuffer, VectorField &field) {
-        if(!options.ensureBoundaryCondition) return;
-
-        static std::array<VkDescriptorSet, 6> sets;
-
-        sets[0] = uniformDescriptorSet;
-        sets[1] = _boundaryDescriptorSet;
-        sets[2] = field.u.descriptorSet[in];
-        sets[3] = field.u.descriptorSet[out];
-        sets[4] = field.v.descriptorSet[in];
-        sets[5] = field.v.descriptorSet[out];
-
-        auto mode = static_cast<uint32_t>(BoundaryMode::VectorField);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("boundary_check"));
-        vkCmdPushConstants(commandBuffer, layout("boundary_check"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(mode), &mode);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("boundary_check"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer, {&field.u[out], &field.v[out]});
-        field.swap();
-    }
-
-    void FluidSolver::boundaryCheck(VkCommandBuffer commandBuffer, Field &field) {
-        if(!options.ensureBoundaryCondition) return;
-
-        static std::array<VkDescriptorSet, 4> sets;
-
-        sets[0] = uniformDescriptorSet;
-        sets[1] = _boundaryDescriptorSet;
-        sets[2] = field.descriptorSet[in];
-        sets[3] = field.descriptorSet[out];
-
-        auto mode = static_cast<uint32_t>(BoundaryMode::ScalarField);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("boundary_check"));
-        vkCmdPushConstants(commandBuffer, layout("boundary_check"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(mode), &mode);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("boundary_check"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer, field[out]);
-        field.swap();
-    }
-
-    void FluidSolver::boundaryCheck(VkCommandBuffer commandBuffer, Field &field, BoundaryMode mode) {
-        if(!options.ensureBoundaryCondition) return;
-
-        static std::array<VkDescriptorSet, 4> sets;
-
-        sets[0] = uniformDescriptorSet;
-        sets[1] = _boundaryDescriptorSet;
-        sets[2] = field.descriptorSet[in];
-        sets[3] = field.descriptorSet[out];
-
-        auto imode = static_cast<uint32_t>(mode);
-        auto pass = 0u;
-        std::array<uint32_t, 2> constants{imode, pass};
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("boundary_check2"));
-        vkCmdPushConstants(commandBuffer, layout("boundary_check2"), VK_SHADER_STAGE_COMPUTE_BIT, 0, BYTE_SIZE(constants), constants.data());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("boundary_check2"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
-        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer, field[out]);
-        field.swap();
-
-        constants[1] = 1;
-        vkCmdPushConstants(commandBuffer, layout("boundary_check2"), VK_SHADER_STAGE_COMPUTE_BIT, 0, BYTE_SIZE(constants), constants.data());
-        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        addComputeBarrier(commandBuffer, field[out]);
-        field.swap();
     }
 
 
