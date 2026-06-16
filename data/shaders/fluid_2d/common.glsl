@@ -20,6 +20,11 @@ bool outOfBounds() {
     return gid.x >= grid_size.x || gid.y >= grid_size.y;
 }
 
+
+bool outOfBounds(ivec2 coord) {
+    return coord.x >= grid_size.x || coord.y >= grid_size.y;
+}
+
 ivec2 clamp(ivec2 coord) {
     return clamp(coord, ivec2(0), grid_size - 1);
 }

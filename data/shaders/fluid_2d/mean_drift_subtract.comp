@@ -1,0 +1,37 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#define COLLISION_SET 4
+#include "common.glsl"
+
+layout(set = 1, binding = 0) uniform sampler2D sourceField;
+
+layout(set = 2, binding = 0, scalar) readonly buffer MeanDrift {
+    float mean;
+    uint sampleCount;
+};
+
+layout(set = 3, binding = 2) uniform writeonly image2D outputField;
+
+layout(push_constant, scalar) uniform Constants {
+    uint cellCount;
+};
+
+bool hasActiveWall(ivec2 coord) {
+    return bool(use_collider) && isInsideWall(coord);
+}
+
+void main() {
+    if(outOfBounds()) return;
+
+    float value = texelFetch(sourceField, gid, 0).x;
+    if(!hasActiveWall(gid)) {
+        value -= mean;
+    }
+
+    imageStore(outputField, gid, vec4(value, 0.0, 0.0, 1.0));
+}

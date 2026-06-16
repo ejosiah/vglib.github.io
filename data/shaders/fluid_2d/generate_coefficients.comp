@@ -41,11 +41,6 @@ uint rowOf(ivec2 cell) {
     return uint(cell.y) * gridSize.x + uint(cell.x);
 }
 
-ivec2 coefficientCell(ivec2 cell) {
-    ivec2 size = ivec2(gridSize);
-    return ivec2((cell.x + size.x) % size.x, (cell.y + size.y) % size.y);
-}
-
 void writeEntry(uint base, uint slot, float value, uint col) {
     values[base + slot] = value;
     colIndices[base + slot] = col;
@@ -57,7 +52,7 @@ void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 sampleCe
     }
 
     centerValue += weight;
-    sampleCell = coefficientCell(sampleCell);
+    sampleCell = collisionSampleCoord(sampleCell);
     writeEntry(base, slot, -weight, rowOf(sampleCell));
 }
 

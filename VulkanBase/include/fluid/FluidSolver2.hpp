@@ -141,9 +141,13 @@ namespace eular {
 
         void project(VkCommandBuffer commandBuffer);
 
+        void clearPressureField(VkCommandBuffer commandBuffer);
+
         void computeDivergence(VkCommandBuffer commandBuffer);
 
         void solvePressure(VkCommandBuffer commandBuffer);
+
+        void subtractMeanDrift(VkCommandBuffer commandBuffer, Field& field);
 
         void computeDivergenceFreeField(VkCommandBuffer commandBuffer);
 
@@ -237,7 +241,14 @@ namespace eular {
             uint32_t count{};
         };
 
+        struct MeanDriftStats {
+            float mean{};
+            uint32_t count{};
+        };
 
+        struct MeanDriftConstants {
+            uint32_t count{};
+        };
 
         struct LinearSystem {
             gpu::linalg::AbstractSolver::Params params{};
@@ -258,6 +269,9 @@ namespace eular {
 
         VulkanDescriptorSetLayout linearSystemDescriptorSetLayout;
         VulkanDescriptorSetLayout linearSystemVectorDescriptorSetLayout;
+        VulkanDescriptorSetLayout meanDriftDescriptorSetLayout;
+        VkDescriptorSet meanDriftDescriptorSet{};
+        VulkanBuffer meanDriftBuffer;
 
         static constexpr uint32_t linearSystemStencilEntriesPerRow = 5;
         static constexpr uint32_t linearSystemRowsPerBatch = 4096;

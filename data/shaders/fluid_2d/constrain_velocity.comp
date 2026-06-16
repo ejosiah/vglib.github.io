@@ -17,12 +17,20 @@ layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
 layout(set = 3, binding = 2) uniform writeonly image2D vector_field_u_out;
 layout(set = 4, binding = 2) uniform writeonly image2D vector_field_v_out;
 
-vec2 loadVectorField(ivec2 gid) {
+vec2 loadVectorField(ivec2 coord) {
     vec2 u;
-    u.x = texelFetch(vector_field_u, gid, 0).x;
-    u.y = texelFetch(vector_field_v, gid, 0).x;
+    u.x = texelFetch(vector_field_u, coord, 0).x;
+    u.y = texelFetch(vector_field_v, coord, 0).x;
 
     return u;
+}
+
+vec2 getGradient(ivec2 coord) {
+    float L = sampleBoundary((coord - ivec2(1, 0)));
+    float R = sampleBoundary((coord + ivec2(1, 0)));
+    float B = sampleBoundary((coord - ivec2(0, 1)));
+    float T = sampleBoundary((coord + ivec2(0, 1)));
+    return vec2(R - L, T - B);    
 }
 
 void updateVectorField(ivec2 gid, vec2 u) {
@@ -39,7 +47,33 @@ void main() {
     uint type = BOUNDARY_TYPE_INVALID;
     if (sampleBoundary(gid, type) < 0) {
         if(type == BOUNDARY_TYPE_WALL) {
-            u = vec2(0);
+
+            vec2 grad = getGradient(gid);
+            float mag = length(grad);
+
+            if(mag <= 1e-6) {
+                updateVectorField(gid, vec2(0));
+                return;
+            }
+
+            vec2 n = -grad / mag;
+
+            ivec2 offset;
+            if (abs(n.x) > abs(n.y)) {
+                offset = ivec2(int(sign(n.x)), 0);
+            } else {
+                offset = ivec2(0, int(sign(n.y)));
+            }
+
+            ivec2 neighbour = gid + offset;
+
+            if (outOfBounds(neighbour) || isInsideWall(neighbour)) {
+                updateVectorField(gid, vec2(0));
+                return;
+            }
+
+            u = loadVectorField(neighbour);
+            u = u - dot(u, n) * n;
         }
 
     }

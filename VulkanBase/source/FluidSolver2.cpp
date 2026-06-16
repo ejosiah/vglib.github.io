@@ -148,6 +148,11 @@ namespace eular {
             linearSystem.constants.ensureBoundaryCondition = static_cast<uint32_t>(options.ensureBoundaryCondition);
         }
 
+        meanDriftBuffer = device->createBuffer(
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY,
+            sizeof(MeanDriftStats),
+            "fluid_mean_drift_buffer");
     }
 
     void FluidSolver::createDescriptorSetLayouts() {
@@ -215,6 +220,15 @@ namespace eular {
                     .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
+
+        meanDriftDescriptorSetLayout =
+            device->descriptorSetLayoutBuilder()
+                .name("fluid_mean_drift_descriptor_set_layout")
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+            .createLayout();
     }
 
     void FluidSolver::updateDescriptorSets() {
@@ -222,6 +236,9 @@ namespace eular {
         if(_useDefaultColliderTexture) {
             layouts.push_back(_colliderDescriptorSetLayout);
         }
+
+        const auto meanDriftSetOffset = layouts.size();
+        layouts.push_back(meanDriftDescriptorSetLayout);
 
         const auto linearSystemSetOffset = layouts.size();
         layouts.push_back(linearSystemDescriptorSetLayout);
@@ -235,6 +252,7 @@ namespace eular {
         if(_useDefaultColliderTexture) {
             _colliderDescriptorSet = sets[1];
         }
+        meanDriftDescriptorSet = sets[meanDriftSetOffset];
         _linearSystems[0].descriptorSet = sets[linearSystemSetOffset];
         _linearSystems[1].descriptorSet = sets[linearSystemSetOffset + 1];
         _linearSystems[0].rhsDescriptorSet = sets[linearSystemSetOffset + 2];
@@ -273,6 +291,13 @@ namespace eular {
             };
             ++writeOffset;
         }
+
+        writes[writeOffset].dstSet = meanDriftDescriptorSet;
+        writes[writeOffset].dstBinding = 0;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pBufferInfo = new VkDescriptorBufferInfo{meanDriftBuffer, 0, VK_WHOLE_SIZE};
+        ++writeOffset;
 
         for(auto i = 0; i < 2; ++i) {
             const std::array<VulkanBuffer*, 4> buffers{
@@ -519,6 +544,18 @@ namespace eular {
                     .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ScaledFieldCopyConstants) } }
                 },
                 {
+                    .name = "mean_drift_reduce",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\mean_drift_reduce.comp.spv)",
+                    .layouts = { &uniformsSetLayout, &_fieldDescriptorSetLayout, &_colliderDescriptorSetLayout, &meanDriftDescriptorSetLayout },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeanDriftConstants) } }
+                },
+                {
+                    .name = "mean_drift_subtract",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\mean_drift_subtract.comp.spv)",
+                    .layouts = { &uniformsSetLayout, &_fieldDescriptorSetLayout, &meanDriftDescriptorSetLayout, &_fieldDescriptorSetLayout, &_colliderDescriptorSetLayout },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeanDriftConstants) } }
+                },
+                {
                     .name = "constrain_velocity",
                     .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\constrain_velocity.comp.spv)",
                     .layouts = { &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
@@ -536,7 +573,6 @@ namespace eular {
         applyForces(commandBuffer);
         diffuseVelocityField(commandBuffer);
         project(commandBuffer);
-        applyBoundaryConditions(commandBuffer);
         advectVectorField(commandBuffer);
     }
 
@@ -596,10 +632,23 @@ namespace eular {
 
     void FluidSolver::project(VkCommandBuffer commandBuffer) {
         if(!options.project) return;
+
         VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, projection);
+        applyBoundaryConditions(commandBuffer);
+
         _vectorGrid->computeDivergence(commandBuffer);
+        subtractMeanDrift(commandBuffer, _vectorGrid->divergenceField());
+
         solvePressure(commandBuffer);
+        subtractMeanDrift(commandBuffer, _pressureField);
+
         _vectorGrid->computeDivergenceFreeField(commandBuffer, _pressureField);
+        applyBoundaryConditions(commandBuffer);
+    }
+
+    void FluidSolver::clearPressureField(VkCommandBuffer commandBuffer) {
+        clear(commandBuffer, _pressureField[0]);
+        clear(commandBuffer, _pressureField[1]);
     }
 
     void FluidSolver::advectVectorField(VkCommandBuffer commandBuffer) {
@@ -875,6 +924,49 @@ namespace eular {
         assign(commandBuffer, linearSystem.params.unknown, _pressureField[out]);
         _pressureField.swap();
         addComputeBarrier(commandBuffer, _pressureField[in]);
+    }
+
+    void FluidSolver::subtractMeanDrift(VkCommandBuffer commandBuffer, Field& field) {
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, subtract_mean_drift);
+
+        const MeanDriftConstants constants{
+            .count = static_cast<uint32_t>(_gridSize.x * _gridSize.y)
+        };
+
+        vkCmdFillBuffer(commandBuffer, meanDriftBuffer, 0, VK_WHOLE_SIZE, 0);
+        Barrier::transferWriteToComputeWrite(commandBuffer, meanDriftBuffer);
+
+        const std::array<VkDescriptorSet, 4> reduceSets{
+            uniformDescriptorSet,
+            field.descriptorSet[in],
+            _colliderDescriptorSet,
+            meanDriftDescriptorSet
+        };
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("mean_drift_reduce"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("mean_drift_reduce"),
+                                0, COUNT(reduceSets), reduceSets.data(), 0, VK_NULL_HANDLE);
+        vkCmdPushConstants(commandBuffer, layout("mean_drift_reduce"), VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(constants), &constants);
+        vkCmdDispatch(commandBuffer, 1, 1, 1);
+        Barrier::computeWriteToRead(commandBuffer, meanDriftBuffer);
+
+        const std::array<VkDescriptorSet, 5> subtractSets{
+            uniformDescriptorSet,
+            field.descriptorSet[in],
+            meanDriftDescriptorSet,
+            field.descriptorSet[out],
+            _colliderDescriptorSet
+        };
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("mean_drift_subtract"));
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("mean_drift_subtract"),
+                                0, COUNT(subtractSets), subtractSets.data(), 0, VK_NULL_HANDLE);
+        vkCmdPushConstants(commandBuffer, layout("mean_drift_subtract"), VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(constants), &constants);
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer, field[out]);
+        field.swap();
     }
 
     void FluidSolver::computeDivergenceFreeField(VkCommandBuffer commandBuffer) {
