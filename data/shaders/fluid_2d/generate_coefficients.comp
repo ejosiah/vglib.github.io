@@ -4,21 +4,22 @@
 
 layout(local_size_x = 32) in;
 
-layout(set = 0, binding = 0) uniform sampler2D boundaryField;
+#define COLLISION_SET 1
+#include "common.glsl"
 
-layout(set = 1, binding = 0, scalar) buffer Values {
+layout(set = 2, binding = 0, scalar) buffer Values {
     float values[];
 };
 
-layout(set = 1, binding = 1, scalar) buffer ColIndices {
+layout(set = 2, binding = 1, scalar) buffer ColIndices {
     uint colIndices[];
 };
 
-layout(set = 1, binding = 2, scalar) buffer RowOffsets {
+layout(set = 2, binding = 2, scalar) buffer RowOffsets {
     uint rowOffsets[];
 };
 
-layout(set = 1, binding = 3, scalar) buffer Counts {
+layout(set = 2, binding = 3, scalar) buffer Counts {
     uint rowCount;
     uint colCount;
     uint nonZeroCount;
@@ -40,42 +41,9 @@ uint rowOf(ivec2 cell) {
     return uint(cell.y) * gridSize.x + uint(cell.x);
 }
 
-bool outsideGrid(ivec2 cell) {
-    return cell.x < 0 || cell.y < 0 || cell.x >= int(gridSize.x) || cell.y >= int(gridSize.y);
-}
-
-bool boundaryTextureIsSolid(ivec2 cell) {
-    vec2 uv = (vec2(cell) + 0.5) / vec2(gridSize);
-    ivec2 size = textureSize(boundaryField, 0);
-    ivec2 coord = clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - ivec2(1));
-    return texelFetch(boundaryField, coord, 0).r > 0.5;
-}
-
-bool isObstacle(ivec2 cell) {
-    if(ensureBoundaryCondition == 0u) return false;
-    return boundaryTextureIsSolid(cell);
-}
-
 ivec2 coefficientCell(ivec2 cell) {
-    if(ensureBoundaryCondition != 0u) return cell;
-
     ivec2 size = ivec2(gridSize);
     return ivec2((cell.x + size.x) % size.x, (cell.y + size.y) % size.y);
-}
-
-vec2 boundaryNormal(ivec2 center, ivec2 sampleCell) {
-    ivec2 offset = sampleCell - center;
-    if(abs(offset.x) > abs(offset.y)) return vec2(sign(float(offset.x)), 0.0);
-    if(abs(offset.y) > 0) return vec2(0.0, sign(float(offset.y)));
-    return vec2(0.0);
-}
-
-float boundaryCenterAdjustment(float weight, ivec2 center, ivec2 sampleCell) {
-    vec2 normal = boundaryNormal(center, sampleCell);
-    bool reflectedComponent =
-        (vectorFieldComponent == 1u && abs(normal.x) > 0.0) ||
-        (vectorFieldComponent == 2u && abs(normal.y) > 0.0);
-    return reflectedComponent ? weight : -weight;
 }
 
 void writeEntry(uint base, uint slot, float value, uint col) {
@@ -83,39 +51,25 @@ void writeEntry(uint base, uint slot, float value, uint col) {
     colIndices[base + slot] = col;
 }
 
-void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 center, ivec2 sampleCell, float weight) {
-    if(ensureBoundaryCondition == 0u) {
-        sampleCell = coefficientCell(sampleCell);
+void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 sampleCell, float weight) {
+    if (isInsideWall(sampleCell)) {
+        weight = 0.0;
     }
 
-    if(outsideGrid(sampleCell)) {
-        if(isObstacle(sampleCell)) {
-            centerValue += boundaryCenterAdjustment(weight, center, sampleCell);
-        } else {
-            centerValue -= weight;
-        }
-        writeEntry(base, slot, 0.0, rowOf(center));
-        return;
-    }
-
-    if(isObstacle(sampleCell)) {
-        centerValue += boundaryCenterAdjustment(weight, center, sampleCell);
-        writeEntry(base, slot, 0.0, rowOf(center));
-        return;
-    }
-
-    writeEntry(base, slot, -weight, rowOf(coefficientCell(sampleCell)));
+    centerValue += weight;
+    sampleCell = coefficientCell(sampleCell);
+    writeEntry(base, slot, -weight, rowOf(sampleCell));
 }
 
 void main() {
     uint localRow = gl_GlobalInvocationID.x;
-    if(localRow >= batchSize) return;
+    if (localRow >= batchSize) return;
 
     uint row = batchOffset + localRow;
     uint totalRows = gridSize.x * gridSize.y;
-    if(row >= totalRows) return;
+    if (row >= totalRows) return;
 
-    if(row == 0u) {
+    if (row == 0u) {
         rowCount = totalRows;
         colCount = totalRows;
         nonZeroCount = totalRows * ENTRIES_PER_ROW;
@@ -127,7 +81,11 @@ void main() {
     uint base = row * ENTRIES_PER_ROW;
     ivec2 cell = ivec2(int(row % gridSize.x), int(row / gridSize.x));
 
-    if(isObstacle(cell)) {
+    float ax = alpha.x;
+    float ay = alpha.y;
+
+    float centerValue = 0;
+    if (isInsideWall(cell)) {
         writeEntry(base, 0u, 0.0, row);
         writeEntry(base, 1u, 0.0, row);
         writeEntry(base, 2u, 0.0, row);
@@ -136,13 +94,9 @@ void main() {
         return;
     }
 
-    float ax = alpha.x;
-    float ay = alpha.y;
-    float centerValue = identity + 2.0 * (ax + ay);
-
-    writeNeighbor(base, 0u, centerValue, cell, cell + ivec2(-1, 0), ax);
-    writeNeighbor(base, 1u, centerValue, cell, cell + ivec2(1, 0), ax);
-    writeNeighbor(base, 2u, centerValue, cell, cell + ivec2(0, -1), ay);
-    writeNeighbor(base, 3u, centerValue, cell, cell + ivec2(0, 1), ay);
-    writeEntry(base, 4u, centerValue, row);
+    writeNeighbor(base, 0u, centerValue, cell + ivec2(-1, 0), ax);
+    writeNeighbor(base, 1u, centerValue, cell + ivec2(1, 0), ax);
+    writeNeighbor(base, 2u, centerValue, cell + ivec2(0, -1), ay);
+    writeNeighbor(base, 3u, centerValue, cell + ivec2(0, 1), ay);
+    writeEntry(base, 4u, identity + centerValue, row);
 }

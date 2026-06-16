@@ -26,7 +26,7 @@ namespace eular {
         FluidSolver() = default;
 
         FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize,
-                    std::optional<VkDescriptorSet> boundaryDescriptorSet = std::nullopt);
+                    std::optional<VkDescriptorSet> colliderDescriptorSet = std::nullopt);
 
         void runSimulation(VkCommandBuffer commandBuffer);
 
@@ -48,9 +48,21 @@ namespace eular {
 
         PressureField& pressureField();
 
-        Texture& boundaryTexture();
+        Field& colliderField();
 
-        const Texture& boundaryTexture() const;
+        const Field& colliderField() const;
+
+        Field& colliderVelocityField();
+
+        const Field& colliderVelocityField() const;
+
+        Texture& colliderTexture();
+
+        const Texture& colliderTexture() const;
+
+        Texture& colliderVelocityTexture();
+
+        const Texture& colliderVelocityTexture() const;
 
     protected:
         void init();
@@ -71,7 +83,7 @@ namespace eular {
 
         uint32_t createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field);
 
-        void createDefaultBoundaryTexture();
+        void createDefaultColliderFields();
 
         void initGlobalConstants();
 
@@ -96,6 +108,10 @@ namespace eular {
         void advectVectorField(VkCommandBuffer commandBuffer);
 
         void macCormackAdvect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0);
+
+        void applyBoundaryConditions(VkCommandBuffer commandBuffer);
+
+        void constrainVelocity(VkCommandBuffer commandBuffer);
 
         void advect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0, bool addBarrier = true);
 
@@ -158,11 +174,13 @@ namespace eular {
         VorticityField _vorticityField;
         std::unique_ptr<VectorGrid> _vectorGrid;
 
-        VulkanDescriptorSetLayout _boundaryDescriptorSetLayout;
+        VulkanDescriptorSetLayout _fieldDescriptorSetLayout;
+        VulkanDescriptorSetLayout _colliderDescriptorSetLayout;
         VulkanDescriptorSetLayout _debugDescriptorSetLayout;
-        VkDescriptorSet _boundaryDescriptorSet{};
-        Texture _defaultBoundaryTexture;
-        bool _useDefaultBoundaryTexture{true};
+        VkDescriptorSet _colliderDescriptorSet{};
+        Field _colliderField;
+        Field _colliderVelocityField;
+        bool _useDefaultColliderTexture{true};
 
         std::vector<std::reference_wrapper<Quantity>> _quantities;
         VkImageType _imageType{};
@@ -178,6 +196,7 @@ namespace eular {
             float density{1};
             uint32_t ensure_boundary_condition{1};
             uint32_t use_hermite{0};
+            uint32_t use_collider{1};
         };
 
         struct {
@@ -270,7 +289,7 @@ namespace eular {
 
         Builder& gridSize(glm::vec2 size);
 
-        Builder& boundary(VkDescriptorSet descriptorSet);
+        Builder& collider(VkDescriptorSet descriptorSet);
 
         Builder& enableProjection();
 
@@ -315,6 +334,6 @@ namespace eular {
 
         std::vector<ExternalForce> _externalForces;
         std::optional<VectorFieldFunc2D> _generator{[](float, float) { return glm::vec2{0.0f}; }};
-        std::optional<VkDescriptorSet> _boundaryDescriptorSet;
+        std::optional<VkDescriptorSet> _colliderDescriptorSet;
     };
 }

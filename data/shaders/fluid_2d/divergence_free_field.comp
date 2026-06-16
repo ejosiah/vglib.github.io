@@ -5,7 +5,7 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#define BOUNDARY_SET 6
+#define COLLISION_SET 6
 #include "common.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
@@ -14,9 +14,16 @@ layout(set = 3, binding = 0) uniform sampler2D pressure_field;
 layout(set = 4, binding = 2) uniform writeonly image2D div_free_vector_field_u;
 layout(set = 5, binding = 2) uniform writeonly image2D div_free_vector_field_v;
 
-float p(vec2 centerUv, vec2 sampleUv) {
-    vec2 xy = scalarBoundarySampleUv(centerUv, sampleUv);
-    return texture(pressure_field, xy).x;
+float p(ivec2 cell) {
+    return texelFetch(pressure_field, collisionSampleCoord(cell), 0).x;
+}
+
+float p(ivec2 centerCell, ivec2 sampleCell) {
+    if(isInsideWall(sampleCell)) {
+        return p(centerCell);
+    }
+
+    return p(sampleCell);
 }
 
 vec2 w(vec2 xy) {
@@ -26,9 +33,9 @@ vec2 w(vec2 xy) {
     return u;
 }
 
-vec2 pg(vec2 uv){
-    float dudx = (p(uv, uv + dx) - p(uv, uv - dx))/(2*dx.x);
-    float dudy = (p(uv, uv + dy) - p(uv, uv - dy))/(2*dy.y);
+vec2 pg(ivec2 cell){
+    float dudx = (p(cell, cell + ivec2(1, 0)) - p(cell, cell - ivec2(1, 0)))/(2*dx.x);
+    float dudy = (p(cell, cell + ivec2(0, 1)) - p(cell, cell - ivec2(0, 1)))/(2*dy.y);
 
     return vec2(dudx, dudy);
 }
@@ -36,15 +43,12 @@ vec2 pg(vec2 uv){
 void main() {
     if(outOfBounds()) return;
 
-    vec2 uv = get_uv();
-    if(checkBoundary(uv)){
-        imageStore(div_free_vector_field_u, gid, vec4(0));
-        imageStore(div_free_vector_field_v, gid, vec4(0));
-        return;
+
+    vec2 u = vec2(0);
+    if(!isInsideWall(gid)) {
+        vec2 uv = get_uv();
+        u = w(uv) -  dt * pg(gid)/density;
     }
-
-    vec2 u = w(uv) -  dt * pg(uv)/density;
-
     imageStore(div_free_vector_field_u, gid, vec4(u.x));
     imageStore(div_free_vector_field_v, gid, vec4(u.y));
 }

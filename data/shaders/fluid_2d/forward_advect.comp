@@ -38,7 +38,7 @@ void main() {
 
     vec4 q = getQuantity(uv);
 
-    vec2 p = st(uv + dt * u);
-    ivec2 loc = ivec2(floor(st(p) * grid_size));
+    vec2 p = uv + dt * u;
+    ivec2 loc = ivec2(floor(p * grid_size));
     imageStore(quantity_out, loc, q);
 }

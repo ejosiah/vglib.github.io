@@ -13,7 +13,7 @@ namespace eular {
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     &Field::descriptorSetLayout, &Field::descriptorSetLayout, &_samplerDescriptorSetLayout,
-                    _boundaryDescriptorSetLayout
+                    _colliderDescriptorSetLayout
                 },
                 .ranges = {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants)}}
             },
@@ -23,7 +23,7 @@ namespace eular {
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     &Field::descriptorSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
-                    _boundaryDescriptorSetLayout
+                    _colliderDescriptorSetLayout
                 }
             },
             {
@@ -31,7 +31,7 @@ namespace eular {
                 .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
-                    &Field::descriptorSetLayout, _boundaryDescriptorSetLayout
+                    &Field::descriptorSetLayout, _colliderDescriptorSetLayout
                 }
             },
             {
@@ -40,7 +40,7 @@ namespace eular {
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     &Field::descriptorSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
-                    _boundaryDescriptorSetLayout
+                    _colliderDescriptorSetLayout
                 }
             },
             {
@@ -49,7 +49,7 @@ namespace eular {
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     &Field::descriptorSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
-                    &Field::descriptorSetLayout, _boundaryDescriptorSetLayout
+                    &Field::descriptorSetLayout, _colliderDescriptorSetLayout
                 },
                 .ranges = {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants)}}
             },
@@ -100,15 +100,13 @@ namespace eular {
         sets[3] = inDescriptor;
         sets[4] = outDescriptor;
         sets[5] = _linearSamplerDescriptorSet;
-        sets[6] = _boundaryDescriptorSet;
+        sets[6] = _colliderDescriptorSet;
 
         advectConstants.time_sign = timeDirection == TimeDirection::Forward ? 1.0f : -1.0f;
         advectConstants.boundary_mode = boundaryMode;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("advect"));
-        vkCmdPushConstants(commandBuffer, layout("advect"), VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(advectConstants), &advectConstants);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("advect"),
-                                0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+        vkCmdPushConstants(commandBuffer, layout("advect"), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants), &advectConstants);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("advect"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
 
         if(writeTexture) {
@@ -130,7 +128,7 @@ namespace eular {
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
         sets[3] = _divergenceField.descriptorSet[in];
-        sets[4] = _boundaryDescriptorSet;
+        sets[4] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence"),
@@ -155,7 +153,7 @@ namespace eular {
         sets[3] = pressureField.descriptorSet[in];
         sets[4] = vf.u.descriptorSet[out];
         sets[5] = vf.v.descriptorSet[out];
-        sets[6] = _boundaryDescriptorSet;
+        sets[6] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence_free_field"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence_free_field"),
@@ -185,7 +183,7 @@ namespace eular {
         sets[3] = _forceField.descriptorSet[in];
         sets[4] = vf.u.descriptorSet[out];
         sets[5] = vf.v.descriptorSet[out];
-        sets[6] = _boundaryDescriptorSet;
+        sets[6] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("apply_force"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("apply_force"),

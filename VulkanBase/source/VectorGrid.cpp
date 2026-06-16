@@ -11,9 +11,9 @@ namespace eular {
         , _device(params.device)
         , _descriptorPool(params.descriptorPool)
         , _globalConstantsDescriptorSet(params.globalConstantsDescriptorSet)
-        , _boundaryDescriptorSet(params.boundaryDescriptorSet)
+        , _colliderDescriptorSet(params.colliderDescriptorSet)
         , _globalConstantsSetLayout(params.globalConstantsSetLayout)
-        , _boundaryDescriptorSetLayout(params.boundaryDescriptorSetLayout)
+        , _colliderDescriptorSetLayout(params.colliderDescriptorSetLayout)
         , _imageType(VK_IMAGE_TYPE_2D)
         , _gridSize(params.gridSize, 1.0f)
         , _macCormackAdvection(params.macCormackAdvection)
@@ -281,7 +281,7 @@ namespace eular {
         sets[4] = _macCormackData.descriptorSet[out];
         sets[5] = field.descriptorSet[in];
         sets[6] = field.descriptorSet[out];
-        sets[7] = _boundaryDescriptorSet;
+        sets[7] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("maccormack"));
         advectConstants.time_sign = 1.0f;

@@ -20,39 +20,31 @@ layout(push_constant) uniform Constants {
     uint boundary_mode;
 };
 
-vec2 loadVectorField(vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
+vec2 loadVectorField(vec2 uv) {
     vec2 u;
     u.x = texture(vector_field_u, uv).x;
     u.y = texture(vector_field_v, uv).x;
 
-    return reflectVelocityAtBoundary(u, centerUv, sampleUv);
+    return u;
 }
 
 void updateQuantity(vec4 q) {
     imageStore(quantity_out, gid, q);
 }
 
-vec4 sampleField(sampler2D field, vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
-    vec4 q = texture(field, uv);
-    q.x = reflectVelocityComponentAtBoundary(q.x, boundary_mode, centerUv, sampleUv);
-    return q;
+vec4 sampleField(sampler2D field, vec2 sampleUv) {
+    return texture(field, sampleUv);
 }
 
 void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
-    if(checkBoundary(uv)){
-        updateQuantity(vec4(0));
-        return;
-    }
 
-    vec2 u = loadVectorField(uv, uv);
+    vec2 u = loadVectorField(uv);
 
     vec2 rawP = uv - dt * u;
-    vec2 p = scalarBoundarySampleUv(uv, rawP);
+    vec2 p = rawP;
 
     vec2 p0 = floor(p/(dx + dy) - 0.5) + 0.5;
     p0  = p0 * (dx + dy);
@@ -60,20 +52,19 @@ void main() {
     vec2 p2 = p0 + dy;
     vec2 p3 = p1 + dy;
 
-    vec4 q0 = sampleField(quantity, uv, p0);
-    vec4 q1 = sampleField(quantity, uv, p1);
-    vec4 q2 = sampleField(quantity, uv, p2);
-    vec4 q3 = sampleField(quantity, uv, p3);
+    vec4 q0 = sampleField(quantity, p0);
+    vec4 q1 = sampleField(quantity, p1);
+    vec4 q2 = sampleField(quantity, p2);
+    vec4 q3 = sampleField(quantity, p3);
 
     vec4 qMin = min(min(q0, q1), min(q2, q3));
     vec4 qMax = max(max(q0, q1), max(q2, q3));
 
-    vec4 ph1_n1h = sampleField(ph1_n1_texture, uv, uv);
-    vec4 ph1_nh = sampleField(ph1_n_texture, uv, rawP);
-    vec4 ph1n = sampleField(quantity, uv, uv);
+    vec4 ph1_n1h = sampleField(ph1_n1_texture, uv);
+    vec4 ph1_nh = sampleField(ph1_n_texture, rawP);
+    vec4 ph1n = sampleField(quantity, uv);
 
     vec4 q = (ph1_n1h + 0.5 * (ph1n - ph1_nh));
     q = clamp(q, qMin, qMax);
-    q.x = reflectVelocityComponentAtBoundary(q.x, boundary_mode, uv, rawP);
     updateQuantity(q);
 }

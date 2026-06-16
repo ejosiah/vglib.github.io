@@ -13,6 +13,15 @@ namespace eular {
         Jacobi, RBGS, ConjugateGradient
     };
 
+    enum class ColliderType : uint32_t {
+        Wall = 0,
+        Sdf = 1,
+    };
+
+    constexpr float colliderTypeValue(ColliderType type) {
+        return static_cast<float>(static_cast<uint32_t>(type));
+    }
+
     using VectorFieldSource3D = std::vector<glm::vec3>;
     using VectorFieldSource2D = std::vector<glm::vec2>;
 

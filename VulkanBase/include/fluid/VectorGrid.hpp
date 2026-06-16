@@ -16,8 +16,8 @@ namespace eular {
             glm::vec2 gridSize{0.0f};
             VkDescriptorSet globalConstantsDescriptorSet{};
             VulkanDescriptorSetLayout* globalConstantsSetLayout{};
-            VkDescriptorSet boundaryDescriptorSet{};
-            VulkanDescriptorSetLayout* boundaryDescriptorSetLayout{};
+            VkDescriptorSet colliderDescriptorSet{};
+            VulkanDescriptorSetLayout* colliderDescriptorSetLayout{};
             bool macCormackAdvection{};
             bool ensureBoundaryCondition{true};
         };
@@ -87,10 +87,10 @@ namespace eular {
 
         VkDescriptorSet _globalConstantsDescriptorSet{};
         VkDescriptorSet _linearSamplerDescriptorSet{};
-        VkDescriptorSet _boundaryDescriptorSet{};
+        VkDescriptorSet _colliderDescriptorSet{};
 
         VulkanDescriptorSetLayout* _globalConstantsSetLayout{};
-        VulkanDescriptorSetLayout* _boundaryDescriptorSetLayout{};
+        VulkanDescriptorSetLayout* _colliderDescriptorSetLayout{};
 
         VulkanSampler _linearSampler;
 

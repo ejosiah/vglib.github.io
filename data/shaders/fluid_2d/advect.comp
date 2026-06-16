@@ -2,10 +2,11 @@
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_debug_printf : enable
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#define BOUNDARY_SET 6
+#define COLLISION_SET 6
 #include "common.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
@@ -20,12 +21,12 @@ layout(push_constant) uniform Constants {
 };
 
 vec2 loadVectorField(vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
+    vec2 uv = sampleUv;
     vec2 u;
     u.x = texture(vector_field_u, uv).x;
     u.y = texture(vector_field_v, uv).x;
 
-    return reflectVelocityAtBoundary(u, centerUv, sampleUv);
+    return u;
 }
 
 
@@ -38,28 +39,30 @@ void updateQuantity(vec4 q) {
 }
 
 vec4 sampleQuantity(vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = scalarBoundarySampleUv(centerUv, sampleUv);
-    vec4 q = getQuantity(uv);
-    q.x = reflectVelocityComponentAtBoundary(q.x, boundary_mode, centerUv, sampleUv);
-    return q;
+    return getQuantity(sampleUv);
 }
 
 void main() {
     if(outOfBounds()) return;
 
     vec2 uv = get_uv();
-    if(checkBoundary(uv)){
-        updateQuantity(vec4(0));
-        return;
-    }
-
+    vec4 q0 = sampleQuantity(uv, uv);
     vec2 u = loadVectorField(uv, uv);
+
 
     vec2 pm = uv - 0.5 * time_sign * dt * u;
     u = loadVectorField(uv, pm);
 
     vec2 p = uv - time_sign * dt * u;
-    vec4 q = sampleQuantity(uv, p);
+    vec4 q1 = sampleQuantity(uv, p);
+
+    // TODO: Use substepping here; endpoint SDF checks can miss thin colliders.
+    float phi0 = sampleBoundary(uv);
+    float phi1 = sampleBoundary(p);
+
+    float w = (phi0 * phi1) < 0.0 ? abs(phi1) / max(abs(phi0) + abs(phi1), EPSILON) : 0.0;
+//    debugPrintfEXT("ph0: %f, ph1 %f, w: %f\n", phi0, phi1, w);
+    vec4 q = mix(q1, q0, w);
 
     updateQuantity(q);
 }
