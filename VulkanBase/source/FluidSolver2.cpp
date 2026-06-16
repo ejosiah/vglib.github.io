@@ -71,6 +71,7 @@ namespace eular {
         data.dx = {_delta.x, 0};
         data.dy = {0, _delta.y};
         data.dt = options.timeStep;
+        data.density = options.density;
         data.ensure_boundary_condition = static_cast<int>(options.ensureBoundaryCondition);
         data.use_collider = static_cast<uint32_t>(options.ensureBoundaryCondition || !_useDefaultColliderTexture);
         globalConstants.gpu = device->createCpuVisibleBuffer(&data, sizeof(GlobalData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -887,6 +888,9 @@ namespace eular {
 
     FluidSolver& FluidSolver::density(float rho) {
         options.density = glm::max(1.f, rho);
+        if(globalConstants.cpu) {
+            globalConstants.cpu->density = options.density;
+        }
         return *this;
     }
 

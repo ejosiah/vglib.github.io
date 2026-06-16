@@ -16,9 +16,13 @@
 #include <memory>
 #include <optional>
 
+class FieldVisualizer;
+
 namespace eular {
 
     class FluidSolver : public ComputePipelines {
+        friend class ::FieldVisualizer;
+
     public:
 
         class Builder;

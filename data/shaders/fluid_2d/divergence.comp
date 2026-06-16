@@ -12,26 +12,32 @@ layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
 layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
 layout(set = 3, binding = 2) uniform writeonly image2D divergence_field;
 
-vec2 F(vec2 xy) {
-    vec2 u;
-    u.x = texture(vector_field_u, xy).x;
-    u.y = texture(vector_field_v, xy).x;
-    return u;
+vec2 velocity(ivec2 xy) {
+    return vec2(
+        texelFetch(vector_field_u, xy, 0).x,
+        texelFetch(vector_field_v, xy, 0).x
+    );
 }
 
 void main() {
-    if(outOfBounds()) return;
+    if (outOfBounds()) return;
 
-    vec2 uv = get_uv();
-
-    float dudx = 0;
-    float dudy = 0;
-
-    if(!isInsideWall(gid)) {
-        dudx = (F(uv + dx).x - F(uv - dx).x)/(2*dx.x);
-        dudy = (F(uv + dy).y - F(uv - dy).y)/(2*dy.y);
+    if (isInsideWall(gid)) {
+        imageStore(divergence_field, gid, vec4(0.0));
+        return;
     }
-    float div = dudx + dudy;
 
-    imageStore(divergence_field, gid, vec4(div));
+    vec2 C = velocity(gid);
+
+    vec2 R = isInsideWall(gid + ivec2(1, 0)) ? vec2(0.0, C.y) : velocity(gid + ivec2(1, 0));
+    vec2 L = isInsideWall(gid - ivec2(1, 0)) ? vec2(0.0, C.y) : velocity(gid - ivec2(1, 0));
+    vec2 T = isInsideWall(gid + ivec2(0, 1)) ? vec2(C.x, 0.0) : velocity(gid + ivec2(0, 1));
+    vec2 B = isInsideWall(gid - ivec2(0, 1)) ? vec2(C.x, 0.0) : velocity(gid - ivec2(0, 1));
+
+    float dudx = (R.x - L.x) / (2.0 * dx.x);
+    float dvdy = (T.y - B.y) / (2.0 * dy.y);
+
+    float div = dudx + dvdy;
+
+    imageStore(divergence_field, gid, vec4(div, 0.0, 0.0, 1.0));
 }

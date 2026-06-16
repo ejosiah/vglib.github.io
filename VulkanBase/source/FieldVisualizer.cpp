@@ -6,6 +6,23 @@
 #include "Vertex.h"
 #include "glsl_shaders.hpp"
 
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+
+namespace {
+    constexpr auto scalarCellWidth = 16;
+
+    std::string scalarCell(float value) {
+        std::ostringstream valueStream;
+        valueStream << std::fixed << std::setprecision(6) << value;
+
+        std::ostringstream cellStream;
+        cellStream << std::setw(scalarCellWidth) << valueStream.str();
+        return cellStream.str();
+    }
+}
+
 FieldVisualizer::FieldVisualizer(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, 
                                  VulkanRenderPass* renderPass, VulkanDescriptorSetLayout fieldSetLayout,
                                  glm::uvec2 screenResolution, glm::ivec2 gridSize)
@@ -122,6 +139,40 @@ void FieldVisualizer::update(VkCommandBuffer commandBuffer) {
     combineVectorFields(commandBuffer);
     computeStreamLines(commandBuffer);
     computeMinMaxPressure(commandBuffer);
+}
+
+void FieldVisualizer::initFieldDumpReadback(fs::path dumpDirectory) {
+    const auto sampleCount = static_cast<VkDeviceSize>(_gridSize.x) * _gridSize.y;
+
+    _fieldDump.vector = device->createStagingBuffer(sampleCount * sizeof(glm::vec4));
+    _fieldDump.divergence = device->createStagingBuffer(sampleCount * sizeof(float));
+    _fieldDump.pressure = device->createStagingBuffer(sampleCount * sizeof(float));
+
+    _fieldDump.directory = dumpDirectory.empty()
+        ? fs::current_path() / "field_visualizer_dumps"
+        : std::move(dumpDirectory);
+    fs::create_directories(_fieldDump.directory);
+}
+
+void FieldVisualizer::copyFieldDumpReadback(VkCommandBuffer commandBuffer) {
+    if (!_fieldDump.vector) {
+        initFieldDumpReadback();
+    }
+
+    copyTextureToDumpBuffer(commandBuffer, _vectorField.field, _fieldDump.vector);
+    copyTextureToDumpBuffer(commandBuffer, _solver->_vectorGrid->divergenceField()[eular::in], _fieldDump.divergence);
+    copyPressureToDumpBuffer(commandBuffer);
+
+    _fieldDump.pendingStep = ++_fieldDump.step;
+    _fieldDump.pending = true;
+}
+
+void FieldVisualizer::writePendingFieldDump() {
+    if (!_fieldDump.pending) return;
+
+    writeFieldDumpCsvFiles(_fieldDump.pendingStep);
+    _fieldDump.pending = false;
+    spdlog::info("Wrote fluid field dump {} to {}", _fieldDump.pendingStep, _fieldDump.directory.string());
 }
 
 void FieldVisualizer::renderStreamLines(VkCommandBuffer commandBuffer) {
@@ -557,6 +608,106 @@ void FieldVisualizer::computeMinMaxPressure(VkCommandBuffer commandBuffer) {
 void FieldVisualizer::copyPressure(VkCommandBuffer commandBuffer) {
     _solver->pressureField()[0].image.copyToBuffer(commandBuffer, _pressure.field, VK_IMAGE_LAYOUT_GENERAL);
      Barrier::transferWriteToComputeRead(commandBuffer);
+}
+
+void FieldVisualizer::copyTextureToDumpBuffer(VkCommandBuffer commandBuffer, Texture& texture, VulkanBuffer& buffer) {
+    auto oldLayout = texture.image.currentLayout;
+    auto subresourceRange = DEFAULT_SUB_RANGE;
+    subresourceRange.aspectMask = texture.aspectMask;
+    constexpr auto shaderStages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
+                                  VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT |
+                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+
+    Barriers::pushAndFlush(commandBuffer, texture.image, subresourceRange,
+                           shaderStages,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT,
+                           VK_ACCESS_2_TRANSFER_READ_BIT,
+                           oldLayout,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    texture.image.currentLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = texture.aspectMask;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {texture.width, texture.height, 1};
+
+    vkCmdCopyImageToBuffer(commandBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+
+    Barriers::pushAndFlush(commandBuffer, texture.image, subresourceRange,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           shaderStages,
+                           VK_ACCESS_2_TRANSFER_READ_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           oldLayout);
+    texture.image.currentLayout = oldLayout;
+
+    Barrier::transferWriteToHostRead(commandBuffer, buffer);
+}
+
+void FieldVisualizer::copyPressureToDumpBuffer(VkCommandBuffer commandBuffer) {
+    Barrier::transferWriteToRead(commandBuffer, {_pressure.field});
+    device->copy(commandBuffer, _pressure.field, _fieldDump.pressure, _fieldDump.pressure.size);
+    Barrier::transferWriteToHostRead(commandBuffer, _fieldDump.pressure);
+}
+
+void FieldVisualizer::writeFieldDumpCsvFiles(uint32_t step) {
+    const auto* vectorValues = reinterpret_cast<const glm::vec4*>(_fieldDump.vector.map());
+    const auto* divergence = reinterpret_cast<const float*>(_fieldDump.divergence.map());
+    const auto* pressure = reinterpret_cast<const float*>(_fieldDump.pressure.map());
+
+    {
+        std::ofstream out(_fieldDump.directory / fmt::format("u_{:04}.csv", step));
+        writeVectorComponentGrid(out, vectorValues, 0);
+    }
+
+    {
+        std::ofstream out(_fieldDump.directory / fmt::format("v_{:04}.csv", step));
+        writeVectorComponentGrid(out, vectorValues, 1);
+    }
+
+    {
+        std::ofstream out(_fieldDump.directory / fmt::format("divergence_{:04}.csv", step));
+        writeScalarGrid(out, divergence);
+    }
+
+    {
+        std::ofstream out(_fieldDump.directory / fmt::format("pressure_{:04}.csv", step));
+        writeScalarGrid(out, pressure);
+    }
+
+    _fieldDump.vector.unmap();
+    _fieldDump.divergence.unmap();
+    _fieldDump.pressure.unmap();
+}
+
+void FieldVisualizer::writeVectorComponentGrid(std::ostream& out, const glm::vec4* vectorValues, uint32_t component) const {
+    for (auto y = 0; y < _gridSize.y; ++y) {
+        for (auto x = 0; x < _gridSize.x; ++x) {
+            if (x > 0) out << ",";
+            const auto index = static_cast<size_t>(y) * _gridSize.x + x;
+            out << scalarCell(component == 0 ? vectorValues[index].x : vectorValues[index].y);
+        }
+        out << "\n";
+    }
+}
+
+void FieldVisualizer::writeScalarGrid(std::ostream& out, const float* values) const {
+    for (auto y = 0; y < _gridSize.y; ++y) {
+        for (auto x = 0; x < _gridSize.x; ++x) {
+            if (x > 0) out << ",";
+            const auto index = static_cast<size_t>(y) * _gridSize.x + x;
+            out << scalarCell(values[index]);
+        }
+        out << "\n";
+    }
 }
 
 void FieldVisualizer::initPrefixSum() {

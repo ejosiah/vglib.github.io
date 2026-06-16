@@ -5,6 +5,8 @@
 #include "filemanager.hpp"
 #include "PrefixSum.hpp"
 
+#include <iosfwd>
+
 class FieldVisualizer : ComputePipelines {
 public:
     FieldVisualizer() = default;
@@ -20,6 +22,12 @@ public:
     void setStreamLineColor(const glm::vec3& streamColor);
 
     void update(VkCommandBuffer commandBuffer);
+
+    void initFieldDumpReadback(fs::path dumpDirectory = {});
+
+    void copyFieldDumpReadback(VkCommandBuffer commandBuffer);
+
+    void writePendingFieldDump();
 
     void renderStreamLines(VkCommandBuffer commandBuffer);
 
@@ -48,6 +56,16 @@ private:
     void computeStreamLines(VkCommandBuffer commandBuffer);
 
     void copyPressure(VkCommandBuffer commandBuffer);
+
+    void copyTextureToDumpBuffer(VkCommandBuffer commandBuffer, Texture& texture, VulkanBuffer& buffer);
+
+    void copyPressureToDumpBuffer(VkCommandBuffer commandBuffer);
+
+    void writeFieldDumpCsvFiles(uint32_t step);
+
+    void writeVectorComponentGrid(std::ostream& out, const glm::vec4* vectorValues, uint32_t component) const;
+
+    void writeScalarGrid(std::ostream& out, const float* values) const;
 
 private:
     VulkanDescriptorPool* _descriptorPool{};
@@ -130,6 +148,16 @@ private:
             uint32_t rows{3};
         } constants;
     } _debugFields;
+
+    struct {
+        VulkanBuffer vector;
+        VulkanBuffer divergence;
+        VulkanBuffer pressure;
+        fs::path directory;
+        uint32_t step{};
+        uint32_t pendingStep{};
+        bool pending{};
+    } _fieldDump;
 
     PrefixSum _prefixSum;
 

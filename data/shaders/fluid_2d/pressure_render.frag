@@ -1,7 +1,5 @@
 #version 460
 
-#define PI 3.14159265358979323846
-
 layout(set = 0, binding = 0) uniform sampler2D pressure_field;
 
 layout(set = 1, binding = 0) buffer MinMax {
@@ -11,16 +9,30 @@ layout(set = 1, binding = 0) buffer MinMax {
 layout(location = 0) in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 
-void main(){
-    fragColor = vec4(1);
+vec3 tenMinutePhysicsColor(float t) {
+    t = clamp(t, 0.0, 0.999999);
 
-    float x = texture(pressure_field, vUv).x;
-    float a = min_max[1].data;
-    float b = min_max[0].data;
-    float range = b - a;
-    float t = abs(range) > 1e-6 ? (x - a) / range : 0.5;
+    float band = floor(4.0 * t);
+    float localT = fract(4.0 * t);
 
-    fragColor.r = sin(.5 * PI * t);
-    fragColor.b = sin(PI * t);
-    fragColor.b = cos(.5 * PI * t);
+    if(band < 1.0) {
+        return vec3(0.0, localT, 1.0);
+    }
+    if(band < 2.0) {
+        return vec3(0.0, 1.0, 1.0 - localT);
+    }
+    if(band < 3.0) {
+        return vec3(localT, 1.0, 0.0);
+    }
+    return vec3(1.0, 1.0 - localT, 0.0);
+}
+
+void main() {
+    float pressure = texture(pressure_field, vUv).x;
+    float minPressure = min_max[0].data;
+    float maxPressure = min_max[1].data;
+    float pressureScale = max(abs(minPressure), abs(maxPressure));
+    float t = pressureScale > 1e-6 ? 0.5 + 0.5 * pressure / pressureScale : 0.5;
+
+    fragColor = vec4(tenMinutePhysicsColor(t), 1.0);
 }
