@@ -8,12 +8,9 @@
 
 namespace eular {
     
-    FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize,
-                             std::optional<VkDescriptorSet> optionalColliderDescriptorSet)
+    FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize)
         : ComputePipelines(device)
         , _descriptorPool(descriptorPool)
-        , _colliderDescriptorSet(optionalColliderDescriptorSet.value_or(VK_NULL_HANDLE))
-        , _useDefaultColliderTexture(!optionalColliderDescriptorSet.has_value() || *optionalColliderDescriptorSet == VK_NULL_HANDLE)
         , _gridSize(gridSize, 1)
         , _delta(1.f/gridSize, 0)
         , _imageType(VK_IMAGE_TYPE_2D){
@@ -175,9 +172,23 @@ namespace eular {
                     .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
             .createLayout();
 
-        if(_useDefaultColliderTexture) {
-            createDefaultColliderFields();
-        }
+        _colliderSamplers.fill(_valueSampler.handle);
+        _sourceColliderDescriptorSetLayout =
+            device->descriptorSetLayoutBuilder()
+                .name("fluid_solver_source_collider_textures")
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(maxColliderFields)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .immutableSamplers(_colliderSamplers.data())
+                .binding(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(maxColliderFields)
+                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
+                    .immutableSamplers(_colliderSamplers.data())
+            .createLayout();
+
+        createDefaultColliderFields();
 
         _debugDescriptorSetLayout =
             device->descriptorSetLayoutBuilder()
@@ -229,9 +240,14 @@ namespace eular {
     }
 
     void FluidSolver::updateDescriptorSets() {
-        std::vector<VulkanDescriptorSetLayout> layouts{uniformsSetLayout};
-        if(_useDefaultColliderTexture) {
-            layouts.push_back(_colliderDescriptorSetLayout);
+        std::vector<VulkanDescriptorSetLayout> layouts{
+            uniformsSetLayout,
+            _colliderDescriptorSetLayout
+        };
+
+        const auto sourceColliderSetOffset = layouts.size();
+        if(hasActiveColliders()) {
+            layouts.push_back(_sourceColliderDescriptorSetLayout);
         }
 
         const auto meanDriftSetOffset = layouts.size();
@@ -245,10 +261,8 @@ namespace eular {
 
         auto sets = _descriptorPool->allocate(layouts);
         uniformDescriptorSet = sets[0];
-
-        if(_useDefaultColliderTexture) {
-            _colliderDescriptorSet = sets[1];
-        }
+        _colliderDescriptorSet = sets[1];
+        _sourceColliderDescriptorSet = hasActiveColliders() ? sets[sourceColliderSetOffset] : VK_NULL_HANDLE;
         meanDriftDescriptorSet = sets[meanDriftSetOffset];
         _linearSystems[0].descriptorSet = sets[linearSystemSetOffset];
         _linearSystems[1].descriptorSet = sets[linearSystemSetOffset + 1];
@@ -265,29 +279,27 @@ namespace eular {
         writes[writeOffset].pBufferInfo = new VkDescriptorBufferInfo{globalConstants.gpu, 0, VK_WHOLE_SIZE};
         ++writeOffset;
 
-        if(_useDefaultColliderTexture) {
-            writes[writeOffset].dstSet = _colliderDescriptorSet;
-            writes[writeOffset].dstBinding = 0;
-            writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            writes[writeOffset].descriptorCount = 1;
-            writes[writeOffset].pImageInfo = new VkDescriptorImageInfo{
-                _valueSampler.handle,
-                _colliderField[in].imageView.handle,
-                VK_IMAGE_LAYOUT_GENERAL
-            };
-            ++writeOffset;
+        writes[writeOffset].dstSet = _colliderDescriptorSet;
+        writes[writeOffset].dstBinding = 0;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo{
+            _valueSampler.handle,
+            _colliderField[in].imageView.handle,
+            VK_IMAGE_LAYOUT_GENERAL
+        };
+        ++writeOffset;
 
-            writes[writeOffset].dstSet = _colliderDescriptorSet;
-            writes[writeOffset].dstBinding = 1;
-            writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            writes[writeOffset].descriptorCount = 1;
-            writes[writeOffset].pImageInfo = new VkDescriptorImageInfo{
-                _valueSampler.handle,
-                _colliderVelocityField[in].imageView.handle,
-                VK_IMAGE_LAYOUT_GENERAL
-            };
-            ++writeOffset;
-        }
+        writes[writeOffset].dstSet = _colliderDescriptorSet;
+        writes[writeOffset].dstBinding = 1;
+        writes[writeOffset].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[writeOffset].descriptorCount = 1;
+        writes[writeOffset].pImageInfo = new VkDescriptorImageInfo{
+            _valueSampler.handle,
+            _colliderVelocityField[in].imageView.handle,
+            VK_IMAGE_LAYOUT_GENERAL
+        };
+        ++writeOffset;
 
         writes[writeOffset].dstSet = meanDriftDescriptorSet;
         writes[writeOffset].dstBinding = 0;
@@ -323,6 +335,9 @@ namespace eular {
 
         writes.resize(writeOffset);
         device->updateDescriptorSets(writes);
+        if(hasActiveColliders() && _sourceColliderDescriptorSetLayout.handle != VK_NULL_HANDLE) {
+            updateSourceColliderDescriptorSet();
+        }
 
         for(auto& write : writes) {
             if(write.pImageInfo) delete write.pImageInfo;
@@ -336,10 +351,8 @@ namespace eular {
 
         writeOffset = createDescriptorSet(writes, writeOffset, _pressureField);
         writeOffset = createDescriptorSet(writes, writeOffset, _vorticityField);
-        if(_useDefaultColliderTexture) {
-            writeOffset = createDescriptorSet(writes, writeOffset, _colliderField);
-            writeOffset = createDescriptorSet(writes, writeOffset, _colliderVelocityField);
-        }
+        writeOffset = createDescriptorSet(writes, writeOffset, _colliderField);
+        writeOffset = createDescriptorSet(writes, writeOffset, _colliderVelocityField);
 
         writes.resize(writeOffset);
         device->updateDescriptorSets(writes);
@@ -348,6 +361,91 @@ namespace eular {
             if(write.pImageInfo) delete write.pImageInfo;
             if(write.pBufferInfo) delete write.pBufferInfo;
         }
+    }
+
+    void FluidSolver::updateSourceColliderDescriptorSet() {
+        if(!hasActiveColliders()) {
+            return;
+        }
+
+        ensureSourceColliderDescriptorSet();
+
+        const auto fallbackField = _colliders.front().field;
+        ensureZeroColliderVelocityTexture();
+        std::array<VkDescriptorImageInfo, maxColliderFields> fallbackVelocityInfos{};
+        fallbackVelocityInfos.fill({
+            _valueSampler.handle,
+            _zeroColliderVelocityTexture.imageView.handle,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        });
+
+        VkWriteDescriptorSet fallbackVelocityWrite{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = _sourceColliderDescriptorSet,
+            .dstBinding = 1,
+            .descriptorCount = maxColliderFields,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = fallbackVelocityInfos.data()
+        };
+
+        device->updateDescriptorSets(std::array{fallbackVelocityWrite});
+
+        std::vector<VkCopyDescriptorSet> copies;
+        copies.reserve(maxColliderFields * 2);
+        for(auto i = 0u; i < maxColliderFields; ++i) {
+            const auto sourceIndex = std::min(i, _activeColliderCount - 1u);
+            copies.push_back({
+                .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+                .srcSet = i < _activeColliderCount ? _colliders[sourceIndex].field : fallbackField,
+                .srcBinding = 0,
+                .srcArrayElement = 0,
+                .dstSet = _sourceColliderDescriptorSet,
+                .dstBinding = 0,
+                .dstArrayElement = i,
+                .descriptorCount = 1
+            });
+
+            if(i < _activeColliderCount && _colliders[i].velocity != VK_NULL_HANDLE) {
+                copies.push_back({
+                    .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+                    .srcSet = _colliders[i].velocity,
+                    .srcBinding = 0,
+                    .srcArrayElement = 0,
+                    .dstSet = _sourceColliderDescriptorSet,
+                    .dstBinding = 1,
+                    .dstArrayElement = i,
+                    .descriptorCount = 1
+                });
+            }
+        }
+
+        if(!copies.empty()) {
+            device->updateDescriptorSets(std::vector<VkWriteDescriptorSet>{}, copies);
+        }
+    }
+
+    void FluidSolver::ensureSourceColliderDescriptorSet() {
+        if(_sourceColliderDescriptorSet != VK_NULL_HANDLE) {
+            return;
+        }
+
+        _sourceColliderDescriptorSet = _descriptorPool->allocate({_sourceColliderDescriptorSetLayout}).front();
+    }
+
+    void FluidSolver::ensureZeroColliderVelocityTexture() {
+        if(_zeroColliderVelocityTexture.isValid()) {
+            return;
+        }
+
+        glm::vec2 emptyVelocity{0.0f};
+        textures::create(*device, _zeroColliderVelocityTexture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32_SFLOAT,
+                         &emptyVelocity, {1u, 1u, 1u}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(glm::vec2));
+        device->setName<VK_OBJECT_TYPE_IMAGE>("fluid_solver_zero_collider_velocity_texture",
+                                              _zeroColliderVelocityTexture.image.image);
+    }
+
+    bool FluidSolver::hasActiveColliders() const {
+        return _activeColliderCount > 0;
     }
 
     uint32_t FluidSolver::createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field) {
@@ -411,18 +509,6 @@ namespace eular {
         std::vector<glm::vec2> colliderData(
             width * height,
             glm::vec2{1.0f, colliderTypeValue(ColliderType::Wall)});
-
-        if (!options.wrappingEnabled) {
-            const auto boundaryValue = -0.5f * std::sqrt(_delta.x * _delta.x + _delta.y * _delta.y);
-            for(auto y = 0u; y < height; ++y) {
-                for(auto x = 0u; x < width; ++x) {
-                    if(x == 0 || y == 0 || x == width - 1 || y == height - 1) {
-                        colliderData[y * width + x].x = boundaryValue;
-                    }
-                }
-            }
-        }
-
         std::vector<glm::vec2> colliderVelocity(width * height, glm::vec2{0.0f});
         for(auto i = 0u; i < 2; ++i) {
             textures::create(*device, _colliderField[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32_SFLOAT,
@@ -504,6 +590,23 @@ namespace eular {
     std::vector<PipelineMetaData> FluidSolver::pipelineMetaData() {
         return {
                 {
+                    .name = "update_collider",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\update_collider.comp.spv)",
+                    .layouts = {
+                        &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout
+                    },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(updateColliderConstants) } }
+                },
+                {
+                    .name = "update_collider_with_sources",
+                    .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\update_collider_with_sources.comp.spv)",
+                    .layouts = {
+                        &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                        &_sourceColliderDescriptorSetLayout
+                    },
+                    .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(updateColliderConstants) } }
+                },
+                {
                         .name = "add_sources",
                         .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\add_sources.comp.spv)",
                         .layouts =  {
@@ -559,6 +662,44 @@ namespace eular {
                                 &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_colliderDescriptorSetLayout },
                 },
         };
+    }
+
+    void FluidSolver::updateColliderFields(VkCommandBuffer commandBuffer) {
+        VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, update_collider);
+        updateColliderConstants.colliderCount = _activeColliderCount;
+        updateColliderConstants.closedDomain = static_cast<uint32_t>(options.closedDomain);
+        updateColliderConstants.openBoundaryEdges = options.openBoundaryEdges;
+
+        if(hasActiveColliders()) {
+            ensureSourceColliderDescriptorSet();
+            const std::array<VkDescriptorSet, 4> sets{
+                uniformDescriptorSet,
+                _colliderField.descriptorSet[in],
+                _colliderVelocityField.descriptorSet[in],
+                _sourceColliderDescriptorSet
+            };
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("update_collider_with_sources"));
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("update_collider_with_sources"),
+                                    0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+            vkCmdPushConstants(commandBuffer, layout("update_collider_with_sources"), VK_SHADER_STAGE_COMPUTE_BIT,
+                               0, sizeof(updateColliderConstants), &updateColliderConstants);
+        }else {
+            const std::array<VkDescriptorSet, 3> sets{
+                uniformDescriptorSet,
+                _colliderField.descriptorSet[in],
+                _colliderVelocityField.descriptorSet[in]
+            };
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("update_collider"));
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("update_collider"),
+                                    0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+            vkCmdPushConstants(commandBuffer, layout("update_collider"), VK_SHADER_STAGE_COMPUTE_BIT,
+                               0, sizeof(updateColliderConstants), &updateColliderConstants);
+        }
+
+        vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
+        addComputeBarrier(commandBuffer, {&_colliderField[in], &_colliderVelocityField[in]});
     }
 
     
@@ -983,6 +1124,7 @@ namespace eular {
     }
 
     void FluidSolver::runSimulation(VkCommandBuffer commandBuffer) {
+        updateColliderFields(commandBuffer);
         velocityStep(commandBuffer);
         quantityStep(commandBuffer);
         _elapsedTime += options.timeStep;
@@ -1119,6 +1261,47 @@ namespace eular {
         return _colliderVelocityField[in];
     }
 
+    void FluidSolver::setColliders(std::span<const Collider> colliders) {
+        _colliders.clear();
+        _colliders.reserve(std::min<std::size_t>(colliders.size(), maxColliderFields));
+        for(const auto& collider : colliders) {
+            if(collider.field == VK_NULL_HANDLE) {
+                continue;
+            }
+
+            if(_colliders.size() >= maxColliderFields) {
+                throw std::runtime_error{std::format("FluidSolver supports at most {} active collider fields", maxColliderFields)};
+            }
+
+            _colliders.push_back(collider);
+        }
+
+        _activeColliderCount = static_cast<uint32_t>(_colliders.size());
+        if(hasActiveColliders() && _sourceColliderDescriptorSetLayout.handle != VK_NULL_HANDLE) {
+            updateSourceColliderDescriptorSet();
+        }
+    }
+
+    uint32_t FluidSolver::activeColliderCount() const {
+        return _activeColliderCount;
+    }
+
+    FluidSolver& FluidSolver::closedDomain(bool flag) {
+        options.closedDomain = flag;
+        if(flag) {
+            options.wrappingEnabled = false;
+            if(globalConstants.cpu) {
+                globalConstants.cpu->wrapping_enabled = 0;
+            }
+        }
+        return *this;
+    }
+
+    FluidSolver& FluidSolver::openBoundaryEdges(uint32_t flags) {
+        options.openBoundaryEdges = flags;
+        return *this;
+    }
+
     std::vector<VkDescriptorSet> FluidSolver::debugFieldDescriptorSets() const {
         std::vector<VkDescriptorSet> sets{
             _vectorGrid->vectorField().u.descriptorSet[in],
@@ -1178,6 +1361,7 @@ namespace eular {
 
     FluidSolver::Builder& FluidSolver::Builder::enableWrapping() {
         _wrappingEnabled = true;
+        _closedDomain = false;
         return *this;
     }
 
@@ -1191,9 +1375,31 @@ namespace eular {
         return *this;
     }
 
-    FluidSolver::Builder& FluidSolver::Builder::collider(VkDescriptorSet descriptorSet) {
-        _colliderDescriptorSet = descriptorSet;
+    FluidSolver::Builder& FluidSolver::Builder::closedDomain(bool flag) {
+        _closedDomain = flag;
+        if(flag) {
+            _wrappingEnabled = false;
+        }
         return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::openBoundaryEdges(uint32_t flags) {
+        _openBoundaryEdges = flags;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::addCollider(VkDescriptorSet fieldDescriptorSet, VkDescriptorSet velocityDescriptorSet) {
+        if(fieldDescriptorSet == VK_NULL_HANDLE) return *this;
+        if(_colliders.size() >= maxColliderFields) {
+            throw std::runtime_error{std::format("FluidSolver supports at most {} collider fields", maxColliderFields)};
+        }
+
+        _colliders.push_back({fieldDescriptorSet, velocityDescriptorSet});
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::addCollider(const Field& field, VkDescriptorSet velocityDescriptorSet) {
+        return addCollider(field.descriptorSet[in], velocityDescriptorSet);
     }
 
     FluidSolver::Builder & FluidSolver::Builder::enableProjection() {
@@ -1258,10 +1464,12 @@ namespace eular {
         assert(_dt > 0);
         assert(_viscosity >= 0);
 
-        auto solver = std::make_unique<FluidSolver>(_device, _descriptorPool, _gridSize, _colliderDescriptorSet);
+        auto solver = std::make_unique<FluidSolver>(_device, _descriptorPool, _gridSize);
         solver->options.advectVField = _advectVField;
         solver->options.project = _project;
         solver->options.wrappingEnabled = _wrappingEnabled;
+        solver->options.closedDomain = _closedDomain;
+        solver->options.openBoundaryEdges = _openBoundaryEdges;
         solver->options.poissonIterations = _poissonIterations;
         solver->options.viscosity = _viscosity;
         solver->options.vorticityConfinementScale = _vorticityConfinementScale;
@@ -1269,6 +1477,8 @@ namespace eular {
         solver->options.timeStep = _dt;
         solver->linearSolverStrategy = _linearSolverStrategy;
         solver->_gridSize = glm::vec3(_gridSize, 1);
+        solver->_colliders = _colliders;
+        solver->_activeColliderCount = static_cast<uint32_t>(solver->_colliders.size());
 
         solver->init();
         solver->_externalForces = _externalForces;

@@ -214,6 +214,26 @@ void FieldVisualizer::renderVectorField(VkCommandBuffer commandBuffer) {
     vkCmdDraw(commandBuffer, _vectorField.numArrows, 1, 0, 0);
 }
 
+void FieldVisualizer::renderBoundary(VkCommandBuffer commandBuffer, glm::vec4 color, bool showColliders) {
+    if(!_solver) return;
+
+    _boundary.constants.color = color;
+    _boundary.constants.closedDomain = static_cast<uint32_t>(_solver->options.closedDomain);
+    _boundary.constants.openBoundaryEdges = _solver->options.openBoundaryEdges;
+    _boundary.constants.showColliders = static_cast<uint32_t>(showColliders);
+
+    const auto set = _solver->colliderField().descriptorSet[eular::in];
+    VkDeviceSize offset = 0;
+
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, _screenQuad.vertices, &offset);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _boundary.pipeline.handle);
+    vkCmdPushConstants(commandBuffer, _boundary.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, sizeof(_boundary.constants), &_boundary.constants);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _boundary.layout.handle,
+                            0, 1, &set, 0, VK_NULL_HANDLE);
+    vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+}
+
 void FieldVisualizer::renderDebugFields(VkCommandBuffer commandBuffer) {
     auto debugSets = _solver->debugFieldDescriptorSets();
 
@@ -557,6 +577,52 @@ void FieldVisualizer::createRenderPipeline() {
             .subpass(0)
             .name("fluid_debug_fields")
         .build(_debugFields.layout);
+
+    _boundary.pipeline =
+        device->graphicsPipelineBuilder()
+            .shaderStage()
+                .vertexShader(data_shaders_quad_vert)
+                .fragmentShader(std::string{R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\boundary_render.frag.spv)"})
+            .vertexInputState()
+                .addVertexBindingDescriptions(ClipSpace::bindingDescription())
+                .addVertexAttributeDescriptions(ClipSpace::attributeDescriptions())
+            .inputAssemblyState()
+                .triangleStrip()
+            .viewportState()
+                .viewport()
+                    .origin(0, 0)
+                    .dimension(_screenResolution.x, _screenResolution.y)
+                    .minDepth(0)
+                    .maxDepth(1)
+                .scissor()
+                    .offset(0, 0)
+                    .extent(_screenResolution.x, _screenResolution.y)
+                .add()
+            .rasterizationState()
+                .cullBackFace()
+                .frontFaceCounterClockwise()
+                .polygonModeFill()
+            .multisampleState()
+                .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
+            .depthStencilState()
+                .disableDepthWrite()
+                .disableDepthTest()
+            .colorBlendState()
+                .attachment()
+                    .clear()
+                    .enableBlend()
+                    .srcColorBlendFactor().srcAlpha()
+                    .dstColorBlendFactor().oneMinusSrcAlpha()
+                    .srcAlphaBlendFactor().one()
+                    .dstAlphaBlendFactor().oneMinusSrcAlpha()
+                    .add()
+            .layout()
+                .addDescriptorSetLayout(_fieldSetLayout)
+                .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(_boundary.constants))
+            .renderPass(*_renderPass)
+            .subpass(0)
+            .name("fluid_boundary_overlay")
+        .build(_boundary.layout);
 }
 
 std::vector<PipelineMetaData> FieldVisualizer::pipelineMetaData() {

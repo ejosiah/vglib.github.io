@@ -35,6 +35,10 @@ public:
 
     void renderVectorField(VkCommandBuffer commandBuffer);
 
+    void renderBoundary(VkCommandBuffer commandBuffer,
+                        glm::vec4 color = glm::vec4{1.0f, 0.0f, 0.0f, 0.85f},
+                        bool showColliders = false);
+
     void renderDebugFields(VkCommandBuffer commandBuffer);
 
 protected:
@@ -148,6 +152,17 @@ private:
             uint32_t rows{3};
         } constants;
     } _debugFields;
+
+    struct {
+        VulkanPipeline pipeline;
+        VulkanPipelineLayout layout;
+        struct {
+            glm::vec4 color{1.0f, 0.0f, 0.0f, 0.85f};
+            uint32_t closedDomain{};
+            uint32_t openBoundaryEdges{};
+            uint32_t showColliders{};
+        } constants;
+    } _boundary;
 
     struct {
         VulkanBuffer vector;

@@ -15,6 +15,7 @@
 #include <initializer_list>
 #include <memory>
 #include <optional>
+#include <span>
 
 class FieldVisualizer;
 
@@ -26,11 +27,18 @@ namespace eular {
     public:
 
         class Builder;
+        static constexpr uint32_t maxColliderFields = 10;
+        enum BoundaryEdge : uint32_t {
+            BoundaryEdgeLeft = 1u << 0,
+            BoundaryEdgeRight = 1u << 1,
+            BoundaryEdgeBottom = 1u << 2,
+            BoundaryEdgeTop = 1u << 3,
+            BoundaryEdgeAll = BoundaryEdgeLeft | BoundaryEdgeRight | BoundaryEdgeBottom | BoundaryEdgeTop
+        };
 
         FluidSolver() = default;
 
-        FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize,
-                    std::optional<VkDescriptorSet> colliderDescriptorSet = std::nullopt);
+        FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize);
 
         void runSimulation(VkCommandBuffer commandBuffer);
 
@@ -68,6 +76,19 @@ namespace eular {
 
         const Texture& colliderVelocityTexture() const;
 
+        struct Collider {
+            VkDescriptorSet field{VK_NULL_HANDLE};
+            VkDescriptorSet velocity{VK_NULL_HANDLE};
+        };
+
+        void setColliders(std::span<const Collider> colliders);
+
+        uint32_t activeColliderCount() const;
+
+        FluidSolver& closedDomain(bool flag);
+
+        FluidSolver& openBoundaryEdges(uint32_t flags);
+
     protected:
         void init();
 
@@ -85,9 +106,19 @@ namespace eular {
 
         void updateFieldDescriptorSets();
 
+        void updateSourceColliderDescriptorSet();
+
+        void ensureSourceColliderDescriptorSet();
+
+        void ensureZeroColliderVelocityTexture();
+
+        bool hasActiveColliders() const;
+
         uint32_t createDescriptorSet(std::vector<VkWriteDescriptorSet>& writes, uint32_t writeOffset, Field& field);
 
         void createDefaultColliderFields();
+
+        void updateColliderFields(VkCommandBuffer commandBuffer);
 
         void initGlobalConstants();
 
@@ -184,11 +215,14 @@ namespace eular {
 
         VulkanDescriptorSetLayout _fieldDescriptorSetLayout;
         VulkanDescriptorSetLayout _colliderDescriptorSetLayout;
+        VulkanDescriptorSetLayout _sourceColliderDescriptorSetLayout;
         VulkanDescriptorSetLayout _debugDescriptorSetLayout;
         VkDescriptorSet _colliderDescriptorSet{};
+        VkDescriptorSet _sourceColliderDescriptorSet{};
         Field _colliderField;
         Field _colliderVelocityField;
-        bool _useDefaultColliderTexture{true};
+        Texture _zeroColliderVelocityTexture;
+        std::array<VkSampler, maxColliderFields> _colliderSamplers{};
 
         std::vector<std::reference_wrapper<Quantity>> _quantities;
         VkImageType _imageType{};
@@ -216,6 +250,8 @@ namespace eular {
             bool macCormackAdvection = false;
             bool project = true;
             bool wrappingEnabled = true;
+            bool closedDomain = false;
+            uint32_t openBoundaryEdges = 0;
             int poissonIterations = 30;
             float viscosity = 0;
             float vorticityConfinementScale{0};
@@ -227,6 +263,12 @@ namespace eular {
             float time_sign{1};
             uint32_t boundary_mode{0};
         } advectConstants;
+
+        struct {
+            uint32_t colliderCount{};
+            uint32_t closedDomain{};
+            uint32_t openBoundaryEdges{};
+        } updateColliderConstants;
 
 
         glm::uvec3 _groupCount{1};
@@ -275,6 +317,8 @@ namespace eular {
         static constexpr uint32_t linearSystemRowsPerBatch = 4096;
 
         std::vector<ExternalForce> _externalForces;
+        std::vector<Collider> _colliders;
+        uint32_t _activeColliderCount{};
         float _elapsedTime{};
         LinearSolverStrategy linearSolverStrategy{LinearSolverStrategy::Jacobi};
     };
@@ -307,7 +351,13 @@ namespace eular {
 
         Builder& gridSize(glm::vec2 size);
 
-        Builder& collider(VkDescriptorSet descriptorSet);
+        Builder& closedDomain(bool flag);
+
+        Builder& openBoundaryEdges(uint32_t flags);
+
+        Builder& addCollider(VkDescriptorSet fieldDescriptorSet, VkDescriptorSet velocityDescriptorSet = VK_NULL_HANDLE);
+
+        Builder& addCollider(const Field& field, VkDescriptorSet velocityDescriptorSet = VK_NULL_HANDLE);
 
         Builder& enableProjection();
 
@@ -340,6 +390,8 @@ namespace eular {
         bool _macCormackAdvection = false;
         bool _project = true;
         bool _wrappingEnabled = false;
+        bool _closedDomain = false;
+        uint32_t _openBoundaryEdges = 0;
         int _poissonIterations = 30;
         int _diffuseIterations = 30;
         float _viscosity = 0;
@@ -352,6 +404,6 @@ namespace eular {
 
         std::vector<ExternalForce> _externalForces;
         std::optional<VectorFieldFunc2D> _generator{[](float, float) { return glm::vec2{0.0f}; }};
-        std::optional<VkDescriptorSet> _colliderDescriptorSet;
+        std::vector<Collider> _colliders;
     };
 }
