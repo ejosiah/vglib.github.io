@@ -31,7 +31,6 @@ layout(push_constant, scalar) uniform Constants {
     float identity;
     uint batchOffset;
     uint batchSize;
-    uint ensureBoundaryCondition;
     uint vectorFieldComponent;
 };
 
@@ -46,13 +45,42 @@ void writeEntry(uint base, uint slot, float value, uint col) {
     colIndices[base + slot] = col;
 }
 
-void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 sampleCell, float weight) {
-    if (isInsideWall(sampleCell)) {
-        weight = 0.0;
+void writeNeighbor(uint base, uint slot, inout float centerValue, ivec2 cell, ivec2 sampleCell, float weight) {
+    // Wrapping case only
+    if (wrappingEnabled) {
+        sampleCell = collisionSampleCoord(sampleCell);
+
+        if (isInsideWall(sampleCell)) {
+            writeEntry(base, slot, 0.0, rowOf(cell));
+            return;
+        }
+
+        centerValue += weight;
+        writeEntry(base, slot, -weight, rowOf(sampleCell));
+        return;
     }
 
+    // Non-wrapping: NEVER clamp matrix neighbours.
+    if (outOfBounds(sampleCell)) {
+        // OPEN boundary / outlet:
+        // p_outside = 0, so this contributes weight * p_center.
+        centerValue += weight;
+        writeEntry(base, slot, 0.0, rowOf(cell));
+        return;
+
+        // CLOSED boundary version would be:
+        // writeEntry(base, slot, 0.0, rowOf(cell));
+        // return;
+    }
+
+    // Solid wall: Neumann pressure, no contribution.
+    if (isInsideWall(sampleCell)) {
+        writeEntry(base, slot, 0.0, rowOf(cell));
+        return;
+    }
+
+    // Normal fluid neighbour.
     centerValue += weight;
-    sampleCell = collisionSampleCoord(sampleCell);
     writeEntry(base, slot, -weight, rowOf(sampleCell));
 }
 
@@ -89,9 +117,9 @@ void main() {
         return;
     }
 
-    writeNeighbor(base, 0u, centerValue, cell + ivec2(-1, 0), ax);
-    writeNeighbor(base, 1u, centerValue, cell + ivec2(1, 0), ax);
-    writeNeighbor(base, 2u, centerValue, cell + ivec2(0, -1), ay);
-    writeNeighbor(base, 3u, centerValue, cell + ivec2(0, 1), ay);
+    writeNeighbor(base, 0u, centerValue, cell, cell + ivec2(-1, 0), ax);
+    writeNeighbor(base, 1u, centerValue, cell, cell + ivec2(1, 0), ax);
+    writeNeighbor(base, 2u, centerValue, cell, cell + ivec2(0, -1), ay);
+    writeNeighbor(base, 3u, centerValue, cell, cell + ivec2(0, 1), ay);
     writeEntry(base, 4u, identity + centerValue, row);
 }

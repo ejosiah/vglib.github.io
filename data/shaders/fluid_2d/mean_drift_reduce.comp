@@ -23,7 +23,7 @@ shared float localSum[256];
 shared uint localCount[256];
 
 bool hasActiveWall(ivec2 coord) {
-    return bool(use_collider) && isInsideWall(coord);
+    return isInsideWall(coord);
 }
 
 void main() {

@@ -18,15 +18,8 @@ float p(ivec2 cell) {
     return texelFetch(pressure_field, collisionSampleCoord(cell), 0).x;
 }
 
-bool insideGrid(ivec2 cell) {
-    return cell.x >= 0 &&
-    cell.y >= 0 &&
-    cell.x < int(grid_size.x) &&
-    cell.y < int(grid_size.y);
-}
-
 float p(ivec2 centerCell, ivec2 sampleCell) {
-    if (!insideGrid(sampleCell) || isInsideWall(sampleCell)) {
+    if (isInsideWall(sampleCell) || outOfBounds(sampleCell)) {
         return p(centerCell);
     }
 

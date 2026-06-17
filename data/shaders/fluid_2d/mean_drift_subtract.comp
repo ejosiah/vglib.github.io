@@ -22,7 +22,7 @@ layout(push_constant, scalar) uniform Constants {
 };
 
 bool hasActiveWall(ivec2 coord) {
-    return bool(use_collider) && isInsideWall(coord);
+    return isInsideWall(coord);
 }
 
 void main() {
