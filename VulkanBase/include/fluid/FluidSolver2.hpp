@@ -202,9 +202,8 @@ namespace eular {
             glm::vec2 dy{1};
             float dt{1.0f / 120.f};
             float density{1};
-            uint32_t ensure_boundary_condition{1};
+            uint32_t wrapping_enabled{0};
             uint32_t use_hermite{0};
-            uint32_t use_collider{1};
         };
 
         struct {
@@ -216,7 +215,7 @@ namespace eular {
             bool advectVField = true;
             bool macCormackAdvection = false;
             bool project = true;
-            bool ensureBoundaryCondition = true;
+            bool wrappingEnabled = true;
             int poissonIterations = 30;
             float viscosity = 0;
             float vorticityConfinementScale{0};
@@ -262,7 +261,6 @@ namespace eular {
                 float identity{};
                 uint32_t batchOffset{};
                 uint32_t batchSize{};
-                uint32_t ensureBoundaryCondition{};
                 uint32_t vectorFieldComponent{};
             } constants;
         } _linearSystems[2];
@@ -299,7 +297,9 @@ namespace eular {
 
         Builder& viscosity(float value);
 
-        Builder& ensureBoundaryCondition(bool flag);
+        Builder& enableWrapping();
+
+        Builder& disableWrapping();
 
         Builder& vorticityConfinementScale(float scale);
 
@@ -339,7 +339,7 @@ namespace eular {
         bool _advectVField = true;
         bool _macCormackAdvection = false;
         bool _project = true;
-        bool _ensureBoundaryCondition = true;
+        bool _wrappingEnabled = false;
         int _poissonIterations = 30;
         int _diffuseIterations = 30;
         float _viscosity = 0;

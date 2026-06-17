@@ -43,15 +43,14 @@ namespace eular {
             .colliderDescriptorSet = _colliderDescriptorSet,
             .colliderDescriptorSetLayout = &_colliderDescriptorSetLayout,
             .macCormackAdvection = options.macCormackAdvection,
-            .ensureBoundaryCondition = options.ensureBoundaryCondition
+            .wrappingEnabled = options.wrappingEnabled
         });
         _vectorGrid->init();
         _fieldDescriptorSetLayout = _vectorGrid->fieldDescriptorSetLayout();
     }
 
     void FluidSolver::createSamplers() {
-        VkSamplerAddressMode addressMode = globalConstants.cpu->ensure_boundary_condition == 1 ?
-                                           VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE :VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        VkSamplerAddressMode addressMode = options.wrappingEnabled == 1 ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerInfo.magFilter = VK_FILTER_NEAREST;
@@ -72,8 +71,7 @@ namespace eular {
         data.dy = {0, _delta.y};
         data.dt = options.timeStep;
         data.density = options.density;
-        data.ensure_boundary_condition = static_cast<int>(options.ensureBoundaryCondition);
-        data.use_collider = static_cast<uint32_t>(options.ensureBoundaryCondition || !_useDefaultColliderTexture);
+        data.wrapping_enabled = static_cast<int>(options.wrappingEnabled);
         globalConstants.gpu = device->createCpuVisibleBuffer(&data, sizeof(GlobalData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
         globalConstants.cpu =  reinterpret_cast<GlobalData*>(globalConstants.gpu.map());
     }
@@ -84,7 +82,7 @@ namespace eular {
         _vorticityField.name = "vorticity_field";
         _pressureField.name = "pressure_field";
 
-        auto addressMode = options.ensureBoundaryCondition ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        auto addressMode = options.wrappingEnabled ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
         textures::createNoTransition(*device, _vorticityField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
         textures::createNoTransition(*device, _vorticityField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
@@ -145,7 +143,6 @@ namespace eular {
             linearSystem.params.numIterations = options.poissonIterations;
             linearSystem.params.id = i;
             linearSystem.constants.gridSize = glm::uvec2(_gridSize);
-            linearSystem.constants.ensureBoundaryCondition = static_cast<uint32_t>(options.ensureBoundaryCondition);
         }
 
         meanDriftBuffer = device->createBuffer(
@@ -415,7 +412,7 @@ namespace eular {
             width * height,
             glm::vec2{1.0f, colliderTypeValue(ColliderType::Wall)});
 
-        if (options.ensureBoundaryCondition) {
+        if (!options.wrappingEnabled) {
             const auto boundaryValue = -0.5f * std::sqrt(_delta.x * _delta.x + _delta.y * _delta.y);
             for(auto y = 0u; y < height; ++y) {
                 for(auto x = 0u; x < width; ++x) {
@@ -748,7 +745,6 @@ namespace eular {
             auto batchSize = std::min(linearSystemRowsPerBatch, unknownCount - offset);
             _linearSystems[index].constants.batchOffset = offset;
             _linearSystems[index].constants.batchSize = batchSize;
-            _linearSystems[index].constants.ensureBoundaryCondition = static_cast<uint32_t>(options.ensureBoundaryCondition);
             vkCmdPushConstants(commandBuffer, layout("generate_coefficients"), VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                sizeof(_linearSystems[index].constants), &_linearSystems[index].constants);
             vkCmdDispatch(commandBuffer, (batchSize + 31u) / 32u, 1, 1);
@@ -1180,8 +1176,13 @@ namespace eular {
         return *this;
     }
 
-    FluidSolver::Builder& FluidSolver::Builder::ensureBoundaryCondition(bool flag) {
-        _ensureBoundaryCondition = flag;
+    FluidSolver::Builder& FluidSolver::Builder::enableWrapping() {
+        _wrappingEnabled = true;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::disableWrapping() {
+        _wrappingEnabled = false;
         return *this;
     }
 
@@ -1260,7 +1261,7 @@ namespace eular {
         auto solver = std::make_unique<FluidSolver>(_device, _descriptorPool, _gridSize, _colliderDescriptorSet);
         solver->options.advectVField = _advectVField;
         solver->options.project = _project;
-        solver->options.ensureBoundaryCondition = _ensureBoundaryCondition;
+        solver->options.wrappingEnabled = _wrappingEnabled;
         solver->options.poissonIterations = _poissonIterations;
         solver->options.viscosity = _viscosity;
         solver->options.vorticityConfinementScale = _vorticityConfinementScale;

@@ -19,7 +19,7 @@ namespace eular {
             VkDescriptorSet colliderDescriptorSet{};
             VulkanDescriptorSetLayout* colliderDescriptorSetLayout{};
             bool macCormackAdvection{};
-            bool ensureBoundaryCondition{true};
+            bool wrappingEnabled{};
         };
 
         VectorGrid() = default;
@@ -98,7 +98,7 @@ namespace eular {
         glm::vec3 _gridSize{};
         glm::uvec3 _groupCount{1};
         bool _macCormackAdvection{};
-        bool _ensureBoundaryCondition{true};
+        bool _wrappingEnabled{true};
 
         struct {
             float time_sign{1.0f};

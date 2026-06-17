@@ -67,7 +67,7 @@ void main() {
 
             ivec2 neighbour = gid + offset;
 
-            if (outOfBounds(neighbour) || isInsideWall(neighbour)) {
+            if ((!wrappingEnabled && outOfBounds(neighbour)) || isInsideWall(neighbour)) {
                 updateVectorField(gid, vec2(0));
                 return;
             }

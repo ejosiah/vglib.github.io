@@ -17,7 +17,7 @@ namespace eular {
         , _imageType(VK_IMAGE_TYPE_2D)
         , _gridSize(params.gridSize, 1.0f)
         , _macCormackAdvection(params.macCormackAdvection)
-        , _ensureBoundaryCondition(params.ensureBoundaryCondition) {
+        , _wrappingEnabled(params.wrappingEnabled) {
         _groupCount.xy = glm::uvec2(glm::ceil(params.gridSize / 32.0f));
     }
 
@@ -66,9 +66,7 @@ namespace eular {
         _forceField.name = "vector_grid_force";
         _macCormackData.name = "vector_grid_maccormack_intermediate";
 
-        const auto addressMode = _ensureBoundaryCondition
-            ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-            : VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        const auto addressMode = _wrappingEnabled ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
         textures::createNoTransition(*device, _vectorField.u[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
         textures::createNoTransition(*device, _vectorField.u[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
@@ -99,9 +97,8 @@ namespace eular {
     }
 
     void VectorGrid::createSamplers() {
-        const auto addressMode = _ensureBoundaryCondition
-            ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-            : VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        const auto addressMode = _wrappingEnabled ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
 
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
