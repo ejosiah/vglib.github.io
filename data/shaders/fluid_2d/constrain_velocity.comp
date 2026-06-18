@@ -45,37 +45,34 @@ void main() {
     vec2 u = loadVectorField(gid);
 
     uint type = BOUNDARY_TYPE_INVALID;
-    if (sampleBoundary(gid, type) < 0) {
-        if(type == BOUNDARY_TYPE_WALL) {
+    if (sampleBoundary(gid, type).x < 0) {
+        vec2 grad = getGradient(gid);
+        float mag = length(grad);
 
-            vec2 grad = getGradient(gid);
-            float mag = length(grad);
-
-            if(mag <= 1e-6) {
-                updateVectorField(gid, vec2(0));
-                return;
-            }
-
-            vec2 n = -grad / mag;
-
-            ivec2 offset;
-            if (abs(n.x) > abs(n.y)) {
-                offset = ivec2(int(sign(n.x)), 0);
-            } else {
-                offset = ivec2(0, int(sign(n.y)));
-            }
-
-            ivec2 neighbour = gid + offset;
-
-            if ((!wrappingEnabled && outOfBounds(neighbour)) || isInsideWall(neighbour)) {
-                updateVectorField(gid, vec2(0));
-                return;
-            }
-
-            u = loadVectorField(neighbour);
-            u = u - dot(u, n) * n;
+        if(mag <= 1e-6) {
+            updateVectorField(gid, vec2(0));
+            return;
         }
 
+        vec2 n = -grad / mag;
+
+        ivec2 offset;
+        if (abs(n.x) > abs(n.y)) {
+            offset = ivec2(int(sign(n.x)), 0);
+        } else {
+            offset = ivec2(0, int(sign(n.y)));
+        }
+
+        ivec2 neighbour = gid + offset;
+
+        if ((!wrappingEnabled && outOfBounds(neighbour)) || isInsideWall(neighbour)) {
+            updateVectorField(gid, vec2(0));
+            return;
+        }
+
+        vec2 v = sampleColliderVelocity(gid);
+        u = loadVectorField(neighbour);
+        u = (u - v) - dot(u, n) * n;
     }
 
     updateVectorField(gid, u);

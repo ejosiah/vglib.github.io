@@ -7,6 +7,11 @@
 #include <format>
 
 namespace eular {
+
+
+    VulkanDescriptorSetLayout Collider::inputDescriptorSetLayout;
+    VulkanDescriptorSetLayout Collider::outputDescriptorSetLayout;
+    bool Collider::initialized = false;
     
     FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize)
         : ComputePipelines(device)
@@ -173,20 +178,36 @@ namespace eular {
             .createLayout();
 
         _colliderSamplers.fill(_valueSampler.handle);
-        _sourceColliderDescriptorSetLayout =
-            device->descriptorSetLayoutBuilder()
-                .name("fluid_solver_source_collider_textures")
-                .binding(0)
-                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(maxColliderFields)
-                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
-                    .immutableSamplers(_colliderSamplers.data())
-                .binding(1)
-                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(maxColliderFields)
-                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT)
-                    .immutableSamplers(_colliderSamplers.data())
-            .createLayout();
+
+        if (!Collider::initialized) {
+            Collider::outputDescriptorSetLayout =
+                device->descriptorSetLayoutBuilder()
+                    .name("fluid_solver_source_collider_output_textures")
+                    .binding(0)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                        .descriptorCount(maxColliderFields)
+                        .shaderStages(VK_SHADER_STAGE_ALL)
+                        .immutableSamplers(_colliderSamplers.data())
+                    .binding(1)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                        .descriptorCount(maxColliderFields)
+                        .shaderStages(VK_SHADER_STAGE_ALL)
+                        .immutableSamplers(_colliderSamplers.data())
+                .createLayout();
+            
+            Collider::inputDescriptorSetLayout =
+                device->descriptorSetLayoutBuilder()
+                    .name("fluid_solver_source_collider_input_textures")
+                    .binding(0)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_ALL)
+                    .binding(1)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                        .descriptorCount(1)
+                        .shaderStages(VK_SHADER_STAGE_ALL)
+                .createLayout();
+        }
 
         createDefaultColliderFields();
 
@@ -247,7 +268,7 @@ namespace eular {
 
         const auto sourceColliderSetOffset = layouts.size();
         if(hasActiveColliders()) {
-            layouts.push_back(_sourceColliderDescriptorSetLayout);
+            layouts.push_back(Collider::outputDescriptorSetLayout);
         }
 
         const auto meanDriftSetOffset = layouts.size();
@@ -335,7 +356,7 @@ namespace eular {
 
         writes.resize(writeOffset);
         device->updateDescriptorSets(writes);
-        if(hasActiveColliders() && _sourceColliderDescriptorSetLayout.handle != VK_NULL_HANDLE) {
+        if(hasActiveColliders() && Collider::outputDescriptorSetLayout.handle != VK_NULL_HANDLE) {
             updateSourceColliderDescriptorSet();
         }
 
@@ -429,7 +450,7 @@ namespace eular {
             return;
         }
 
-        _sourceColliderDescriptorSet = _descriptorPool->allocate({_sourceColliderDescriptorSetLayout}).front();
+        _sourceColliderDescriptorSet = _descriptorPool->allocate({Collider::outputDescriptorSetLayout}).front();
     }
 
     void FluidSolver::ensureZeroColliderVelocityTexture() {
@@ -523,7 +544,7 @@ namespace eular {
         }
     }
 
-    
+
     void FluidSolver::prepTextures() {
         device->firstActiveCommandPool().oneTimeCommand([&](auto commandBuffer) {
             std::vector<VkImageMemoryBarrier2> barriers;
@@ -586,7 +607,7 @@ namespace eular {
                                    VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT);
         });
     }
-    
+
     std::vector<PipelineMetaData> FluidSolver::pipelineMetaData() {
         return {
                 {
@@ -602,7 +623,7 @@ namespace eular {
                     .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\update_collider_with_sources.comp.spv)",
                     .layouts = {
                         &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                        &_sourceColliderDescriptorSetLayout
+                        &Collider::outputDescriptorSetLayout
                     },
                     .ranges = { { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(updateColliderConstants) } }
                 },
@@ -702,7 +723,7 @@ namespace eular {
         addComputeBarrier(commandBuffer, {&_colliderField[in], &_colliderVelocityField[in]});
     }
 
-    
+
     void FluidSolver::velocityStep(VkCommandBuffer commandBuffer) {
         if(!options.advectVField) return;
 
@@ -714,14 +735,14 @@ namespace eular {
         advectVectorField(commandBuffer);
     }
 
-    
+
     void FluidSolver::clearForces(VkCommandBuffer commandBuffer) {
         auto& forceField = _vectorGrid->forceField();
         clear(commandBuffer, forceField[0]);
         clear(commandBuffer, forceField[1]);
     }
 
-    
+
     void FluidSolver::applyForces(VkCommandBuffer commandBuffer) {
         VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, apply_forces);
         applyExternalForces(commandBuffer);
@@ -730,7 +751,7 @@ namespace eular {
         applyBoundaryConditions(commandBuffer);
     }
 
-    
+
     void FluidSolver::clear(VkCommandBuffer commandBuffer, Texture &texture) {
         texture.image.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, DEFAULT_SUB_RANGE
                 , VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT
@@ -1277,7 +1298,7 @@ namespace eular {
         }
 
         _activeColliderCount = static_cast<uint32_t>(_colliders.size());
-        if(hasActiveColliders() && _sourceColliderDescriptorSetLayout.handle != VK_NULL_HANDLE) {
+        if(hasActiveColliders() && Collider::outputDescriptorSetLayout.handle != VK_NULL_HANDLE) {
             updateSourceColliderDescriptorSet();
         }
     }
@@ -1310,6 +1331,7 @@ namespace eular {
             _vectorGrid->divergenceField().descriptorSet[in],
             _vectorGrid->forceField().descriptorSet[in],
             _vorticityField.descriptorSet[in],
+            _colliderField.descriptorSet[in],
         };
 
         for(const auto& quantity : _quantities) {
@@ -1375,11 +1397,14 @@ namespace eular {
         return *this;
     }
 
-    FluidSolver::Builder& FluidSolver::Builder::closedDomain(bool flag) {
-        _closedDomain = flag;
-        if(flag) {
-            _wrappingEnabled = false;
-        }
+    FluidSolver::Builder& FluidSolver::Builder::closedDomain() {
+        _closedDomain = true;
+        _wrappingEnabled = false;
+        return *this;
+    }
+
+    FluidSolver::Builder & FluidSolver::Builder::openDomain() {
+        _closedDomain = false;
         return *this;
     }
 

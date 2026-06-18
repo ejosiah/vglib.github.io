@@ -17,6 +17,8 @@
 #include <optional>
 #include <span>
 
+#include "Collider.hpp"
+
 class FieldVisualizer;
 
 namespace eular {
@@ -75,11 +77,6 @@ namespace eular {
         Texture& colliderVelocityTexture();
 
         const Texture& colliderVelocityTexture() const;
-
-        struct Collider {
-            VkDescriptorSet field{VK_NULL_HANDLE};
-            VkDescriptorSet velocity{VK_NULL_HANDLE};
-        };
 
         void setColliders(std::span<const Collider> colliders);
 
@@ -215,7 +212,6 @@ namespace eular {
 
         VulkanDescriptorSetLayout _fieldDescriptorSetLayout;
         VulkanDescriptorSetLayout _colliderDescriptorSetLayout;
-        VulkanDescriptorSetLayout _sourceColliderDescriptorSetLayout;
         VulkanDescriptorSetLayout _debugDescriptorSetLayout;
         VkDescriptorSet _colliderDescriptorSet{};
         VkDescriptorSet _sourceColliderDescriptorSet{};
@@ -246,17 +242,17 @@ namespace eular {
         } globalConstants;
 
         struct {
-            bool advectVField = true;
-            bool macCormackAdvection = false;
-            bool project = true;
-            bool wrappingEnabled = true;
-            bool closedDomain = false;
             uint32_t openBoundaryEdges = 0;
             int poissonIterations = 30;
             float viscosity = 0;
             float vorticityConfinementScale{0};
             float density{1};
             float timeStep{1.0f / 120.f};
+            bool advectVField = true;
+            bool macCormackAdvection = false;
+            bool project = true;
+            bool wrappingEnabled = true;
+            bool closedDomain = false;
         } options;
 
         struct {
@@ -351,7 +347,9 @@ namespace eular {
 
         Builder& gridSize(glm::vec2 size);
 
-        Builder& closedDomain(bool flag);
+        Builder& closedDomain();
+
+        Builder& openDomain();
 
         Builder& openBoundaryEdges(uint32_t flags);
 

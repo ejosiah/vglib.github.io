@@ -111,7 +111,7 @@ uint sampleColliderType(ivec2 coord) {
 
 bool isInsideWall(ivec2 coord) {
     uint type = BOUNDARY_TYPE_INVALID;
-    return sampleBoundary(coord, type) < 0 && type == BOUNDARY_TYPE_WALL;
+    return sampleBoundary(coord, type) < 0;
 }
 
 vec2 sampleColliderVelocity(vec2 uv) {
