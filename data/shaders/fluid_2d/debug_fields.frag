@@ -13,16 +13,26 @@ layout(set = 9, binding = 0) uniform sampler2D field9;
 layout(set = 10, binding = 0) uniform sampler2D field10;
 layout(set = 11, binding = 0) uniform sampler2D field11;
 
+layout(set = 12, binding = 0) buffer MinMax {
+    float data;
+} min_max[2];
+
 layout(push_constant) uniform Constants {
     uint fieldCount;
     uint columns;
     uint rows;
+    uint closedDomain;
+    uint openBoundaryEdges;
 };
 
 layout(location = 0) in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 
 const float PI = 3.14159265358979323846;
+const uint BOUNDARY_EDGE_LEFT = 1u << 0u;
+const uint BOUNDARY_EDGE_RIGHT = 1u << 1u;
+const uint BOUNDARY_EDGE_BOTTOM = 1u << 2u;
+const uint BOUNDARY_EDGE_TOP = 1u << 3u;
 
 vec4 sampleField(uint index, vec2 uv) {
     switch(index) {
@@ -57,6 +67,32 @@ vec3 signedColor(float value) {
         : mix(neutral, hot, (t - 0.5) * 2.0);
 }
 
+vec3 tenMinutePhysicsColor(float t) {
+    t = clamp(t, 0.0, 0.999999);
+
+    float band = floor(4.0 * t);
+    float localT = fract(4.0 * t);
+
+    if(band < 1.0) {
+        return vec3(0.0, localT, 1.0);
+    }
+    if(band < 2.0) {
+        return vec3(0.0, 1.0, 1.0 - localT);
+    }
+    if(band < 3.0) {
+        return vec3(localT, 1.0, 0.0);
+    }
+    return vec3(1.0, 1.0 - localT, 0.0);
+}
+
+vec3 pressureColor(float pressure) {
+    float minPressure = min_max[0].data;
+    float maxPressure = min_max[1].data;
+    float pressureScale = max(abs(minPressure), abs(maxPressure));
+    float t = pressureScale > 1e-6 ? 0.5 + 0.5 * pressure / pressureScale : 0.5;
+    return tenMinutePhysicsColor(t);
+}
+
 vec3 vectorColor(vec2 value) {
     float m = length(value);
     if(m < 1e-7) {
@@ -74,16 +110,45 @@ vec3 quantityColor(vec4 value) {
     return mix(vec3(0.04), signedChannels, max(intensity, 0.25));
 }
 
-vec3 fieldColor(uint index, vec4 value) {
+bool isEdgeClosed(uint edge) {
+    return (openBoundaryEdges & edge) == 0u;
+}
+
+bool onClosedDomainBoundary(vec2 uv) {
+    if(closedDomain == 0u) return false;
+
+    ivec2 size = textureSize(field6, 0);
+    ivec2 coord = clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - ivec2(1));
+
+    return (coord.x == 0 && isEdgeClosed(BOUNDARY_EDGE_LEFT)) ||
+           (coord.x == size.x - 1 && isEdgeClosed(BOUNDARY_EDGE_RIGHT)) ||
+           (coord.y == 0 && isEdgeClosed(BOUNDARY_EDGE_BOTTOM)) ||
+           (coord.y == size.y - 1 && isEdgeClosed(BOUNDARY_EDGE_TOP));
+}
+
+vec3 boundaryColor(vec4 value, vec2 uv) {
+    float boundary = max(1.0 - smoothstep(0.45, 0.55, value.x), onClosedDomainBoundary(uv) ? 1.0 : 0.0);
+    return mix(vec3(0.035), vec3(1.0, 0.03, 0.02), boundary);
+}
+
+vec3 fieldColor(uint index, vec4 value, vec2 uv) {
     if(bad(value)) {
         return vec3(1.0, 0.0, 1.0);
     }
 
-    if(index == 4 || index == 6 || index + 1 == fieldCount) {
+    if(index == 2) {
+        return pressureColor(value.x);
+    }
+
+    if(index == 4 || index + 1 == fieldCount) {
         return vectorColor(value.xy);
     }
 
-    if(index >= 7) {
+    if(index == 6) {
+        return boundaryColor(value, uv);
+    }
+
+    if(index >= 8) {
         return quantityColor(value);
     }
 
@@ -92,17 +157,18 @@ vec3 fieldColor(uint index, vec4 value) {
 
 void main() {
     vec2 grid = vec2(max(columns, 1), max(rows, 1));
-    ivec2 tile = ivec2(clamp(floor(vUv * grid), vec2(0), grid - 1.0));
+    vec2 layoutUv = vec2(vUv.x, 1.0 - vUv.y);
+    ivec2 tile = ivec2(clamp(floor(layoutUv * grid), vec2(0), grid - 1.0));
     uint index = uint(tile.y) * columns + uint(tile.x);
 
-    vec2 tileUv = fract(vUv * grid);
+    vec2 tileUv = fract(layoutUv * grid);
     if(index >= fieldCount) {
         fragColor = vec4(0.01, 0.01, 0.01, 1.0);
         return;
     }
 
-    vec4 value = sampleField(index, tileUv);
-    vec3 color = fieldColor(index, value);
+    vec4 value = sampleField(index, vec2(tileUv.x, 1.0 - tileUv.y));
+    vec3 color = fieldColor(index, value, vec2(tileUv.x, 1.0 - tileUv.y));
 
     vec2 edge = min(tileUv, 1.0 - tileUv);
     if(edge.x < 0.01 || edge.y < 0.01) {

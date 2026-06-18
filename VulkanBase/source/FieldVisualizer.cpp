@@ -5,7 +5,11 @@
 #include "GraphicsPipelineBuilder.hpp"
 #include "Vertex.h"
 #include "glsl_shaders.hpp"
+#include "imgui.h"
+#include "xforms.h"
 
+#include <algorithm>
+#include <array>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -35,6 +39,7 @@ FieldVisualizer::FieldVisualizer(VulkanDevice *device, VulkanDescriptorPool* des
 {}
 
 void FieldVisualizer::init() {
+    updateProjection();
     createBuffers();
     initPrefixSum();
     createDescriptorSets();
@@ -50,7 +55,10 @@ void FieldVisualizer::createBuffers() {
     auto usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     _streamLines.buffer = device->createDeviceLocalBuffer(allocation.data(), BYTE_SIZE(allocation), usage);
 
-    Uniforms uniforms{ .gridSize = _gridSize };
+    Uniforms uniforms{};
+    uniforms.gridSize = _gridSize;
+    uniforms.domainMin = _domainMin;
+    uniforms.domainSize = domainSize();
     usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     _streamLines.uniformBuffer = device->createCpuVisibleBuffer(&uniforms, sizeof(uniforms), usage);
     _streamLines.uniforms = reinterpret_cast<Uniforms*>(_streamLines.uniformBuffer.map());
@@ -69,30 +77,33 @@ void FieldVisualizer::createBuffers() {
     _globals.buffer = device->createCpuVisibleBuffer(&globals, sizeof(globals), usage);
     _globals.data = reinterpret_cast<Globals*>(_globals.buffer.map());
 
-    auto quad = ClipSpace::Quad::positions;
+    auto quad = domainQuadVertices();
     _screenQuad.vertices = device->createDeviceLocalBuffer(quad.data(), BYTE_SIZE(quad), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     createVectorFieldResources();
 }
 
 void FieldVisualizer::createVectorFieldResources() {
-    constexpr int interval = 30;
+    constexpr int interval = 5;
+    const auto span = domainSize();
+    const auto arrowScale = glm::min(span.x, span.y);
     const std::array<glm::vec2, 3> triangle{
-        glm::vec2{0.0f, 0.2f},
-        glm::vec2{1.0f, 0.0f},
-        glm::vec2{0.0f, -0.2f},
+        arrowScale * glm::vec2{0.0f, 0.2f},
+        arrowScale * glm::vec2{1.0f, 0.0f},
+        arrowScale * glm::vec2{0.0f, -0.2f},
     };
 
     std::vector<VectorArrow> arrows;
     for(auto y = interval / 2; y < _gridSize.y; y += interval) {
         for(auto x = interval / 2; x < _gridSize.x; x += interval) {
-            const glm::vec2 position{
-                2.0f * (float(x) / float(_gridSize.x)) - 1.0f,
-                2.0f * (float(y) / float(_gridSize.y)) - 1.0f
+            const glm::vec2 uv{
+                float(x) / float(_gridSize.x),
+                float(y) / float(_gridSize.y)
             };
+            const auto position = _domainMin + uv * span;
 
             for(const auto& vertex : triangle) {
-                arrows.push_back(VectorArrow{vertex, position});
+                arrows.push_back(VectorArrow{vertex, position, uv});
             }
         }
     }
@@ -129,6 +140,38 @@ void FieldVisualizer::createVectorFieldResources() {
 
 void FieldVisualizer::set(eular::FluidSolver* solver) {
     _solver = solver;
+}
+
+void FieldVisualizer::setDomain(const glm::vec2& max) {
+    setDomain(glm::vec2{0.0f}, max);
+}
+
+void FieldVisualizer::setDomain(const glm::vec2& min, const glm::vec2& max) {
+    _domainMin = min;
+    _domainMax = max;
+    updateProjection();
+
+    if(_streamLines.uniforms) {
+        _streamLines.uniforms->domainMin = _domainMin;
+        _streamLines.uniforms->domainSize = domainSize();
+    }
+}
+
+void FieldVisualizer::updateProjection() {
+    _projection = vkn::ortho(_domainMin.x, _domainMax.x, _domainMin.y, _domainMax.y);
+}
+
+glm::vec2 FieldVisualizer::domainSize() const {
+    return _domainMax - _domainMin;
+}
+
+std::array<glm::vec2, 8> FieldVisualizer::domainQuadVertices() const {
+    return {
+        glm::vec2{_domainMin.x, _domainMin.y}, glm::vec2{0.0f, 0.0f},
+        glm::vec2{_domainMin.x, _domainMax.y}, glm::vec2{0.0f, 1.0f},
+        glm::vec2{_domainMax.x, _domainMin.y}, glm::vec2{1.0f, 0.0f},
+        glm::vec2{_domainMax.x, _domainMax.y}, glm::vec2{1.0f, 1.0f},
+    };
 }
 
 void FieldVisualizer::setStreamLineColor(const glm::vec3 &streamColor) {
@@ -181,6 +224,8 @@ void FieldVisualizer::renderStreamLines(VkCommandBuffer commandBuffer) {
 
     VkDeviceSize offset = 0;
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _streamLines.pipeline.handle);
+    vkCmdPushConstants(commandBuffer, _streamLines.layout.handle, VK_SHADER_STAGE_VERTEX_BIT,
+                       0, sizeof(_projection), &_projection);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _streamLines.layout.handle, 0, COUNT(sets), sets.data(), 0, 0);
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_streamLines.buffer.buffer, &offset);
     vkCmdDraw(commandBuffer, _streamLines.uniforms->next_vertex, 1, 0, 0);
@@ -196,8 +241,8 @@ void FieldVisualizer::renderPressure(VkCommandBuffer commandBuffer) {
 
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, _screenQuad.vertices, &offset);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pressure.pipeline.handle);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pressure.layout.handle
-            , 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+    vkCmdPushConstants(commandBuffer, _pressure.layout.handle, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(_projection), &_projection);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pressure.layout.handle, 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 }
 
@@ -208,6 +253,8 @@ void FieldVisualizer::renderVectorField(VkCommandBuffer commandBuffer) {
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_vectorField.vertices.buffer, &offset);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vectorField.pipeline.handle);
+    vkCmdPushConstants(commandBuffer, _vectorField.layout.handle, VK_SHADER_STAGE_VERTEX_BIT,
+                       0, sizeof(_projection), &_projection);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vectorField.layout.handle,
                             0, 1, &_vectorField.descriptorSet, 0, VK_NULL_HANDLE);
 
@@ -217,6 +264,7 @@ void FieldVisualizer::renderVectorField(VkCommandBuffer commandBuffer) {
 void FieldVisualizer::renderBoundary(VkCommandBuffer commandBuffer, glm::vec4 color, bool showColliders) {
     if(!_solver) return;
 
+    _boundary.constants.transform = _projection;
     _boundary.constants.color = color;
     _boundary.constants.closedDomain = static_cast<uint32_t>(_solver->options.closedDomain);
     _boundary.constants.openBoundaryEdges = _solver->options.openBoundaryEdges;
@@ -227,7 +275,7 @@ void FieldVisualizer::renderBoundary(VkCommandBuffer commandBuffer, glm::vec4 co
 
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, _screenQuad.vertices, &offset);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _boundary.pipeline.handle);
-    vkCmdPushConstants(commandBuffer, _boundary.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT,
+    vkCmdPushConstants(commandBuffer, _boundary.layout.handle, VK_SHADER_STAGE_ALL,
                        0, sizeof(_boundary.constants), &_boundary.constants);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _boundary.layout.handle,
                             0, 1, &set, 0, VK_NULL_HANDLE);
@@ -235,6 +283,8 @@ void FieldVisualizer::renderBoundary(VkCommandBuffer commandBuffer, glm::vec4 co
 }
 
 void FieldVisualizer::renderDebugFields(VkCommandBuffer commandBuffer) {
+    if(!_solver) return;
+
     auto debugSets = _solver->debugFieldDescriptorSets();
 
     std::array<VkDescriptorSet, MaxDebugFields> sets{};
@@ -246,10 +296,16 @@ void FieldVisualizer::renderDebugFields(VkCommandBuffer commandBuffer) {
 
     sets[fieldCount++] = _debugFields.combinedVectorDescriptorSet;
     _debugFields.constants.fieldCount = fieldCount;
+    _debugFields.constants.closedDomain = static_cast<uint32_t>(_solver->options.closedDomain);
+    _debugFields.constants.openBoundaryEdges = _solver->options.openBoundaryEdges;
 
     for(auto i = fieldCount; i < MaxDebugFields; ++i) {
         sets[i] = _debugFields.combinedVectorDescriptorSet;
     }
+
+    std::array<VkDescriptorSet, MaxDebugFields + 1> boundSets{};
+    std::copy(sets.begin(), sets.end(), boundSets.begin());
+    boundSets[MaxDebugFields] = _pressure.descriptorSet;
 
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, _screenQuad.vertices, &offset);
@@ -257,8 +313,10 @@ void FieldVisualizer::renderDebugFields(VkCommandBuffer commandBuffer) {
     vkCmdPushConstants(commandBuffer, _debugFields.layout.handle, VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(_debugFields.constants), &_debugFields.constants);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _debugFields.layout.handle,
-                            0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
+                            0, COUNT(boundSets), boundSets.data(), 0, VK_NULL_HANDLE);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+
+    drawDebugFieldLabels(fieldCount);
 }
 
 
@@ -427,7 +485,7 @@ void FieldVisualizer::createRenderPipeline() {
                     .extent(_screenResolution.x, _screenResolution.y)
                 .add()
             .rasterizationState()
-                .cullBackFace()
+                .cullNone()
                 .frontFaceCounterClockwise()
                 .polygonModeFill()
             .multisampleState()
@@ -443,6 +501,7 @@ void FieldVisualizer::createRenderPipeline() {
                 .add()
             .layout()
                 .addDescriptorSetLayout(_streamLines.setDescriptorSet)
+                .addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(_projection))
             .renderPass(*_renderPass)
             .subpass(0)
             .name("stream_lines")
@@ -451,7 +510,7 @@ void FieldVisualizer::createRenderPipeline() {
     _pressure.pipeline =
         device->graphicsPipelineBuilder()
             .shaderStage()
-                .vertexShader(data_shaders_quad_vert)
+                .vertexShader(data_shaders_fluid_2d_visualizer_vert)
                 .fragmentShader(data_shaders_fluid_2d_pressure_render_frag)
             .vertexInputState()
                 .addVertexBindingDescriptions(ClipSpace::bindingDescription())
@@ -469,7 +528,7 @@ void FieldVisualizer::createRenderPipeline() {
                     .extent(_screenResolution.x, _screenResolution.y)
                 .add()
             .rasterizationState()
-                .cullBackFace()
+                .cullNone()
                 .frontFaceCounterClockwise()
                 .polygonModeFill()
             .multisampleState()
@@ -483,9 +542,10 @@ void FieldVisualizer::createRenderPipeline() {
             .colorBlendState()
                 .attachment()
                 .add()
-            .layout()
+            .layout().clear()
                 .addDescriptorSetLayout(_fieldSetLayout)
                 .addDescriptorSetLayout(_pressure.setDescriptorSet)
+                .addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(_projection))
             .renderPass(*_renderPass)
             .subpass(0)
             .name("pressure_field")
@@ -500,6 +560,7 @@ void FieldVisualizer::createRenderPipeline() {
                 .addVertexBindingDescription(0, sizeof(VectorArrow), VK_VERTEX_INPUT_RATE_VERTEX)
                 .addVertexAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(VectorArrow, vertex))
                 .addVertexAttributeDescription(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(VectorArrow, position))
+                .addVertexAttributeDescription(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(VectorArrow, uv))
             .inputAssemblyState()
                 .triangles()
             .viewportState()
@@ -513,7 +574,7 @@ void FieldVisualizer::createRenderPipeline() {
                     .extent(_screenResolution.x, _screenResolution.y)
                 .add()
             .rasterizationState()
-                .cullBackFace()
+                .cullNone()
                 .frontFaceCounterClockwise()
                 .polygonModeFill()
             .multisampleState()
@@ -529,6 +590,7 @@ void FieldVisualizer::createRenderPipeline() {
                 .add()
             .layout()
                 .addDescriptorSetLayout(_vectorField.setDescriptorSet)
+                .addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(_projection))
             .renderPass(*_renderPass)
             .subpass(0)
             .name("visualizer_vector_field")
@@ -556,7 +618,7 @@ void FieldVisualizer::createRenderPipeline() {
                     .extent(_screenResolution.x, _screenResolution.y)
                 .add()
             .rasterizationState()
-                .cullBackFace()
+                .cullNone()
                 .frontFaceCounterClockwise()
                 .polygonModeFill()
             .multisampleState()
@@ -572,6 +634,7 @@ void FieldVisualizer::createRenderPipeline() {
                 .add()
             .layout()
                 .addDescriptorSetLayouts(debugLayouts)
+                .addDescriptorSetLayout(_pressure.setDescriptorSet)
                 .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(_debugFields.constants))
             .renderPass(*_renderPass)
             .subpass(0)
@@ -581,8 +644,8 @@ void FieldVisualizer::createRenderPipeline() {
     _boundary.pipeline =
         device->graphicsPipelineBuilder()
             .shaderStage()
-                .vertexShader(data_shaders_quad_vert)
-                .fragmentShader(std::string{R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\boundary_render.frag.spv)"})
+                .vertexShader(data_shaders_fluid_2d_visualizer_vert)
+                .fragmentShader(data_shaders_fluid_2d_boundary_render_frag)
             .vertexInputState()
                 .addVertexBindingDescriptions(ClipSpace::bindingDescription())
                 .addVertexAttributeDescriptions(ClipSpace::attributeDescriptions())
@@ -599,7 +662,7 @@ void FieldVisualizer::createRenderPipeline() {
                     .extent(_screenResolution.x, _screenResolution.y)
                 .add()
             .rasterizationState()
-                .cullBackFace()
+                .cullFrontFace()
                 .frontFaceCounterClockwise()
                 .polygonModeFill()
             .multisampleState()
@@ -618,7 +681,7 @@ void FieldVisualizer::createRenderPipeline() {
                     .add()
             .layout()
                 .addDescriptorSetLayout(_fieldSetLayout)
-                .addPushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(_boundary.constants))
+                .addPushConstantRange(VK_SHADER_STAGE_ALL, 0, sizeof(_boundary.constants))
             .renderPass(*_renderPass)
             .subpass(0)
             .name("fluid_boundary_overlay")
@@ -774,6 +837,114 @@ void FieldVisualizer::writeScalarGrid(std::ostream& out, const float* values) co
         }
         out << "\n";
     }
+}
+
+std::vector<std::string> FieldVisualizer::debugFieldLabels(uint32_t fieldCount) const {
+    std::vector<std::string> labels{
+        "Velocity U",
+        "Velocity V",
+        "Pressure",
+        "Divergence",
+        "Force",
+        "Vorticity",
+        "Boundary",
+    };
+
+    auto quantityIndex = 1u;
+    for(const auto& quantityRef : _solver->_quantities) {
+        if(labels.size() + 1 >= MaxDebugFields) break;
+
+        const auto& quantity = quantityRef.get();
+        const auto quantityName = quantity.name.empty()
+            ? std::string{"Quantity "} + std::to_string(quantityIndex)
+            : quantity.name;
+
+        labels.push_back(quantityName);
+        ++quantityIndex;
+
+        if(labels.size() + 1 >= MaxDebugFields) break;
+        labels.push_back(quantityName + " Source");
+    }
+
+    if(labels.size() < fieldCount) {
+        labels.push_back("Velocity");
+    }
+
+    while(labels.size() < fieldCount) {
+        labels.push_back("Field " + std::to_string(labels.size()));
+    }
+
+    if(labels.size() > fieldCount) {
+        labels.resize(fieldCount);
+    }
+
+    return labels;
+}
+
+glm::vec4 FieldVisualizer::debugLabelColor(uint32_t index) const {
+    static const std::array<glm::vec4, MaxDebugFields> colors{{
+        {0.05f, 0.95f, 1.00f, 1.0f},
+        {1.00f, 0.82f, 0.12f, 1.0f},
+        {1.00f, 1.00f, 1.00f, 1.0f},
+        {1.00f, 0.35f, 0.95f, 1.0f},
+        {0.55f, 1.00f, 0.10f, 1.0f},
+        {1.00f, 0.45f, 0.08f, 1.0f},
+        {1.00f, 0.12f, 0.10f, 1.0f},
+        {0.35f, 0.65f, 1.00f, 1.0f},
+        {1.00f, 0.25f, 0.35f, 1.0f},
+        {0.62f, 1.00f, 0.75f, 1.0f},
+        {0.95f, 0.70f, 1.00f, 1.0f},
+        {1.00f, 0.95f, 0.45f, 1.0f},
+    }};
+
+    return colors[index % colors.size()];
+}
+
+void FieldVisualizer::drawDebugFieldLabels(uint32_t fieldCount) const {
+    if(fieldCount == 0 || ImGui::GetCurrentContext() == nullptr) return;
+
+    const auto labels = debugFieldLabels(fieldCount);
+    const auto columns = std::max(_debugFields.constants.columns, 1u);
+    const auto rows = std::max(_debugFields.constants.rows, 1u);
+    const auto tileWidth = static_cast<float>(_screenResolution.x) / static_cast<float>(columns);
+    const auto tileHeight = static_cast<float>(_screenResolution.y) / static_cast<float>(rows);
+
+    constexpr ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMouseInputs |
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoBackground |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::SetNextWindowPos({0.0f, 0.0f}, ImGuiCond_Always);
+    ImGui::SetNextWindowSize({static_cast<float>(_screenResolution.x), static_cast<float>(_screenResolution.y)}, ImGuiCond_Always);
+
+    if(ImGui::Begin("Fluid Debug Field Labels", nullptr, flags)) {
+        auto* drawList = ImGui::GetWindowDrawList();
+        const auto origin = ImGui::GetWindowPos();
+        const auto shadowColor = ImGui::ColorConvertFloat4ToU32(ImVec4{0.0f, 0.0f, 0.0f, 0.85f});
+        const auto backingColor = ImGui::ColorConvertFloat4ToU32(ImVec4{0.0f, 0.0f, 0.0f, 0.58f});
+
+        for(auto i = 0u; i < fieldCount && i < labels.size(); ++i) {
+            const auto column = i % columns;
+            const auto row = i / columns;
+            const ImVec2 position{
+                origin.x + static_cast<float>(column) * tileWidth + 10.0f,
+                origin.y + static_cast<float>(row) * tileHeight + 8.0f
+            };
+
+            const auto textSize = ImGui::CalcTextSize(labels[i].c_str());
+            const ImVec2 min{position.x - 5.0f, position.y - 3.0f};
+            const ImVec2 max{position.x + textSize.x + 5.0f, position.y + textSize.y + 3.0f};
+            drawList->AddRectFilled(min, max, backingColor, 3.0f);
+            drawList->AddText({position.x + 1.0f, position.y + 1.0f}, shadowColor, labels[i].c_str());
+
+            const auto color = debugLabelColor(i);
+            drawList->AddText(position, ImGui::ColorConvertFloat4ToU32(ImVec4{color.r, color.g, color.b, color.a}), labels[i].c_str());
+        }
+    }
+    ImGui::End();
 }
 
 void FieldVisualizer::initPrefixSum() {

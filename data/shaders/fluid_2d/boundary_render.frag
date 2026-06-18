@@ -5,6 +5,7 @@
 layout(set = 0, binding = 0) uniform sampler2D colliderField;
 
 layout(push_constant, scalar) uniform Constants {
+    mat4 transform;
     vec4 color;
     uint closedDomain;
     uint openBoundaryEdges;

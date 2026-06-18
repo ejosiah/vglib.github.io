@@ -9,7 +9,7 @@ layout(set = 1, binding = 0) buffer MinMax {
 layout(location = 0) in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 
-vec3 tenMinutePhysicsColor(float t) {
+vec3 heatMap(float t) {
     t = clamp(t, 0.0, 0.999999);
 
     float band = floor(4.0 * t);
@@ -28,11 +28,12 @@ vec3 tenMinutePhysicsColor(float t) {
 }
 
 void main() {
-    float pressure = texture(pressure_field, vUv).x;
+    vec2 uv = vUv;
+    float pressure = texture(pressure_field, uv).x;
     float minPressure = min_max[0].data;
     float maxPressure = min_max[1].data;
     float pressureScale = max(abs(minPressure), abs(maxPressure));
     float t = pressureScale > 1e-6 ? 0.5 + 0.5 * pressure / pressureScale : 0.5;
 
-    fragColor = vec4(tenMinutePhysicsColor(t), 1.0);
+    fragColor = vec4(heatMap(t), 1.0);
 }

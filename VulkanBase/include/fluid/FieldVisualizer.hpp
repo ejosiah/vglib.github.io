@@ -5,7 +5,10 @@
 #include "filemanager.hpp"
 #include "PrefixSum.hpp"
 
+#include <array>
 #include <iosfwd>
+#include <string>
+#include <vector>
 
 class FieldVisualizer : ComputePipelines {
 public:
@@ -18,6 +21,10 @@ public:
     void init();
 
     void set(eular::FluidSolver* solver);
+
+    void setDomain(const glm::vec2& max);
+
+    void setDomain(const glm::vec2& min, const glm::vec2& max);
 
     void setStreamLineColor(const glm::vec3& streamColor);
 
@@ -53,6 +60,12 @@ private:
 
     void createRenderPipeline();
 
+    void updateProjection();
+
+    glm::vec2 domainSize() const;
+
+    std::array<glm::vec2, 8> domainQuadVertices() const;
+
     void combineVectorFields(VkCommandBuffer commandBuffer);
 
     void computeMinMaxPressure(VkCommandBuffer commandBuffer);
@@ -71,6 +84,12 @@ private:
 
     void writeScalarGrid(std::ostream& out, const float* values) const;
 
+    std::vector<std::string> debugFieldLabels(uint32_t fieldCount) const;
+
+    glm::vec4 debugLabelColor(uint32_t index) const;
+
+    void drawDebugFieldLabels(uint32_t fieldCount) const;
+
 private:
     VulkanDescriptorPool* _descriptorPool{};
     VulkanRenderPass* _renderPass{};
@@ -78,6 +97,9 @@ private:
     eular::FluidSolver* _solver{};
     glm::ivec2 _gridSize{};
     glm::uvec2 _screenResolution{};
+    glm::vec2 _domainMin{0.0f};
+    glm::vec2 _domainMax{1.0f};
+    glm::mat4 _projection{1};
     glm::vec3 _streamColor{1};
     static constexpr uint32_t MaxDebugFields = 12;
 
@@ -104,6 +126,8 @@ private:
         float step_size{0.25};
         uint next_vertex{0};
         uint offset{5};
+        glm::vec2 domainMin{0.0f};
+        glm::vec2 domainSize{1.0f};
     };
 
     struct {
@@ -130,6 +154,7 @@ private:
     struct VectorArrow {
         glm::vec2 vertex;
         glm::vec2 position;
+        glm::vec2 uv;
     };
 
     struct {
@@ -150,6 +175,8 @@ private:
             uint32_t fieldCount{};
             uint32_t columns{4};
             uint32_t rows{3};
+            uint32_t closedDomain{};
+            uint32_t openBoundaryEdges{};
         } constants;
     } _debugFields;
 
@@ -157,6 +184,7 @@ private:
         VulkanPipeline pipeline;
         VulkanPipelineLayout layout;
         struct {
+            glm::mat4 transform{1};
             glm::vec4 color{1.0f, 0.0f, 0.0f, 0.85f};
             uint32_t closedDomain{};
             uint32_t openBoundaryEdges{};

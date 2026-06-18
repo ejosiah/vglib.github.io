@@ -14,6 +14,8 @@ layout(set = 0, binding = 1, scalar) buffer Constants {
     float step_size;
     uint next_vertex;
     uint offset;
+    vec2 domain_min;
+    vec2 domain_size;
 };
 
 layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
@@ -30,6 +32,10 @@ vec2 loadVectorField(vec2 uv) {
 
 ivec2 gid = ivec2(gl_GlobalInvocationID * offset);
 vec2 uv = (vec2(gid) + 0.5)/grid_size.xy;
+
+vec2 domainPosition(vec2 fieldUv) {
+    return domain_min + fieldUv * domain_size;
+}
 
 void main () {
     if(gid.x >= grid_size.x || gid.y >= grid_size.y) return;
@@ -50,10 +56,9 @@ void main () {
 
     vec2 x2 = x1 + u * step_size;
 
-    vec2 gs = vec2(grid_size);
-    lines[atomicAdd(next_vertex, 1)] = 2 * x0 - 1;
-    lines[atomicAdd(next_vertex, 1)] = 2 * x1 - 1;
-    lines[atomicAdd(next_vertex, 1)] = 2 * x1 - 1;
-    lines[atomicAdd(next_vertex, 1)] = 2 * x2 - 1;
+    lines[atomicAdd(next_vertex, 1)] = domainPosition(x0);
+    lines[atomicAdd(next_vertex, 1)] = domainPosition(x1);
+    lines[atomicAdd(next_vertex, 1)] = domainPosition(x1);
+    lines[atomicAdd(next_vertex, 1)] = domainPosition(x2);
 
 }
