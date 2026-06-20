@@ -171,6 +171,8 @@ protected:
 
     void recreateSwapChain();
 
+    void waitForInFlightFrames();
+
     virtual void onSwapChainDispose();
 
     virtual void onSwapChainRecreation();
@@ -204,7 +206,7 @@ protected:
 
     virtual void endFrame();
 
-    void waitForNextFrame();
+    bool waitForNextFrame();
 
     /**
      * Renders the current image on the swap chain and then sends it for presentation

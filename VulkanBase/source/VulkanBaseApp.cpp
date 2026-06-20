@@ -306,10 +306,8 @@ void VulkanBaseApp::mainLoop() {
         fullscreenCheck();
 
         if(swapChainInvalidated || swapChain.isOutOfDate()){
-            swapChainInvalidated = false;
-            vkQueueWaitIdle(device.queues.graphics);
-            device.wait();
             recreateSwapChain();
+            continue;
         }
 
         checkSystemInputs();
@@ -317,8 +315,16 @@ void VulkanBaseApp::mainLoop() {
 
         if(!paused) {
             checkAppInputs();
+            if(swapChainInvalidated || swapChain.isOutOfDate()) {
+                recreateSwapChain();
+                continue;
+            }
+
+            if(!waitForNextFrame()) {
+                recreateSwapChain();
+                continue;
+            }
             notifyPluginsOfNewFrameStart();
-            waitForNextFrame();
             newFrame();
             drawFrame();
             presentFrame();
@@ -481,10 +487,14 @@ void VulkanBaseApp::createSyncObjects() {
     }
 }
 
-void VulkanBaseApp::waitForNextFrame(){
-    if(swapChainInvalidated) return;
+bool VulkanBaseApp::waitForNextFrame(){
     inFlightFences[currentFrame].wait();
     currentImageIndex = swapChain.acquireNextImage(imageAcquired[currentFrame]);
+    if(swapChain.isOutOfDate()) {
+        swapChainInvalidated = true;
+        return false;
+    }
+    return true;
 }
 
 void VulkanBaseApp::drawFrame() {
@@ -614,10 +624,14 @@ void VulkanBaseApp::recreateSwapChain() {
         glfwWaitEvents();
     }while(width == 0 && height == 0);
 
+    waitForInFlightFrames();
     vkDeviceWaitIdle(device);
     cleanupSwapChain();
 
     createSwapChain();
+    swapChainImageCount = swapChain.imageCount();
+    inFlightImages.assign(swapChainImageCount, nullptr);
+    swapChainInvalidated = false;
 
     if(settings.depthTest){
         createDepthBuffer();
@@ -630,6 +644,20 @@ void VulkanBaseApp::recreateSwapChain() {
     prototypes = std::make_unique<Prototypes>( device, swapChain, renderPass);
     notifyPluginsOfSwapChainRecreation();
     onSwapChainRecreation();
+}
+
+void VulkanBaseApp::waitForInFlightFrames() {
+    for(auto& fence : inFlightFences) {
+        fence.wait();
+    }
+
+    if(device.queues.present) {
+        vkQueueWaitIdle(device.queues.present);
+    }
+
+    if(video.decodeEnabled && device.queues.video_decode) {
+        vkQueueWaitIdle(device.queues.video_decode);
+    }
 }
 
 void VulkanBaseApp::update(float time) {
