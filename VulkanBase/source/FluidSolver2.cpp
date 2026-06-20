@@ -56,7 +56,7 @@ namespace eular {
     }
 
     void FluidSolver::createSamplers() {
-        VkSamplerAddressMode addressMode = options.wrappingEnabled == 1 ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        VkSamplerAddressMode addressMode = options.wrappingEnabled ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerInfo.magFilter = VK_FILTER_NEAREST;

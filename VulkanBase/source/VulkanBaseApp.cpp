@@ -597,7 +597,6 @@ void VulkanBaseApp::presentFrame() {
     if(swapChain.isSubOptimal() || swapChain.isOutOfDate() || resized) {
         resized = false;
         swapChainInvalidated = true;
-        return;
     }
 }
 

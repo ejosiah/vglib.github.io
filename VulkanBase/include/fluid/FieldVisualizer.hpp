@@ -20,6 +20,8 @@ public:
 
     void init();
 
+    void releaseDescriptorSets();
+
     void set(eular::FluidSolver* solver);
 
     void setDomain(const glm::vec2& max);
@@ -57,6 +59,8 @@ private:
     void createVectorFieldResources();
     void createDescriptorSets();
     void updateDescriptorSets();
+
+    void releaseDescriptorSet(VkDescriptorSet& descriptorSet);
 
     void createRenderPipeline();
 

@@ -112,7 +112,7 @@ struct VulkanDescriptorPool : RefCounted {
 
     inline void free(const std::vector<VkDescriptorSet>& sets) const {
         vkFreeDescriptorSets(device, pool ,COUNT(sets), sets.data());
-        allocationCount += sets.size();
+        allocationCount -= sets.size();
     }
 
     inline void reset() const {

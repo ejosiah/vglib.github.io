@@ -366,6 +366,23 @@ void FieldVisualizer::createDescriptorSets() {
         .createLayout();
 }
 
+void FieldVisualizer::releaseDescriptorSets() {
+    releaseDescriptorSet(_globals.descriptorSet);
+    releaseDescriptorSet(_streamLines.descriptorSet);
+    releaseDescriptorSet(_pressure.descriptorSet);
+    releaseDescriptorSet(_vectorField.descriptorSet);
+    releaseDescriptorSet(_debugFields.combinedVectorDescriptorSet);
+}
+
+void FieldVisualizer::releaseDescriptorSet(VkDescriptorSet& descriptorSet) {
+    if(!_descriptorPool || descriptorSet == VK_NULL_HANDLE) {
+        return;
+    }
+
+    _descriptorPool->free(descriptorSet);
+    descriptorSet = VK_NULL_HANDLE;
+}
+
 void FieldVisualizer::updateDescriptorSets() {
     auto sets = _descriptorPool->allocate({
         _globals.setDescriptorSet,

@@ -40,10 +40,12 @@ struct VulkanFence{
         return *this;
     }
 
+    [[maybe_unused]]
     VkResult wait(uint64_t timeout = UINT64_MAX) const {
         return vkWaitForFences(device, 1, &fence, VK_TRUE, timeout);
     }
 
+    [[maybe_unused]]
     VkResult reset() const {
         return vkResetFences(device, 1, &fence);
     }
