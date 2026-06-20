@@ -960,7 +960,16 @@ void FieldVisualizer::computeStreamLines(VkCommandBuffer commandBuffer) {
 
     const auto offset = _streamLines.uniforms->offset;
     auto gc = glm::uvec2(_gridSize)/glm::max(1u, offset);
+
+    Barriers::pushAndFlush(commandBuffer,
+                           VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT,
+                           VK_ACCESS_2_SHADER_WRITE_BIT);
+
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("compute_stream_lines"));
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("compute_stream_lines"), 0, COUNT(sets), sets.data(), 0, 0);
     vkCmdDispatch(commandBuffer, gc.x, gc.y, 1);
+
+    Barrier::computeWriteToVertexDraw(commandBuffer, {_streamLines.buffer});
 }

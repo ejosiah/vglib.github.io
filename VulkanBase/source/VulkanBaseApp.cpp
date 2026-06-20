@@ -307,6 +307,8 @@ void VulkanBaseApp::mainLoop() {
 
         if(swapChainInvalidated || swapChain.isOutOfDate()){
             swapChainInvalidated = false;
+            vkQueueWaitIdle(device.queues.graphics);
+            device.wait();
             recreateSwapChain();
         }
 

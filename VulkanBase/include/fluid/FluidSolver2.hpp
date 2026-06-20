@@ -42,6 +42,8 @@ namespace eular {
 
         FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize);
 
+        ~FluidSolver() override;
+
         void runSimulation(VkCommandBuffer commandBuffer);
 
         FluidSolver& density(float rho);
@@ -202,6 +204,12 @@ namespace eular {
         void prepTextures();
 
         static void clear(VkCommandBuffer commandBuffer, Texture& texture);
+
+        void releaseDescriptorSets();
+
+        void releaseDescriptorSet(VkDescriptorSet& descriptorSet);
+
+        void releaseFieldDescriptorSets(Field& field);
 
     private:
         VulkanDescriptorPool* _descriptorPool{};
@@ -375,6 +383,8 @@ namespace eular {
 
         Builder& useGaussSeidelSolver();
 
+        Builder& vectorField(std::span<glm::vec2> field);
+
         std::unique_ptr<FluidSolver> build();
 
     private:
@@ -401,7 +411,8 @@ namespace eular {
         LinearSolverStrategy _linearSolverStrategy{LinearSolverStrategy::RBGS};
 
         std::vector<ExternalForce> _externalForces;
-        std::optional<VectorFieldFunc2D> _generator{[](float, float) { return glm::vec2{0.0f}; }};
+        std::optional<VectorFieldFunc2D> _generator{};
         std::vector<Collider> _colliders;
+        std::vector<glm::vec2> _data;
     };
 }

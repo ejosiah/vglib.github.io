@@ -19,6 +19,7 @@ static PFN_vkGetSemaphoreWin32HandleKHR pfn_vkGetSemaphoreWin32HandleKHR = nullp
 static PFN_vkCmdDrawMeshTasksEXT pfn_vkCmdDrawMeshTasksEXT = nullptr;
 static PFN_vkCmdSetPolygonModeEXT pfn_vkCmdSetPolygonModeEXT = nullptr;
 static PFN_vkCmdSetColorBlendEnableEXT pfn_vkCmdSetColorBlendEnableEXT = nullptr;
+static PFN_vkCmdSetColorBlendEquationEXT pfn_vkCmdSetColorBlendEquationEXT = nullptr;
 static PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR pfn_vkGetPhysicalDeviceVideoCapabilitiesKHR = nullptr;
 static PFN_vkGetPhysicalDeviceVideoFormatPropertiesKHR pfn_vkGetPhysicalDeviceVideoFormatPropertiesKHR = nullptr;
 static PFN_vkCreateVideoSessionKHR pfn_vkCreateVideoSessionKHR = nullptr;
@@ -60,6 +61,7 @@ namespace ext {
         pfn_vkCmdDrawMeshTasksEXT = procAddress<PFN_vkCmdDrawMeshTasksEXT>(instance, "vkCmdDrawMeshTasksEXT");
         pfn_vkCmdSetPolygonModeEXT = procAddress<PFN_vkCmdSetPolygonModeEXT>(instance, "vkCmdSetPolygonModeEXT");
         pfn_vkCmdSetColorBlendEnableEXT = procAddress<PFN_vkCmdSetColorBlendEnableEXT>(instance, "vkCmdSetColorBlendEnableEXT");
+        pfn_vkCmdSetColorBlendEquationEXT = procAddress<PFN_vkCmdSetColorBlendEquationEXT>(instance, "vkCmdSetColorBlendEquationEXT");
         pfn_vkGetPhysicalDeviceVideoCapabilitiesKHR = procAddress<PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR>(instance, "vkGetPhysicalDeviceVideoCapabilitiesKHR");
         pfn_vkGetPhysicalDeviceVideoFormatPropertiesKHR = procAddress<PFN_vkGetPhysicalDeviceVideoFormatPropertiesKHR>(instance, "vkGetPhysicalDeviceVideoFormatPropertiesKHR");
         pfn_vkCreateVideoSessionKHR = procAddress<PFN_vkCreateVideoSessionKHR>(instance, "vkCreateVideoSessionKHR");
@@ -224,6 +226,15 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetColorBlendEnableEXT(
         const VkBool32*                             pColorBlendEnables) {
     assert(pfn_vkCmdSetColorBlendEnableEXT);
     return pfn_vkCmdSetColorBlendEnableEXT(commandBuffer, firstAttachment, attachmentCount, pColorBlendEnables);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdSetColorBlendEquationEXT(
+        VkCommandBuffer                             commandBuffer,
+        uint32_t                                    firstAttachment,
+        uint32_t                                    attachmentCount,
+        const VkColorBlendEquationEXT*              pColorBlendEquations) {
+    assert(pfn_vkCmdSetColorBlendEquationEXT);
+    return pfn_vkCmdSetColorBlendEquationEXT(commandBuffer, firstAttachment, attachmentCount, pColorBlendEquations);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceVideoCapabilitiesKHR(

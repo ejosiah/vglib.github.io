@@ -143,6 +143,11 @@ DynamicStateBuilder &DynamicStateBuilder::colorBlendEnable() {
     return *this;
 }
 
+DynamicStateBuilder &DynamicStateBuilder::colorBlendEquation() {
+    _dynamicStates.push_back(VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT);
+    return *this;
+}
+
 DynamicStateBuilder &DynamicStateBuilder::clear() {
     _dynamicStates.clear();
     return *this;

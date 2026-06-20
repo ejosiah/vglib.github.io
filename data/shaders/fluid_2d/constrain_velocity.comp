@@ -72,7 +72,8 @@ void main() {
 
         vec2 v = sampleColliderVelocity(gid);
         u = loadVectorField(neighbour);
-        u = (u - v) - dot(u, n) * n;
+        vec2 u_rel = (u - v);
+        u = u_rel - dot(u_rel, n) * n;
     }
 
     updateVectorField(gid, u);

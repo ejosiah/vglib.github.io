@@ -21,6 +21,10 @@ namespace eular {
         _groupCount.xy = glm::uvec2(glm::ceil(params.gridSize / 32.0f));
     }
 
+    VectorGrid::~VectorGrid() {
+        releaseDescriptorSets();
+    }
+
     void VectorGrid::init() {
         createSamplers();
         initFields();
@@ -55,6 +59,65 @@ namespace eular {
 
     VulkanDescriptorSetLayout VectorGrid::fieldDescriptorSetLayout() const {
         return Field::descriptorSetLayout;
+    }
+
+    void VectorGrid::fill(std::span<glm::vec2> vectorField) {
+        const auto byteSize = vectorField.size() * sizeof(float);
+        auto stagingBufferU = device->createStagingBuffer(byteSize);
+        auto stagingBufferV = device->createStagingBuffer(byteSize);
+
+        auto uBuffer = map_range(vectorField, [](const auto v){ return v.x; });
+        auto vBuffer = map_range(vectorField, [](const auto v){ return v.y; });
+        stagingBufferU.copy(uBuffer);
+        stagingBufferV.copy(vBuffer);
+
+        device->firstActiveCommandPool().oneTimeCommand([&](auto commandBuffer) {
+            for(auto texture : {&_vectorField.u[0], &_vectorField.v[0]}) {
+                Barriers::push(texture->image, DEFAULT_SUB_RANGE,
+                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                               VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                               VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                               texture->image.currentLayout,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                texture->image.currentLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            }
+            Barriers::flush(commandBuffer);
+
+            const auto gs = glm::uvec2(_gridSize);
+            VkBufferImageCopy region{};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = {gs.x, gs.y, 1};
+
+            vkCmdCopyBufferToImage(commandBuffer, stagingBufferU, _vectorField.u[0].image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            vkCmdCopyBufferToImage(commandBuffer, stagingBufferV, _vectorField.v[0].image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+            for(auto texture : {&_vectorField.u[0], &_vectorField.v[0]}) {
+                Barriers::push(texture->image, DEFAULT_SUB_RANGE,
+                               VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                               VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                               VK_ACCESS_2_SHADER_READ_BIT,
+                               texture->image.currentLayout,
+                               VK_IMAGE_LAYOUT_GENERAL);
+                texture->image.currentLayout = VK_IMAGE_LAYOUT_GENERAL;
+            }
+            Barriers::flush(commandBuffer);
+        });
+    }
+
+    void VectorGrid::fill(glm::vec2 value) {
+        std::vector<glm::vec2> data(to<size_t>(_gridSize.x * _gridSize.y), value);
+        fill(data);
     }
 
     void VectorGrid::initFields() {
@@ -220,6 +283,30 @@ namespace eular {
         ++writeOffset;
 
         return writeOffset;
+    }
+
+    void VectorGrid::releaseDescriptorSets() {
+        releaseDescriptorSet(_linearSamplerDescriptorSet);
+        releaseFieldDescriptorSets(_vectorField.u);
+        releaseFieldDescriptorSets(_vectorField.v);
+        releaseFieldDescriptorSets(_vectorField.w);
+        releaseFieldDescriptorSets(_divergenceField);
+        releaseFieldDescriptorSets(_forceField);
+        releaseFieldDescriptorSets(_macCormackData);
+    }
+
+    void VectorGrid::releaseDescriptorSet(VkDescriptorSet& descriptorSet) {
+        if(!_descriptorPool || descriptorSet == VK_NULL_HANDLE) {
+            return;
+        }
+
+        _descriptorPool->free(descriptorSet);
+        descriptorSet = VK_NULL_HANDLE;
+    }
+
+    void VectorGrid::releaseFieldDescriptorSets(Field& field) {
+        releaseDescriptorSet(field.descriptorSet[0]);
+        releaseDescriptorSet(field.descriptorSet[1]);
     }
 
     void VectorGrid::prepTextures() {

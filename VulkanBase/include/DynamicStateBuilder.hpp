@@ -60,6 +60,8 @@ public:
 
     DynamicStateBuilder& colorBlendEnable();
 
+    DynamicStateBuilder& colorBlendEquation();
+
     DynamicStateBuilder& clear();
 
     VkPipelineDynamicStateCreateInfo& buildPipelineDynamicState();

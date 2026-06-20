@@ -26,7 +26,7 @@ namespace eular {
 
         explicit VectorGrid(const Params& params);
 
-        virtual ~VectorGrid() = default;
+        ~VectorGrid() override;
 
         virtual void init();
 
@@ -59,7 +59,11 @@ namespace eular {
 
         virtual void addForcesToVectorField(VkCommandBuffer commandBuffer) = 0;
 
-        virtual void fill(VectorFieldFunc2D generator) = 0;
+        virtual void generate(VectorFieldFunc2D generator) = 0;
+
+        void fill(std::span<glm::vec2> vectorField);
+
+        void fill(glm::vec2 value);
 
     protected:
         void initFields();
@@ -75,6 +79,12 @@ namespace eular {
         void prepTextures();
 
         void macCormackAdvect(VkCommandBuffer commandBuffer, Field& field, uint32_t boundaryMode = 0);
+
+        void releaseDescriptorSets();
+
+        void releaseDescriptorSet(VkDescriptorSet& descriptorSet);
+
+        void releaseFieldDescriptorSets(Field& field);
 
         VulkanDevice* _device{};
         VulkanDescriptorPool* _descriptorPool{};

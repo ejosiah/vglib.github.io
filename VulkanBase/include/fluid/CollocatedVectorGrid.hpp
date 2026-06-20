@@ -28,7 +28,7 @@ namespace eular {
 
         void addForcesToVectorField(VkCommandBuffer commandBuffer) override;
 
-        void fill(VectorFieldFunc2D generator) override;
+        void generate(VectorFieldFunc2D generator) override;
 
     protected:
         std::vector<PipelineMetaData> pipelineMetaData() override;

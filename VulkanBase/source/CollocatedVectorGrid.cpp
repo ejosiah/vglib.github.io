@@ -203,7 +203,7 @@ namespace eular {
         vf.swap();
     }
 
-    void CollocatedVectorGrid::fill(VectorFieldFunc2D generator) {
+    void CollocatedVectorGrid::generate(VectorFieldFunc2D generator) {
         if(!generator) return;
 
         const auto rows = static_cast<size_t>(_gridSize.y);

@@ -22,6 +22,10 @@ namespace eular {
         _groupCount.xy = glm::uvec2(glm::ceil(gridSize/32.f));
     }
 
+    FluidSolver::~FluidSolver() {
+        releaseDescriptorSets();
+    }
+
     
     void FluidSolver::init() {
         initGlobalConstants();
@@ -518,6 +522,44 @@ namespace eular {
         ++writeOffset;
 
         return writeOffset;
+    }
+
+    void FluidSolver::releaseDescriptorSets() {
+        _vectorGrid.reset();
+
+        releaseDescriptorSet(uniformDescriptorSet);
+        releaseDescriptorSet(_colliderDescriptorSet);
+        releaseDescriptorSet(_sourceColliderDescriptorSet);
+        releaseDescriptorSet(meanDriftDescriptorSet);
+
+        for(auto& linearSystem : _linearSystems) {
+            releaseDescriptorSet(linearSystem.descriptorSet);
+            releaseDescriptorSet(linearSystem.rhsDescriptorSet);
+        }
+
+        releaseFieldDescriptorSets(_pressureField);
+        releaseFieldDescriptorSets(_vorticityField);
+        releaseFieldDescriptorSets(_colliderField);
+        releaseFieldDescriptorSets(_colliderVelocityField);
+
+        for(auto& quantity : _quantities) {
+            releaseFieldDescriptorSets(quantity.get().field);
+            releaseFieldDescriptorSets(quantity.get().source);
+        }
+    }
+
+    void FluidSolver::releaseDescriptorSet(VkDescriptorSet& descriptorSet) {
+        if(!_descriptorPool || descriptorSet == VK_NULL_HANDLE) {
+            return;
+        }
+
+        _descriptorPool->free(descriptorSet);
+        descriptorSet = VK_NULL_HANDLE;
+    }
+
+    void FluidSolver::releaseFieldDescriptorSets(Field& field) {
+        releaseDescriptorSet(field.descriptorSet[0]);
+        releaseDescriptorSet(field.descriptorSet[1]);
     }
 
     void FluidSolver::createDefaultColliderFields() {
@@ -1472,6 +1514,11 @@ namespace eular {
         return *this;
     }
 
+    FluidSolver::Builder & FluidSolver::Builder::vectorField(std::span<glm::vec2> field) {
+        _data = { field.begin(), field.end() };
+        return *this;
+    }
+
     FluidSolver::Builder& FluidSolver::Builder::vorticityConfinementScale(float scale) {
         _vorticityConfinementScale = scale;
         return *this;
@@ -1514,9 +1561,13 @@ namespace eular {
     }
 
     void FluidSolver::Builder::generateVectorField(FluidSolver& solver) {
-        if(!_generator.has_value()) return;
-
-        solver._vectorGrid->fill(*_generator);
+        if(_generator.has_value()) {
+            solver._vectorGrid->generate(*_generator);
+        } else if (!_data.empty()) {
+            solver._vectorGrid->fill(_data);
+        }else {
+            solver._vectorGrid->fill(glm::vec2{0});
+        }
     }
 
     void FluidSolver::Builder::addQuantities(FluidSolver &solver) {
