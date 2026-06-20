@@ -1403,7 +1403,7 @@ namespace eular {
         return *this;
     }
 
-    FluidSolver::Builder& FluidSolver::Builder::add(ExternalForce&& force) {
+    FluidSolver::Builder& FluidSolver::Builder::addExternalForce(ExternalForce&& force) {
         _externalForces.push_back(force);
         return *this;
     }
@@ -1524,8 +1524,20 @@ namespace eular {
         return *this;
     }
 
-    FluidSolver::Builder& FluidSolver::Builder::add(Quantity &quantity) {
+    FluidSolver::Builder& FluidSolver::Builder::addQuantity(Quantity &quantity) {
         _quantities.emplace_back(quantity);
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::addQuantityData(Quantity& quantity, std::string name, VkFormat format,
+                                                                std::span<const std::byte> data) {
+        assert(!data.empty());
+        _quantityData.push_back({
+            .quantity = quantity,
+            .name = std::move(name),
+            .format = format,
+            .data = {data.begin(), data.end()}
+        });
         return *this;
     }
 
@@ -1571,6 +1583,11 @@ namespace eular {
     }
 
     void FluidSolver::Builder::addQuantities(FluidSolver &solver) {
+        for(auto& quantityData : _quantityData) {
+            initQuantityTextures(solver, quantityData.quantity, quantityData.name, quantityData.format, quantityData.data);
+            _quantities.emplace_back(quantityData.quantity);
+        }
+
         for(auto& quantity : _quantities) {
             auto writes = initializers::writeDescriptorSets<12>();
             auto offset = solver.createDescriptorSet(writes, 0, quantity.get().field);
@@ -1579,6 +1596,39 @@ namespace eular {
             _device->updateDescriptorSets(writes);
 
             solver._quantities.emplace_back(quantity);
+        }
+    }
+
+    void FluidSolver::Builder::initQuantityTextures(FluidSolver& solver, Quantity& quantity, const std::string& name,
+                                                    VkFormat format, std::span<const std::byte> data) {
+        const auto dimensions = glm::uvec3{
+            static_cast<uint32_t>(solver._gridSize.x),
+            static_cast<uint32_t>(solver._gridSize.y),
+            static_cast<uint32_t>(solver._gridSize.z)
+        };
+        const auto texelCount = static_cast<std::size_t>(dimensions.x) * dimensions.y * dimensions.z;
+        assert(texelCount > 0);
+        assert(data.size() % texelCount == 0);
+
+        quantity.name = name;
+        quantity.field.name = name;
+        quantity.source.name = name + "_source";
+
+        std::vector<std::byte> sourceData(data.size(), std::byte{0});
+        auto addressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        for(auto i = 0u; i < 2; ++i) {
+            textures::create(*solver.device, quantity.field[i], VK_IMAGE_TYPE_2D, format,
+                             const_cast<std::byte*>(data.data()), dimensions, addressMode, sizeof(float));
+            textures::create(*solver.device, quantity.source[i], VK_IMAGE_TYPE_2D, format,
+                             sourceData.data(), dimensions, addressMode, sizeof(float));
+
+            quantity.field[i].image.transitionLayout(solver.device->graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
+            quantity.source[i].image.transitionLayout(solver.device->graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
+
+            solver.device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", quantity.field.name, i),
+                                                         quantity.field[i].image.image);
+            solver.device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", quantity.source.name, i),
+                                                         quantity.source[i].image.image);
         }
     }
 }

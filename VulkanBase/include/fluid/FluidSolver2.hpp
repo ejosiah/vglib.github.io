@@ -12,16 +12,38 @@
 #include "linalg/gpu/red_black_gauss_seidel_solver.hpp"
 
 #include <array>
+#include <cstddef>
 #include <initializer_list>
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 #include "Collider.hpp"
 
 class FieldVisualizer;
 
 namespace eular {
+
+    template<typename T>
+    struct QuantityTexelFormat;
+
+    template<>
+    struct QuantityTexelFormat<float> {
+        static constexpr VkFormat value = VK_FORMAT_R32_SFLOAT;
+    };
+
+    template<>
+    struct QuantityTexelFormat<glm::vec2> {
+        static constexpr VkFormat value = VK_FORMAT_R32G32_SFLOAT;
+    };
+
+    template<>
+    struct QuantityTexelFormat<glm::vec4> {
+        static constexpr VkFormat value = VK_FORMAT_R32G32B32A32_SFLOAT;
+    };
 
     class FluidSolver : public ComputePipelines {
         friend class ::FieldVisualizer;
@@ -337,7 +359,7 @@ namespace eular {
 
         Builder& generate(const VectorFieldFunc2D& func);
 
-        Builder& add(ExternalForce&& force);
+        Builder& addExternalForce(ExternalForce&& force);
 
         Builder& poissonIterations(int value);
 
@@ -351,7 +373,18 @@ namespace eular {
 
         Builder& vorticityConfinementScale(float scale);
 
-        Builder& add(Quantity &quantity);
+        Builder& addQuantity(Quantity &quantity);
+
+        template<typename T>
+        Builder& addQuantity(Quantity& quantity, const std::string& name, std::span<const T> data) {
+            static_assert(std::is_trivially_copyable_v<T>, "Quantity data must be trivially copyable");
+            return addQuantityData(quantity, name, QuantityTexelFormat<T>::value, std::as_bytes(data));
+        }
+
+        template<typename T>
+        Builder& addQuantity(Quantity& quantity, const std::string& name, const std::vector<T>& data) {
+            return addQuantity(quantity, name, std::span<const T>{data.data(), data.size()});
+        }
 
         Builder& gridSize(glm::vec2 size);
 
@@ -392,6 +425,11 @@ namespace eular {
 
         void addQuantities(FluidSolver& solver);
 
+        Builder& addQuantityData(Quantity& quantity, std::string name, VkFormat format, std::span<const std::byte> data);
+
+        void initQuantityTextures(FluidSolver& solver, Quantity& quantity, const std::string& name,
+                                  VkFormat format, std::span<const std::byte> data);
+
         VulkanDevice *_device{};
         VulkanDescriptorPool* _descriptorPool{};
         bool _advectVField = true;
@@ -408,6 +446,13 @@ namespace eular {
         float _dt{1.0f / 120.f};
         glm::vec2 _gridSize{0};
         std::vector<std::reference_wrapper<Quantity>> _quantities;
+        struct QuantityData {
+            std::reference_wrapper<Quantity> quantity;
+            std::string name;
+            VkFormat format{};
+            std::vector<std::byte> data;
+        };
+        std::vector<QuantityData> _quantityData;
         LinearSolverStrategy _linearSolverStrategy{LinearSolverStrategy::RBGS};
 
         std::vector<ExternalForce> _externalForces;
