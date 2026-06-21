@@ -30,6 +30,8 @@ namespace eular {
 
         void generate(VectorFieldFunc2D generator) override;
 
+        void generate(VectorFieldFunc3D generator) override;
+
     protected:
         std::vector<PipelineMetaData> pipelineMetaData() override;
     };

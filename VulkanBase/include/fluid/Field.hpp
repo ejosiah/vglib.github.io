@@ -36,7 +36,7 @@ namespace eular {
     using UpdateSource = std::function<void(VkCommandBuffer, Field&, glm::uvec3)>;
     using PostAdvect = std::function<bool(VkCommandBuffer, Field&, glm::uvec3)>;
     using VectorFieldFunc2D = std::function<glm::vec2(float, float)>;
-    using VectorFieldFunc3D = std::function<glm::vec3(float, float)>;
+    using VectorFieldFunc3D = std::function<glm::vec3(float, float, float)>;
 
     struct Quantity {
         std::string name;

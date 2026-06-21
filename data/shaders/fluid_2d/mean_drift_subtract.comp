@@ -8,30 +8,30 @@ layout(local_size_x = 32, local_size_y = 32) in;
 #define COLLISION_SET 4
 #include "common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D sourceField;
+layout(set = 1, binding = 0) uniform sampler3D sourceField;
 
 layout(set = 2, binding = 0, scalar) readonly buffer MeanDrift {
     float mean;
     uint sampleCount;
 };
 
-layout(set = 3, binding = 2) uniform writeonly image2D outputField;
+layout(set = 3, binding = 2) uniform writeonly image3D outputField;
 
 layout(push_constant, scalar) uniform Constants {
     uint cellCount;
 };
 
-bool hasActiveWall(ivec2 coord) {
+bool hasActiveWall(ivec3 coord) {
     return isInsideWall(coord);
 }
 
 void main() {
     if(outOfBounds()) return;
 
-    float value = texelFetch(sourceField, gid, 0).x;
-    if(!hasActiveWall(gid)) {
+    float value = texelFetch(sourceField, gid3, 0).x;
+    if(!hasActiveWall(gid3)) {
         value -= mean;
     }
 
-    imageStore(outputField, gid, vec4(value, 0.0, 0.0, 1.0));
+    imageStore(outputField, gid3, vec4(value, 0.0, 0.0, 1.0));
 }

@@ -7,10 +7,10 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 #include "../common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
-layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
-layout(set = 3, binding = 1) uniform texture2D quantity;
-layout(set = 4, binding = 2) uniform writeonly image2D quantity_out;
+layout(set = 1, binding = 0) uniform sampler3D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler3D vector_field_v;
+layout(set = 3, binding = 1) uniform texture3D quantity;
+layout(set = 4, binding = 2) uniform writeonly image3D quantity_out;
 layout(set = 5, binding = 0) uniform sampler aSampler;
 
 layout(push_constant) uniform Constants {
@@ -20,29 +20,32 @@ layout(push_constant) uniform Constants {
 
 vec2 loadVectorField(vec2 uv) {
     const vec4 cc = cell_center;
-    vec2 gid = floor(uv * textureSize(quantity, 0));
-    uv = vec2(gid + cc.xy)/textureSize(vector_field_u, 0);
-    float u = texture(vector_field_u, uv).x;
+    ivec3 quantitySize = textureSize(quantity, 0);
+    ivec3 uSize = textureSize(vector_field_u, 0);
+    ivec3 vSize = textureSize(vector_field_v, 0);
+    vec2 gid = floor(uv * vec2(quantitySize.xy));
+    uv = vec2(gid + cc.xy)/vec2(uSize.xy);
+    float u = texture(vector_field_u, vec3(uv, 0.5)).x;
 
-    uv = vec2(gid + cc.zw)/textureSize(vector_field_v, 0);
-    float v = texture(vector_field_v, uv).x;
+    uv = vec2(gid + cc.zw)/vec2(vSize.xy);
+    float v = texture(vector_field_v, vec3(uv, 0.5)).x;
 
     return vec2(u, v);
 }
 
 
 vec4 getQuantity(vec2 xy) {
-    return texture(sampler2D(quantity, aSampler), xy);
+    return texture(sampler3D(quantity, aSampler), vec3(xy, 0.5));
 }
 
 void updateQuantity(vec4 q) {
-    imageStore(quantity_out, gid, q);
+    imageStore(quantity_out, gid3, q);
 }
 
 void main() {
     if(outOfBounds()) return;
 
-    vec2 uv = (vec2(gid) + 0.5)/textureSize(quantity, 0);
+    vec2 uv = (vec2(gid) + 0.5)/vec2(textureSize(quantity, 0).xy);
     vec2 u = loadVectorField(uv);
 
     vec2 pm = uv - 0.5 * time_sign * dt * u;

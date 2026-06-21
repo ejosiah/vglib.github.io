@@ -5,18 +5,20 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#define BOUNDARY_SET 4
+#define COLLISION_SET 5
 #include "common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
-layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
-layout(set = 3, binding = 2) uniform writeonly image2D vorticity_field;
+layout(set = 1, binding = 0) uniform sampler3D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler3D vector_field_v;
+layout(set = 3, binding = 0) uniform sampler3D vector_field_w;
+layout(set = 4, binding = 2) uniform writeonly image3D vorticity_field;
 
-vec2 u(vec2 centerUv, vec2 sampleUv) {
-    vec2 coord = sampleUv;
-    vec2 u;
+vec3 u(vec3 centerUv, vec3 sampleUv) {
+    vec3 coord = sampleUv;
+    vec3 u;
     u.x = texture(vector_field_u, coord).x;
     u.y = texture(vector_field_v, coord).x;
+    u.z = is3D ? texture(vector_field_w, coord).x : 0.0;
 
     return u;
 }
@@ -25,12 +27,24 @@ vec2 u(vec2 centerUv, vec2 sampleUv) {
 void main(){
     if(outOfBounds()) return;
 
-    vec2 uv = get_uv();
+    vec3 uv = get_uvw();
 
-    float dudx = (u(uv, uv + dx).x - u(uv, uv - dx).x)/(2*dx.x);
-    float dudy = (u(uv, uv + dy).y - u(uv, uv - dy).y)/(2*dy.y);
+    vec3 xp = u(uv, uv + dx);
+    vec3 xm = u(uv, uv - dx);
+    vec3 yp = u(uv, uv + dy);
+    vec3 ym = u(uv, uv - dy);
+    vec3 zp = is3D ? u(uv, uv + dz) : vec3(0);
+    vec3 zm = is3D ? u(uv, uv - dz) : vec3(0);
+
+    float dudx = (xp.x - xm.x)/(2*dx.x);
+    float dudy = (yp.y - ym.y)/(2*dy.y);
 
     float vorticity = dudy - dudx;
+    vec3 curl = vec3(
+        ((yp.z - ym.z)/(2*dy.y)) - ((zp.y - zm.y)/(2*dz.z)),
+        ((zp.x - zm.x)/(2*dz.z)) - ((xp.z - xm.z)/(2*dx.x)),
+        ((xp.y - xm.y)/(2*dx.x)) - ((yp.x - ym.x)/(2*dy.y))
+    );
 
-    imageStore(vorticity_field, gid, vec4(vorticity));
+    imageStore(vorticity_field, gid3, is3D ? vec4(curl, 1.0) : vec4(vorticity));
 }

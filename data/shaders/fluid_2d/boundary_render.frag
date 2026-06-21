@@ -2,7 +2,7 @@
 
 #extension GL_EXT_scalar_block_layout : enable
 
-layout(set = 0, binding = 0) uniform sampler2D colliderField;
+layout(set = 0, binding = 0) uniform sampler3D colliderField;
 
 layout(push_constant, scalar) uniform Constants {
     mat4 transform;
@@ -10,6 +10,7 @@ layout(push_constant, scalar) uniform Constants {
     uint closedDomain;
     uint openBoundaryEdges;
     uint showColliders;
+    float boundaryWidth;
 };
 
 layout(location = 0) in vec2 vUv;
@@ -19,29 +20,31 @@ const uint BOUNDARY_EDGE_LEFT = 1u << 0u;
 const uint BOUNDARY_EDGE_RIGHT = 1u << 1u;
 const uint BOUNDARY_EDGE_BOTTOM = 1u << 2u;
 const uint BOUNDARY_EDGE_TOP = 1u << 3u;
-const int COLLIDER_RADIUS = 2;
-
 bool isEdgeClosed(uint edge) {
     return (openBoundaryEdges & edge) == 0u;
 }
 
-bool onClosedDomainBoundary(ivec2 coord, ivec2 size) {
+bool onClosedDomainBoundary(vec2 coord, ivec2 size) {
     if(closedDomain == 0u) return false;
 
-    return (coord.x == 0 && isEdgeClosed(BOUNDARY_EDGE_LEFT)) ||
-           (coord.x == size.x - 1 && isEdgeClosed(BOUNDARY_EDGE_RIGHT)) ||
-           (coord.y == 0 && isEdgeClosed(BOUNDARY_EDGE_BOTTOM)) ||
-           (coord.y == size.y - 1 && isEdgeClosed(BOUNDARY_EDGE_TOP));
+    float halfWidth = boundaryWidth * 0.5;
+    vec2 gridSize = vec2(size);
+
+    return (coord.x < halfWidth && isEdgeClosed(BOUNDARY_EDGE_LEFT)) ||
+           (coord.x > gridSize.x - halfWidth && isEdgeClosed(BOUNDARY_EDGE_RIGHT)) ||
+           (coord.y < halfWidth && isEdgeClosed(BOUNDARY_EDGE_BOTTOM)) ||
+           (coord.y > gridSize.y - halfWidth && isEdgeClosed(BOUNDARY_EDGE_TOP));
 }
 
 bool nearCollider(ivec2 base, ivec2 size) {
     if(showColliders == 0u) return false;
 
+    int radius = int(ceil(boundaryWidth));
     float boundary = 1.0;
-    for(int y = -COLLIDER_RADIUS; y <= COLLIDER_RADIUS; ++y) {
-        for(int x = -COLLIDER_RADIUS; x <= COLLIDER_RADIUS; ++x) {
+    for(int y = -radius; y <= radius; ++y) {
+        for(int x = -radius; x <= radius; ++x) {
             ivec2 coord = clamp(base + ivec2(x, y), ivec2(0), size - ivec2(1));
-            boundary = min(boundary, texelFetch(colliderField, coord, 0).r);
+            boundary = min(boundary, texelFetch(colliderField, ivec3(coord, 0), 0).r);
         }
     }
 
@@ -49,10 +52,11 @@ bool nearCollider(ivec2 base, ivec2 size) {
 }
 
 void main() {
-    ivec2 size = textureSize(colliderField, 0);
-    ivec2 base = clamp(ivec2(floor(vUv * vec2(size))), ivec2(0), size - ivec2(1));
+    ivec2 size = textureSize(colliderField, 0).xy;
+    vec2 coord = vUv * vec2(size);
+    ivec2 base = clamp(ivec2(floor(coord)), ivec2(0), size - ivec2(1));
 
-    if(!onClosedDomainBoundary(base, size) && !nearCollider(base, size)) {
+    if(!onClosedDomainBoundary(coord, size) && !nearCollider(base, size)) {
         discard;
     }
 

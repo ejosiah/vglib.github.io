@@ -1,17 +1,17 @@
 #version 460
 
-layout(set = 0, binding = 0) uniform sampler2D field0;
-layout(set = 1, binding = 0) uniform sampler2D field1;
-layout(set = 2, binding = 0) uniform sampler2D field2;
-layout(set = 3, binding = 0) uniform sampler2D field3;
-layout(set = 4, binding = 0) uniform sampler2D field4;
-layout(set = 5, binding = 0) uniform sampler2D field5;
-layout(set = 6, binding = 0) uniform sampler2D field6;
-layout(set = 7, binding = 0) uniform sampler2D field7;
-layout(set = 8, binding = 0) uniform sampler2D field8;
-layout(set = 9, binding = 0) uniform sampler2D field9;
-layout(set = 10, binding = 0) uniform sampler2D field10;
-layout(set = 11, binding = 0) uniform sampler2D field11;
+layout(set = 0, binding = 0) uniform sampler3D field0;
+layout(set = 1, binding = 0) uniform sampler3D field1;
+layout(set = 2, binding = 0) uniform sampler3D field2;
+layout(set = 3, binding = 0) uniform sampler3D field3;
+layout(set = 4, binding = 0) uniform sampler3D field4;
+layout(set = 5, binding = 0) uniform sampler3D field5;
+layout(set = 6, binding = 0) uniform sampler3D field6;
+layout(set = 7, binding = 0) uniform sampler3D field7;
+layout(set = 8, binding = 0) uniform sampler3D field8;
+layout(set = 9, binding = 0) uniform sampler3D field9;
+layout(set = 10, binding = 0) uniform sampler3D field10;
+layout(set = 11, binding = 0) uniform sampler3D field11;
 
 layout(set = 12, binding = 0) buffer MinMax {
     float data;
@@ -35,19 +35,20 @@ const uint BOUNDARY_EDGE_BOTTOM = 1u << 2u;
 const uint BOUNDARY_EDGE_TOP = 1u << 3u;
 
 vec4 sampleField(uint index, vec2 uv) {
+    vec3 sampleUv = vec3(uv, 0.5);
     switch(index) {
-        case 0: return texture(field0, uv);
-        case 1: return texture(field1, uv);
-        case 2: return texture(field2, uv);
-        case 3: return texture(field3, uv);
-        case 4: return texture(field4, uv);
-        case 5: return texture(field5, uv);
-        case 6: return texture(field6, uv);
-        case 7: return texture(field7, uv);
-        case 8: return texture(field8, uv);
-        case 9: return texture(field9, uv);
-        case 10: return texture(field10, uv);
-        case 11: return texture(field11, uv);
+        case 0: return texture(field0, sampleUv);
+        case 1: return texture(field1, sampleUv);
+        case 2: return texture(field2, sampleUv);
+        case 3: return texture(field3, sampleUv);
+        case 4: return texture(field4, sampleUv);
+        case 5: return texture(field5, sampleUv);
+        case 6: return texture(field6, sampleUv);
+        case 7: return texture(field7, sampleUv);
+        case 8: return texture(field8, sampleUv);
+        case 9: return texture(field9, sampleUv);
+        case 10: return texture(field10, sampleUv);
+        case 11: return texture(field11, sampleUv);
     }
 
     return vec4(0);
@@ -117,7 +118,7 @@ bool isEdgeClosed(uint edge) {
 bool onClosedDomainBoundary(vec2 uv) {
     if(closedDomain == 0u) return false;
 
-    ivec2 size = textureSize(field6, 0);
+    ivec2 size = textureSize(field6, 0).xy;
     ivec2 coord = clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - ivec2(1));
 
     return (coord.x == 0 && isEdgeClosed(BOUNDARY_EDGE_LEFT)) ||

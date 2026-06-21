@@ -7,14 +7,14 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 #include "../common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
-layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
-layout(set = 3, binding = 2) uniform writeonly image2D divergence_field;
+layout(set = 1, binding = 0) uniform sampler3D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler3D vector_field_v;
+layout(set = 3, binding = 2) uniform writeonly image3D divergence_field;
 
 vec2 F(vec2 xy) {
     vec2 u;
-    u.x = texture(vector_field_u, xy).x;
-    u.y = texture(vector_field_v, xy).x;
+    u.x = texture(vector_field_u, vec3(xy, 0.5)).x;
+    u.y = texture(vector_field_v, vec3(xy, 0.5)).x;
     return u;
 }
 
@@ -25,10 +25,10 @@ vec2 u(vec2 coord) {
 void main() {
     vec2 uv = get_uv();
 
-    float dudx = (u(uv + dx).x - u(uv).x)/dx.x;
-    float dudy = (u(uv + dy).y - u(uv).y)/dy.y;
+    float dudx = (u(uv + dx.xy).x - u(uv).x)/dx.x;
+    float dudy = (u(uv + dy.xy).y - u(uv).y)/dy.y;
 
     float div = dudx + dudy;
 
-    imageStore(divergence_field, gid, vec4(div));
+    imageStore(divergence_field, gid3, vec4(div));
 }

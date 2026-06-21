@@ -5,39 +5,44 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#define COLLISION_SET 4
+#define COLLISION_SET 5
 #include "common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
-layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
-layout(set = 3, binding = 2) uniform writeonly image2D divergence_field;
+layout(set = 1, binding = 0) uniform sampler3D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler3D vector_field_v;
+layout(set = 3, binding = 0) uniform sampler3D vector_field_w;
+layout(set = 4, binding = 2) uniform writeonly image3D divergence_field;
 
-vec2 velocity(ivec2 xy) {
-    return vec2(
-        texelFetch(vector_field_u, xy, 0).x,
-        texelFetch(vector_field_v, xy, 0).x
+vec3 velocity(ivec3 xyz) {
+    return vec3(
+        texelFetch(vector_field_u, collisionSampleCoord(xyz), 0).x,
+        texelFetch(vector_field_v, collisionSampleCoord(xyz), 0).x,
+        is3D ? texelFetch(vector_field_w, collisionSampleCoord(xyz), 0).x : 0.0
     );
 }
 
 void main() {
     if (outOfBounds()) return;
 
-    if (isInsideWall(gid)) {
-        imageStore(divergence_field, gid, vec4(0.0));
+    if (isInsideWall(gid3)) {
+        imageStore(divergence_field, gid3, vec4(0.0));
         return;
     }
 
-    vec2 C = velocity(gid);
+    vec3 C = velocity(gid3);
 
-    vec2 R = isInsideWall(gid + ivec2(1, 0)) ? vec2(0.0, C.y) : velocity(gid + ivec2(1, 0));
-    vec2 L = isInsideWall(gid - ivec2(1, 0)) ? vec2(0.0, C.y) : velocity(gid - ivec2(1, 0));
-    vec2 T = isInsideWall(gid + ivec2(0, 1)) ? vec2(C.x, 0.0) : velocity(gid + ivec2(0, 1));
-    vec2 B = isInsideWall(gid - ivec2(0, 1)) ? vec2(C.x, 0.0) : velocity(gid - ivec2(0, 1));
+    vec3 R = isInsideWall(gid3 + ivec3(1, 0, 0)) ? vec3(0.0, C.yz) : velocity(gid3 + ivec3(1, 0, 0));
+    vec3 L = isInsideWall(gid3 - ivec3(1, 0, 0)) ? vec3(0.0, C.yz) : velocity(gid3 - ivec3(1, 0, 0));
+    vec3 T = isInsideWall(gid3 + ivec3(0, 1, 0)) ? vec3(C.x, 0.0, C.z) : velocity(gid3 + ivec3(0, 1, 0));
+    vec3 B = isInsideWall(gid3 - ivec3(0, 1, 0)) ? vec3(C.x, 0.0, C.z) : velocity(gid3 - ivec3(0, 1, 0));
+    vec3 F = is3D && isInsideWall(gid3 + ivec3(0, 0, 1)) ? vec3(C.xy, 0.0) : velocity(gid3 + ivec3(0, 0, 1));
+    vec3 K = is3D && isInsideWall(gid3 - ivec3(0, 0, 1)) ? vec3(C.xy, 0.0) : velocity(gid3 - ivec3(0, 0, 1));
 
     float dudx = (R.x - L.x) / (2.0 * dx.x);
     float dvdy = (T.y - B.y) / (2.0 * dy.y);
+    float dwdz = is3D ? (F.z - K.z) / (2.0 * dz.z) : 0.0;
 
-    float div = dudx + dvdy;
+    float div = dudx + dvdy + dwdz;
 
-    imageStore(divergence_field, gid, vec4(div, 0.0, 0.0, 1.0));
+    imageStore(divergence_field, gid3, vec4(div, 0.0, 0.0, 1.0));
 }

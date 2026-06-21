@@ -69,9 +69,11 @@ void FieldVisualizer::createBuffers() {
     _pressure.maxValue = device->createBuffer(usage, VMA_MEMORY_USAGE_GPU_ONLY, sizeof(float), "max_pressure_value");
 
     Globals globals{
-        .gridSize = _gridSize,
-        .dx = {1.0f / float(_gridSize.x), 0.0f},
-        .dy = {0.0f, 1.0f / float(_gridSize.y)},
+        .gridSize = glm::ivec3(_gridSize, 1),
+        .dx = {1.0f / float(_gridSize.x), 0.0f, 0.0f},
+        .dy = {0.0f, 1.0f / float(_gridSize.y), 0.0f},
+        .dz = {0.0f, 0.0f, 1.0f},
+        .dimension = 2,
     };
     usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     _globals.buffer = device->createCpuVisibleBuffer(&globals, sizeof(globals), usage);
@@ -178,6 +180,14 @@ void FieldVisualizer::setStreamLineColor(const glm::vec3 &streamColor) {
     _streamLines.color = streamColor;
 }
 
+void FieldVisualizer::setBoundaryColor(const glm::vec4& boundaryColor) {
+    _boundaryColor = boundaryColor;
+}
+
+void FieldVisualizer::setBoundaryWidth(float boundaryWidth) {
+    _boundaryWidth = std::max(0.0f, boundaryWidth);
+}
+
 void FieldVisualizer::update(VkCommandBuffer commandBuffer) {
     combineVectorFields(commandBuffer);
     computeStreamLines(commandBuffer);
@@ -261,6 +271,10 @@ void FieldVisualizer::renderVectorField(VkCommandBuffer commandBuffer) {
     vkCmdDraw(commandBuffer, _vectorField.numArrows, 1, 0, 0);
 }
 
+void FieldVisualizer::renderBoundary(VkCommandBuffer commandBuffer, bool showColliders) {
+    renderBoundary(commandBuffer, _boundaryColor, showColliders);
+}
+
 void FieldVisualizer::renderBoundary(VkCommandBuffer commandBuffer, glm::vec4 color, bool showColliders) {
     if(!_solver) return;
 
@@ -269,6 +283,7 @@ void FieldVisualizer::renderBoundary(VkCommandBuffer commandBuffer, glm::vec4 co
     _boundary.constants.closedDomain = static_cast<uint32_t>(_solver->options.closedDomain);
     _boundary.constants.openBoundaryEdges = _solver->options.openBoundaryEdges;
     _boundary.constants.showColliders = static_cast<uint32_t>(showColliders);
+    _boundary.constants.boundaryWidth = _boundaryWidth;
 
     const auto set = _solver->colliderField().descriptorSet[eular::in];
     VkDeviceSize offset = 0;

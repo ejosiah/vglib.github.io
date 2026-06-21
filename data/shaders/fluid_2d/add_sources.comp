@@ -5,21 +5,21 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_samplerless_texture_functions : enable
 
-#define BOUNDARY_SET 4
+#define COLLISION_SET 4
 #include "common.glsl"
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(set = 1, binding = 0) uniform sampler2D source_field;
-layout(set = 2, binding = 0) uniform sampler2D accumulated_field;
-layout(set = 3, binding = 2) uniform writeonly image2D destination_field;
+layout(set = 1, binding = 0) uniform sampler3D source_field;
+layout(set = 2, binding = 0) uniform sampler3D accumulated_field;
+layout(set = 3, binding = 2) uniform writeonly image3D destination_field;
 
 void main() {
-    if(gid.x >= grid_size.x || gid.y >= grid_size.y) return;
+    if(outOfBounds()) return;
 
-    vec2 uv = get_uv();
+    vec3 uv = get_uvw();
 
     vec4 result = texture(source_field, uv) * dt + texture(accumulated_field, uv);
 
-    imageStore(destination_field, gid, result);
+    imageStore(destination_field, gid3, result);
 }

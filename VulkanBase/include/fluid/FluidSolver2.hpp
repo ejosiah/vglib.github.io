@@ -57,12 +57,18 @@ namespace eular {
             BoundaryEdgeRight = 1u << 1,
             BoundaryEdgeBottom = 1u << 2,
             BoundaryEdgeTop = 1u << 3,
-            BoundaryEdgeAll = BoundaryEdgeLeft | BoundaryEdgeRight | BoundaryEdgeBottom | BoundaryEdgeTop
+            BoundaryEdgeBack = 1u << 4,
+            BoundaryEdgeFront = 1u << 5,
+            BoundaryEdgeAll2D = BoundaryEdgeLeft | BoundaryEdgeRight | BoundaryEdgeBottom | BoundaryEdgeTop,
+            BoundaryEdgeAll = BoundaryEdgeAll2D | BoundaryEdgeBack | BoundaryEdgeFront
         };
 
         FluidSolver() = default;
 
         FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize);
+
+        FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec3 gridSize,
+                    uint32_t dimension = 3);
 
         ~FluidSolver() override;
 
@@ -255,15 +261,19 @@ namespace eular {
 
         glm::vec3 _gridSize{};
         glm::vec3 _delta{};
+        uint32_t _dimension{3};
 
         struct GlobalData {
-            glm::ivec2 grid_size{0};
-            glm::vec2 dx{1};
-            glm::vec2 dy{1};
+            glm::ivec3 grid_size{0};
+            glm::vec3 dx{1};
+            glm::vec3 dy{1};
+            glm::vec3 dz{1};
             float dt{1.0f / 120.f};
             float density{1};
             uint32_t wrapping_enabled{0};
             uint32_t use_hermite{0};
+            uint32_t dimension{3};
+            uint32_t open_boundary_edges{0};
         };
 
         struct {
@@ -324,8 +334,8 @@ namespace eular {
             VkDescriptorSet rhsDescriptorSet{};
 
             struct {
-                glm::uvec2 gridSize{};
-                glm::vec2 alpha{};
+                glm::uvec3 gridSize{};
+                glm::vec3 alpha{};
                 float identity{};
                 uint32_t batchOffset{};
                 uint32_t batchSize{};
@@ -359,6 +369,12 @@ namespace eular {
 
         Builder& generate(const VectorFieldFunc2D& func);
 
+        Builder& generate(const VectorFieldFunc3D& func);
+
+        Builder& generate2D(const VectorFieldFunc2D& func);
+
+        Builder& generate3D(const VectorFieldFunc3D& func);
+
         Builder& addExternalForce(ExternalForce&& force);
 
         Builder& poissonIterations(int value);
@@ -387,6 +403,12 @@ namespace eular {
         }
 
         Builder& gridSize(glm::vec2 size);
+
+        Builder& gridSize(glm::vec3 size);
+
+        Builder& gridSize2D(glm::vec2 size);
+
+        Builder& gridSize3D(glm::vec3 size);
 
         Builder& closedDomain();
 
@@ -418,6 +440,12 @@ namespace eular {
 
         Builder& vectorField(std::span<glm::vec2> field);
 
+        Builder& vectorField(std::span<glm::vec3> field);
+
+        Builder& vectorField2D(std::span<glm::vec2> field);
+
+        Builder& vectorField3D(std::span<glm::vec3> field);
+
         std::unique_ptr<FluidSolver> build();
 
     private:
@@ -444,7 +472,9 @@ namespace eular {
         float _vorticityConfinementScale{0};
         float _density{1};
         float _dt{1.0f / 120.f};
-        glm::vec2 _gridSize{0};
+        glm::vec3 _gridSize{0};
+        VkImageType _imageType{VK_IMAGE_TYPE_3D};
+        uint32_t _dimension{3};
         std::vector<std::reference_wrapper<Quantity>> _quantities;
         struct QuantityData {
             std::reference_wrapper<Quantity> quantity;
@@ -456,8 +486,10 @@ namespace eular {
         LinearSolverStrategy _linearSolverStrategy{LinearSolverStrategy::RBGS};
 
         std::vector<ExternalForce> _externalForces;
-        std::optional<VectorFieldFunc2D> _generator{};
+        std::optional<VectorFieldFunc2D> _generator2D{};
+        std::optional<VectorFieldFunc3D> _generator3D{};
         std::vector<Collider> _colliders;
-        std::vector<glm::vec2> _data;
+        std::vector<glm::vec2> _data2D;
+        std::vector<glm::vec3> _data3D;
     };
 }

@@ -5,29 +5,29 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#define BOUNDARY_SET 4
+#define COLLISION_SET 4
 #include "common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D vorticity_field;
-layout(set = 2, binding = 0) uniform sampler2D force_field;
-layout(set = 3, binding = 2) uniform writeonly image2D force_field_out;
+layout(set = 1, binding = 0) uniform sampler3D vorticity_field;
+layout(set = 2, binding = 0) uniform sampler3D force_field;
+layout(set = 3, binding = 2) uniform writeonly image3D force_field_out;
 
 layout(push_constant) uniform Constants{
     float csCale;
 };
 
-float vort(vec2 centerUv, vec2 coord) {
+float vort(vec3 centerUv, vec3 coord) {
     return texture(vorticity_field, coord).x;
 }
 
-vec2 accumForce(vec2 coord){
+vec2 accumForce(vec3 coord){
     return texture(force_field, coord).xy;
 }
 
 void main(){
     if(outOfBounds()) return;
 
-    vec2 uv = get_uv();
+    vec3 uv = get_uvw();
 
     float dudx = (abs(vort(uv, uv + dx)) - abs(vort(uv, uv - dx)))/(2*dx.x);
     float dudy = (abs(vort(uv, uv + dy)) - abs(vort(uv, uv - dy)))/(2*dy.y);
@@ -40,8 +40,8 @@ void main(){
     n = n * inversesqrt(magSqr);
 
     float vc = vort(uv, uv);
-    vec2 eps = (dx + dy) * csCale;
+    vec2 eps = vec2(dx.x, dy.y) * csCale;
     vec2 force = eps * vc * n * vec2(1, -1) + accumForce(uv);
 
-    imageStore(force_field_out, gid, vec4(force, 0, 0));
+    imageStore(force_field_out, gid3, vec4(force, 0, 0));
 }

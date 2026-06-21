@@ -18,14 +18,15 @@ layout(set = 0, binding = 1, scalar) buffer Constants {
     vec2 domain_size;
 };
 
-layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
-layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
+layout(set = 1, binding = 0) uniform sampler3D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler3D vector_field_v;
 
 
 vec2 loadVectorField(vec2 uv) {
     vec2 u;
-    u.x = texture(vector_field_u, uv).x;
-    u.y = texture(vector_field_v, uv).x;
+    vec3 sampleUv = vec3(uv, 0.5);
+    u.x = texture(vector_field_u, sampleUv).x;
+    u.y = texture(vector_field_v, sampleUv).x;
 
     return u;
 }

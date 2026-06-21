@@ -12,8 +12,8 @@ namespace eular {
                 .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\advect.comp.spv)",
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
-                    &Field::descriptorSetLayout, &Field::descriptorSetLayout, &_samplerDescriptorSetLayout,
-                    _colliderDescriptorSetLayout
+                    &Field::descriptorSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
+                    &_samplerDescriptorSetLayout, _colliderDescriptorSetLayout
                 },
                 .ranges = {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants)}}
             },
@@ -23,6 +23,7 @@ namespace eular {
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     &Field::descriptorSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
+                    &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     _colliderDescriptorSetLayout
                 }
             },
@@ -31,7 +32,7 @@ namespace eular {
                 .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\divergence.comp.spv)",
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
-                    &Field::descriptorSetLayout, _colliderDescriptorSetLayout
+                    &Field::descriptorSetLayout, &Field::descriptorSetLayout, _colliderDescriptorSetLayout
                 }
             },
             {
@@ -40,6 +41,7 @@ namespace eular {
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     &Field::descriptorSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
+                    &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     _colliderDescriptorSetLayout
                 }
             },
@@ -49,7 +51,7 @@ namespace eular {
                 .layouts = {
                     _globalConstantsSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
                     &Field::descriptorSetLayout, &Field::descriptorSetLayout, &Field::descriptorSetLayout,
-                    &Field::descriptorSetLayout, _colliderDescriptorSetLayout
+                    &Field::descriptorSetLayout, &Field::descriptorSetLayout, _colliderDescriptorSetLayout
                 },
                 .ranges = {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(advectConstants)}}
             },
@@ -61,10 +63,21 @@ namespace eular {
         if(_macCormackAdvection) {
             advect(commandBuffer, vf.u, 1);
             advect(commandBuffer, vf.v, 2);
+            if(_dimension == 3u) {
+                advect(commandBuffer, vf.w, 3);
+            }
         } else {
             advect(commandBuffer, vf.u, 1, false);
             advect(commandBuffer, vf.v, 2, false);
-            for(auto texture : {&vf.u[out], &vf.v[out]}) {
+            if(_dimension == 3u) {
+                advect(commandBuffer, vf.w, 3, false);
+            }
+
+            std::vector<Texture*> textures{&vf.u[out], &vf.v[out]};
+            if(_dimension == 3u) {
+                textures.push_back(&vf.w[out]);
+            }
+            for(auto texture : textures) {
                 Barriers::push(texture->image, DEFAULT_SUB_RANGE,
                                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -92,15 +105,16 @@ namespace eular {
                                       VkDescriptorSet outDescriptor, TimeDirection timeDirection,
                                       uint32_t boundaryMode, Texture* writeTexture) {
         auto& vf = vectorField();
-        static std::array<VkDescriptorSet, 7> sets;
+        static std::array<VkDescriptorSet, 8> sets;
 
         sets[0] = _globalConstantsDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = inDescriptor;
-        sets[4] = outDescriptor;
-        sets[5] = _linearSamplerDescriptorSet;
-        sets[6] = _colliderDescriptorSet;
+        sets[3] = vf.w.descriptorSet[in];
+        sets[4] = inDescriptor;
+        sets[5] = outDescriptor;
+        sets[6] = _linearSamplerDescriptorSet;
+        sets[7] = _colliderDescriptorSet;
 
         advectConstants.time_sign = timeDirection == TimeDirection::Forward ? 1.0f : -1.0f;
         advectConstants.boundary_mode = boundaryMode;
@@ -122,13 +136,14 @@ namespace eular {
 
     void CollocatedVectorGrid::computeDivergence(VkCommandBuffer commandBuffer) {
         auto& vf = vectorField();
-        static std::array<VkDescriptorSet, 5> sets;
+        static std::array<VkDescriptorSet, 6> sets;
 
         sets[0] = _globalConstantsDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = _divergenceField.descriptorSet[in];
-        sets[4] = _colliderDescriptorSet;
+        sets[3] = vf.w.descriptorSet[in];
+        sets[4] = _divergenceField.descriptorSet[in];
+        sets[5] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence"),
@@ -145,22 +160,24 @@ namespace eular {
 
     void CollocatedVectorGrid::computeDivergenceFreeField(VkCommandBuffer commandBuffer, PressureField& pressureField) {
         auto& vf = vectorField();
-        static std::array<VkDescriptorSet, 7> sets;
+        static std::array<VkDescriptorSet, 9> sets;
 
         sets[0] = _globalConstantsDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = pressureField.descriptorSet[in];
-        sets[4] = vf.u.descriptorSet[out];
-        sets[5] = vf.v.descriptorSet[out];
-        sets[6] = _colliderDescriptorSet;
+        sets[3] = vf.w.descriptorSet[in];
+        sets[4] = pressureField.descriptorSet[in];
+        sets[5] = vf.u.descriptorSet[out];
+        sets[6] = vf.v.descriptorSet[out];
+        sets[7] = vf.w.descriptorSet[out];
+        sets[8] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("divergence_free_field"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("divergence_free_field"),
                                 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
 
-        for(auto texture : {&vf.u[out], &vf.v[out]}) {
+        for(auto texture : {&vf.u[out], &vf.v[out], &vf.w[out]}) {
             Barriers::push(texture->image, DEFAULT_SUB_RANGE,
                            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -175,21 +192,23 @@ namespace eular {
 
     void CollocatedVectorGrid::addForcesToVectorField(VkCommandBuffer commandBuffer) {
         auto& vf = vectorField();
-        static std::array<VkDescriptorSet, 7> sets;
+        static std::array<VkDescriptorSet, 9> sets;
 
         sets[0] = _globalConstantsDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = _forceField.descriptorSet[in];
-        sets[4] = vf.u.descriptorSet[out];
-        sets[5] = vf.v.descriptorSet[out];
-        sets[6] = _colliderDescriptorSet;
+        sets[3] = vf.w.descriptorSet[in];
+        sets[4] = _forceField.descriptorSet[in];
+        sets[5] = vf.u.descriptorSet[out];
+        sets[6] = vf.v.descriptorSet[out];
+        sets[7] = vf.w.descriptorSet[out];
+        sets[8] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("apply_force"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("apply_force"),
                                 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
-        for(auto texture : {&vf.u[out], &vf.v[out]}) {
+        for(auto texture : {&vf.u[out], &vf.v[out], &vf.w[out]}) {
             Barriers::push(texture->image, DEFAULT_SUB_RANGE,
                            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -275,5 +294,30 @@ namespace eular {
             }
             Barriers::flush(commandBuffer);
         });
+    }
+
+    void CollocatedVectorGrid::generate(VectorFieldFunc3D generator) {
+        if(!generator) return;
+
+        const auto depth = static_cast<size_t>(_gridSize.z);
+        const auto rows = static_cast<size_t>(_gridSize.y);
+        const auto columns = static_cast<size_t>(_gridSize.x);
+        const auto size = static_cast<size_t>(_gridSize.x * _gridSize.y * _gridSize.z);
+
+        std::vector<glm::vec3> data;
+        data.reserve(size);
+
+        for(auto zSlice = 0u; zSlice < depth; ++zSlice) {
+            for(auto row = 0u; row < rows; ++row) {
+                for(auto column = 0u; column < columns; ++column) {
+                    const auto x = 2.0f * static_cast<float>(column) / _gridSize.x - 1.0f;
+                    const auto y = 2.0f * static_cast<float>(row) / _gridSize.y - 1.0f;
+                    const auto z = 2.0f * static_cast<float>(zSlice) / _gridSize.z - 1.0f;
+                    data.push_back(generator(x, y, z));
+                }
+            }
+        }
+
+        fill(data);
     }
 }

@@ -30,6 +30,10 @@ public:
 
     void setStreamLineColor(const glm::vec3& streamColor);
 
+    void setBoundaryColor(const glm::vec4& boundaryColor);
+
+    void setBoundaryWidth(float boundaryWidth);
+
     void update(VkCommandBuffer commandBuffer);
 
     void initFieldDumpReadback(fs::path dumpDirectory = {});
@@ -44,9 +48,9 @@ public:
 
     void renderVectorField(VkCommandBuffer commandBuffer);
 
-    void renderBoundary(VkCommandBuffer commandBuffer,
-                        glm::vec4 color = glm::vec4{1.0f, 0.0f, 0.0f, 0.85f},
-                        bool showColliders = false);
+    void renderBoundary(VkCommandBuffer commandBuffer, bool showColliders = false);
+
+    void renderBoundary(VkCommandBuffer commandBuffer, glm::vec4 color, bool showColliders);
 
     void renderDebugFields(VkCommandBuffer commandBuffer);
 
@@ -105,16 +109,21 @@ private:
     glm::vec2 _domainMax{1.0f};
     glm::mat4 _projection{1};
     glm::vec3 _streamColor{1};
+    glm::vec4 _boundaryColor{1.0f, 0.0f, 0.0f, 0.85f};
+    float _boundaryWidth{2.0f};
     static constexpr uint32_t MaxDebugFields = 12;
 
     struct Globals {
-        glm::ivec2 gridSize{1};
-        glm::vec2 dx{1, 0};
-        glm::vec2 dy{0, 1};
+        glm::ivec3 gridSize{1};
+        glm::vec3 dx{1, 0, 0};
+        glm::vec3 dy{0, 1, 0};
+        glm::vec3 dz{0, 0, 1};
         float dt{0};
         float density{1};
-        uint32_t ensureBoundaryCondition{1};
+        uint32_t wrappingEnabled{0};
         uint32_t useHermite{0};
+        uint32_t dimension{2};
+        uint32_t openBoundaryEdges{0};
     };
 
     struct {
@@ -193,6 +202,7 @@ private:
             uint32_t closedDomain{};
             uint32_t openBoundaryEdges{};
             uint32_t showColliders{};
+            float boundaryWidth{2.0f};
         } constants;
     } _boundary;
 

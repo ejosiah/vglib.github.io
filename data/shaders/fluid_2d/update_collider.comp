@@ -11,10 +11,12 @@ const uint BOUNDARY_EDGE_LEFT = 1u << 0u;
 const uint BOUNDARY_EDGE_RIGHT = 1u << 1u;
 const uint BOUNDARY_EDGE_BOTTOM = 1u << 2u;
 const uint BOUNDARY_EDGE_TOP = 1u << 3u;
+const uint BOUNDARY_EDGE_BACK = 1u << 4u;
+const uint BOUNDARY_EDGE_FRONT = 1u << 5u;
 const float BOUNDARY_TYPE_WALL_VALUE = 0.0;
 
-layout(set = 1, binding = 2, rg32f) uniform writeonly image2D colliderOut;
-layout(set = 2, binding = 2, rg32f) uniform writeonly image2D colliderVelocityOut;
+layout(set = 1, binding = 2, rg32f) uniform writeonly image3D colliderOut;
+layout(set = 2, binding = 2, rg32f) uniform writeonly image3D colliderVelocityOut;
 
 layout(push_constant, scalar) uniform Constants {
     uint colliderCount;
@@ -30,20 +32,21 @@ bool onClosedDomainBoundary() {
     return (gid.x == 0 && isEdgeClosed(BOUNDARY_EDGE_LEFT)) ||
            (gid.x == grid_size.x - 1 && isEdgeClosed(BOUNDARY_EDGE_RIGHT)) ||
            (gid.y == 0 && isEdgeClosed(BOUNDARY_EDGE_BOTTOM)) ||
-           (gid.y == grid_size.y - 1 && isEdgeClosed(BOUNDARY_EDGE_TOP));
+           (gid.y == grid_size.y - 1 && isEdgeClosed(BOUNDARY_EDGE_TOP)) ||
+           (is3D && gid3.z == 0 && isEdgeClosed(BOUNDARY_EDGE_BACK)) ||
+           (is3D && gid3.z == grid_size.z - 1 && isEdgeClosed(BOUNDARY_EDGE_FRONT));
 }
 
 void main() {
     if(outOfBounds()) return;
 
-    vec2 uv = get_uv();
     vec2 collider = vec2(1.0, BOUNDARY_TYPE_WALL_VALUE);
     vec2 colliderVelocity = vec2(0.0);
 
     if(closedDomain != 0u && onClosedDomainBoundary()) {
-        collider.x = -0.5 * length(vec2(dx.x, dy.y));
+        collider.x = -0.5 * length(vec3(dx.x, dy.y, is3D ? dz.z : 0.0));
     }
 
-    imageStore(colliderOut, gid, vec4(collider, 0.0, 0.0));
-    imageStore(colliderVelocityOut, gid, vec4(colliderVelocity, 0.0, 0.0));
+    imageStore(colliderOut, gid3, vec4(collider, 0.0, 0.0));
+    imageStore(colliderVelocityOut, gid3, vec4(colliderVelocity, 0.0, 0.0));
 }

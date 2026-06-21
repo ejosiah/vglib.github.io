@@ -2,6 +2,7 @@
 #include "Barrier.hpp"
 
 #include <array>
+#include <cassert>
 #include <format>
 
 namespace eular {
@@ -14,11 +15,13 @@ namespace eular {
         , _colliderDescriptorSet(params.colliderDescriptorSet)
         , _globalConstantsSetLayout(params.globalConstantsSetLayout)
         , _colliderDescriptorSetLayout(params.colliderDescriptorSetLayout)
-        , _imageType(VK_IMAGE_TYPE_2D)
-        , _gridSize(params.gridSize, 1.0f)
+        , _imageType(params.imageType)
+        , _gridSize(params.gridSize)
+        , _dimension(glm::clamp(params.dimension, 2u, 3u))
         , _macCormackAdvection(params.macCormackAdvection)
         , _wrappingEnabled(params.wrappingEnabled) {
-        _groupCount.xy = glm::uvec2(glm::ceil(params.gridSize / 32.0f));
+        _groupCount = glm::uvec3(glm::ceil(params.gridSize / 32.0f));
+        _groupCount.z = _dimension == 3u ? static_cast<uint32_t>(params.gridSize.z) : 1u;
     }
 
     VectorGrid::~VectorGrid() {
@@ -62,6 +65,7 @@ namespace eular {
     }
 
     void VectorGrid::fill(std::span<glm::vec2> vectorField) {
+        assert(vectorField.size() == static_cast<size_t>(_gridSize.x * _gridSize.y));
         const auto byteSize = vectorField.size() * sizeof(float);
         auto stagingBufferU = device->createStagingBuffer(byteSize);
         auto stagingBufferV = device->createStagingBuffer(byteSize);
@@ -84,7 +88,7 @@ namespace eular {
             }
             Barriers::flush(commandBuffer);
 
-            const auto gs = glm::uvec2(_gridSize);
+            const auto gs = glm::uvec3(_gridSize);
             VkBufferImageCopy region{};
             region.bufferOffset = 0;
             region.bufferRowLength = 0;
@@ -115,8 +119,73 @@ namespace eular {
         });
     }
 
+    void VectorGrid::fill(std::span<glm::vec3> vectorField) {
+        assert(vectorField.size() == static_cast<size_t>(_gridSize.x * _gridSize.y * _gridSize.z));
+        const auto byteSize = vectorField.size() * sizeof(float);
+        auto stagingBufferU = device->createStagingBuffer(byteSize);
+        auto stagingBufferV = device->createStagingBuffer(byteSize);
+        auto stagingBufferW = device->createStagingBuffer(byteSize);
+
+        auto uBuffer = map_range(vectorField, [](const auto v){ return v.x; });
+        auto vBuffer = map_range(vectorField, [](const auto v){ return v.y; });
+        auto wBuffer = map_range(vectorField, [](const auto v){ return v.z; });
+        stagingBufferU.copy(uBuffer);
+        stagingBufferV.copy(vBuffer);
+        stagingBufferW.copy(wBuffer);
+
+        device->firstActiveCommandPool().oneTimeCommand([&](auto commandBuffer) {
+            for(auto texture : {&_vectorField.u[0], &_vectorField.v[0], &_vectorField.w[0]}) {
+                Barriers::push(texture->image, DEFAULT_SUB_RANGE,
+                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                               VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                               VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                               texture->image.currentLayout,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                texture->image.currentLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            }
+            Barriers::flush(commandBuffer);
+
+            const auto gs = glm::uvec3(_gridSize);
+            VkBufferImageCopy region{};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = {gs.x, gs.y, gs.z};
+
+            vkCmdCopyBufferToImage(commandBuffer, stagingBufferU, _vectorField.u[0].image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            vkCmdCopyBufferToImage(commandBuffer, stagingBufferV, _vectorField.v[0].image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            vkCmdCopyBufferToImage(commandBuffer, stagingBufferW, _vectorField.w[0].image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+            for(auto texture : {&_vectorField.u[0], &_vectorField.v[0], &_vectorField.w[0]}) {
+                Barriers::push(texture->image, DEFAULT_SUB_RANGE,
+                               VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                               VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                               VK_ACCESS_2_SHADER_READ_BIT,
+                               texture->image.currentLayout,
+                               VK_IMAGE_LAYOUT_GENERAL);
+                texture->image.currentLayout = VK_IMAGE_LAYOUT_GENERAL;
+            }
+            Barriers::flush(commandBuffer);
+        });
+    }
+
     void VectorGrid::fill(glm::vec2 value) {
         std::vector<glm::vec2> data(to<size_t>(_gridSize.x * _gridSize.y), value);
+        fill(data);
+    }
+
+    void VectorGrid::fill(glm::vec3 value) {
+        std::vector<glm::vec3> data(to<size_t>(_gridSize.x * _gridSize.y * _gridSize.z), value);
         fill(data);
     }
 
@@ -125,30 +194,35 @@ namespace eular {
 
         _vectorField.u.name = "vector_grid_u";
         _vectorField.v.name = "vector_grid_v";
+        _vectorField.w.name = "vector_grid_w";
         _divergenceField.name = "vector_grid_divergence";
         _forceField.name = "vector_grid_force";
         _macCormackData.name = "vector_grid_maccormack_intermediate";
 
         const auto addressMode = _wrappingEnabled ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
-        textures::createNoTransition(*device, _vectorField.u[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _vectorField.u[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _vectorField.v[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _vectorField.v[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.u[0], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.u[1], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.v[0], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.v[1], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.w[0], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vectorField.w[1], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
 
-        textures::createNoTransition(*device, _divergenceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _divergenceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _divergenceField[0], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _divergenceField[1], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
 
-        textures::createNoTransition(*device, _forceField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _forceField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _forceField[0], _imageType, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _forceField[1], _imageType, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
 
-        textures::createNoTransition(*device, _macCormackData[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _macCormackData[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _macCormackData[0], _imageType, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _macCormackData[1], _imageType, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
 
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 0), _vectorField.u[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.u.name, 1), _vectorField.u[1].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.v.name, 0), _vectorField.v[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.v.name, 1), _vectorField.v[1].image.image);
+        device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.w.name, 0), _vectorField.w[0].image.image);
+        device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vectorField.w.name, 1), _vectorField.w[1].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _divergenceField.name, 0), _divergenceField[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _divergenceField.name, 1), _divergenceField[1].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _forceField.name, 0), _forceField[0].image.image);
@@ -221,6 +295,7 @@ namespace eular {
 
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.u);
         writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.v);
+        writeOffset = createDescriptorSet(writes, writeOffset, _vectorField.w);
         writeOffset = createDescriptorSet(writes, writeOffset, _divergenceField);
         writeOffset = createDescriptorSet(writes, writeOffset, _forceField);
         writeOffset = createDescriptorSet(writes, writeOffset, _macCormackData);
@@ -311,11 +386,13 @@ namespace eular {
 
     void VectorGrid::prepTextures() {
         device->firstActiveCommandPool().oneTimeCommand([&](auto commandBuffer) {
-            const std::array<Texture*, 10> textures{
+            std::vector<Texture*> textures{
                 &_vectorField.u[0],
                 &_vectorField.u[1],
                 &_vectorField.v[0],
                 &_vectorField.v[1],
+                &_vectorField.w[0],
+                &_vectorField.w[1],
                 &_divergenceField[0],
                 &_divergenceField[1],
                 &_forceField[0],
@@ -356,16 +433,17 @@ namespace eular {
                TimeDirection::Backword, boundaryMode, &_macCormackData[out]);
 
         auto& vf = _vectorField;
-        static std::array<VkDescriptorSet, 8> sets;
+        static std::array<VkDescriptorSet, 9> sets;
 
         sets[0] = _globalConstantsDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = _macCormackData.descriptorSet[in];
-        sets[4] = _macCormackData.descriptorSet[out];
-        sets[5] = field.descriptorSet[in];
-        sets[6] = field.descriptorSet[out];
-        sets[7] = _colliderDescriptorSet;
+        sets[3] = vf.w.descriptorSet[in];
+        sets[4] = _macCormackData.descriptorSet[in];
+        sets[5] = _macCormackData.descriptorSet[out];
+        sets[6] = field.descriptorSet[in];
+        sets[7] = field.descriptorSet[out];
+        sets[8] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("maccormack"));
         advectConstants.time_sign = 1.0f;

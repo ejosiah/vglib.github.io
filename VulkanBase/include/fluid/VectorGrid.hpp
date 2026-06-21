@@ -13,7 +13,9 @@ namespace eular {
         struct Params {
             VulkanDevice* device{};
             VulkanDescriptorPool* descriptorPool{};
-            glm::vec2 gridSize{0.0f};
+            glm::vec3 gridSize{0.0f};
+            VkImageType imageType{VK_IMAGE_TYPE_3D};
+            uint32_t dimension{3};
             VkDescriptorSet globalConstantsDescriptorSet{};
             VulkanDescriptorSetLayout* globalConstantsSetLayout{};
             VkDescriptorSet colliderDescriptorSet{};
@@ -61,9 +63,15 @@ namespace eular {
 
         virtual void generate(VectorFieldFunc2D generator) = 0;
 
+        virtual void generate(VectorFieldFunc3D generator) = 0;
+
         void fill(std::span<glm::vec2> vectorField);
 
+        void fill(std::span<glm::vec3> vectorField);
+
         void fill(glm::vec2 value);
+
+        void fill(glm::vec3 value);
 
     protected:
         void initFields();
@@ -104,8 +112,9 @@ namespace eular {
 
         VulkanSampler _linearSampler;
 
-        VkImageType _imageType{VK_IMAGE_TYPE_2D};
+        VkImageType _imageType{VK_IMAGE_TYPE_3D};
         glm::vec3 _gridSize{};
+        uint32_t _dimension{3};
         glm::uvec3 _groupCount{1};
         bool _macCormackAdvection{};
         bool _wrappingEnabled{true};

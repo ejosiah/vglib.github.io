@@ -1,6 +1,6 @@
 #version 460
 
-layout(set = 0, binding = 0) uniform sampler2D pressure_field;
+layout(set = 0, binding = 0) uniform sampler3D pressure_field;
 
 layout(set = 1, binding = 0) buffer MinMax {
     float data;
@@ -29,7 +29,7 @@ vec3 heatMap(float t) {
 
 void main() {
     vec2 uv = vUv;
-    float pressure = texture(pressure_field, uv).x;
+    float pressure = texture(pressure_field, vec3(uv, 0.5)).x;
     float minPressure = 0; // min_max[0].data;
     float maxPressure = min_max[1].data;
     float pressureScale = max(abs(minPressure), abs(maxPressure));

@@ -6,54 +6,65 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#define COLLISION_SET 6
+#define COLLISION_SET 7
 #include "common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
-layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
-layout(set = 3, binding = 1) uniform texture2D quantity;
-layout(set = 4, binding = 2) uniform writeonly image2D quantity_out;
-layout(set = 5, binding = 0) uniform sampler aSampler;
+layout(set = 1, binding = 0) uniform sampler3D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler3D vector_field_v;
+layout(set = 3, binding = 0) uniform sampler3D vector_field_w;
+layout(set = 4, binding = 1) uniform texture3D quantity;
+layout(set = 5, binding = 2) uniform writeonly image3D quantity_out;
+layout(set = 6, binding = 0) uniform sampler aSampler;
 
 layout(push_constant) uniform Constants {
     float time_sign;
     uint boundary_mode;
 };
 
-vec2 loadVectorField(vec2 centerUv, vec2 sampleUv) {
-    vec2 uv = sampleUv;
-    vec2 u;
+vec3 loadVectorField(vec3 centerUv, vec3 sampleUv) {
+    vec3 uv = sampleUv;
+    vec3 u;
     u.x = texture(vector_field_u, uv).x;
     u.y = texture(vector_field_v, uv).x;
+    u.z = is3D ? texture(vector_field_w, uv).x : 0.0;
 
     return u;
 }
 
 
-vec4 getQuantity(vec2 xy) {
-    return texture(sampler2D(quantity, aSampler), xy);
+vec4 getQuantity(vec3 xyz) {
+    return texture(sampler3D(quantity, aSampler), xyz);
 }
 
 void updateQuantity(vec4 q) {
-    imageStore(quantity_out, gid, q);
+    imageStore(quantity_out, gid3, q);
 }
 
-vec4 sampleQuantity(vec2 centerUv, vec2 sampleUv) {
+vec4 sampleQuantity(vec3 centerUv, vec3 sampleUv) {
+    if(outOfBoundsThroughOpenEdge(sampleUv)) {
+        return vec4(0.0);
+    }
+
     return getQuantity(sampleUv);
 }
 
 void main() {
     if(outOfBounds()) return;
 
-    vec2 uv = get_uv();
+    vec3 uv = get_uvw();
+    if(sampleBoundary(uv) < 0.0) {
+        updateQuantity(vec4(0.0));
+        return;
+    }
+
     vec4 q0 = sampleQuantity(uv, uv);
-    vec2 u = loadVectorField(uv, uv);
+    vec3 u = loadVectorField(uv, uv);
 
 
-    vec2 pm = uv - 0.5 * time_sign * dt * u;
+    vec3 pm = uv - 0.5 * time_sign * dt * u;
     u = loadVectorField(uv, pm);
 
-    vec2 p = uv - time_sign * dt * u;
+    vec3 p = uv - time_sign * dt * u;
     vec4 q1 = sampleQuantity(uv, p);
 
     // TODO: Use substepping here; endpoint SDF checks can miss thin colliders.

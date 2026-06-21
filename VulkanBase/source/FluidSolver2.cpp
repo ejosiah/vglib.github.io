@@ -12,14 +12,21 @@ namespace eular {
     VulkanDescriptorSetLayout Collider::inputDescriptorSetLayout;
     VulkanDescriptorSetLayout Collider::outputDescriptorSetLayout;
     bool Collider::initialized = false;
-    
+
     FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec2 gridSize)
+        : FluidSolver(device, descriptorPool, glm::vec3(gridSize, 1.0f), 2) {
+    }
+
+    FluidSolver::FluidSolver(VulkanDevice *device, VulkanDescriptorPool* descriptorPool, glm::vec3 gridSize,
+                             uint32_t dimension)
         : ComputePipelines(device)
         , _descriptorPool(descriptorPool)
-        , _gridSize(gridSize, 1)
-        , _delta(1.f/gridSize, 0)
-        , _imageType(VK_IMAGE_TYPE_2D){
-        _groupCount.xy = glm::uvec2(glm::ceil(gridSize/32.f));
+        , _imageType(VK_IMAGE_TYPE_3D)
+        , _gridSize(gridSize)
+        , _delta(1.f / gridSize)
+        , _dimension(glm::clamp(dimension, 2u, 3u)) {
+        _groupCount = glm::uvec3(glm::ceil(gridSize / 32.f));
+        _groupCount.z = _dimension == 3u ? static_cast<uint32_t>(gridSize.z) : 1u;
     }
 
     FluidSolver::~FluidSolver() {
@@ -43,7 +50,9 @@ namespace eular {
         _vectorGrid = std::make_unique<CollocatedVectorGrid>(VectorGrid::Params{
             .device = device,
             .descriptorPool = _descriptorPool,
-            .gridSize = glm::vec2(_gridSize),
+            .gridSize = _gridSize,
+            .imageType = _imageType,
+            .dimension = _dimension,
             .globalConstantsDescriptorSet = uniformDescriptorSet,
             .globalConstantsSetLayout = &uniformsSetLayout,
             .colliderDescriptorSet = _colliderDescriptorSet,
@@ -73,11 +82,14 @@ namespace eular {
     void FluidSolver::initGlobalConstants() {
         GlobalData data{};
         data.grid_size = glm::ivec3(_gridSize);
-        data.dx = {_delta.x, 0};
-        data.dy = {0, _delta.y};
+        data.dx = {_delta.x, 0, 0};
+        data.dy = {0, _delta.y, 0};
+        data.dz = {0, 0, _dimension == 3u ? _delta.z : 1.0f};
         data.dt = options.timeStep;
         data.density = options.density;
         data.wrapping_enabled = static_cast<int>(options.wrappingEnabled);
+        data.dimension = _dimension;
+        data.open_boundary_edges = options.openBoundaryEdges;
         globalConstants.gpu = device->createCpuVisibleBuffer(&data, sizeof(GlobalData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
         globalConstants.cpu =  reinterpret_cast<GlobalData*>(globalConstants.gpu.map());
     }
@@ -90,11 +102,11 @@ namespace eular {
 
         auto addressMode = options.wrappingEnabled ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
-        textures::createNoTransition(*device, _vorticityField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _vorticityField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vorticityField[0], _imageType, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _vorticityField[1], _imageType, VK_FORMAT_R32G32B32A32_SFLOAT, size, addressMode);
 
-        textures::createNoTransition(*device, _pressureField[0], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
-        textures::createNoTransition(*device, _pressureField[1], VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _pressureField[0], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
+        textures::createNoTransition(*device, _pressureField[1], _imageType, VK_FORMAT_R32_SFLOAT, size, addressMode);
 
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vorticityField.name, 0), _vorticityField[0].image.image);
         device->setName<VK_OBJECT_TYPE_IMAGE>(std::format("{}_{}", _vorticityField.name, 1), _vorticityField[1].image.image);
@@ -106,9 +118,10 @@ namespace eular {
     }
 
     void FluidSolver::initLinearSolverSupport() {
-        auto unknownCount = static_cast<uint32_t>(_gridSize.x * _gridSize.y);
+        auto unknownCount = static_cast<uint32_t>(_gridSize.x * _gridSize.y * _gridSize.z);
         auto vectorSize = static_cast<VkDeviceSize>(unknownCount) * sizeof(float);
-        auto maxNonZeroCount = static_cast<VkDeviceSize>(unknownCount) * linearSystemStencilEntriesPerRow;
+        const auto stencilEntriesPerRow = _dimension == 3u ? 7u : linearSystemStencilEntriesPerRow;
+        auto maxNonZeroCount = static_cast<VkDeviceSize>(unknownCount) * stencilEntriesPerRow;
 
         for (auto i = 0; i < 2; ++i) {
             auto& linearSystem = _linearSystems[i];
@@ -148,7 +161,7 @@ namespace eular {
             linearSystem.solver->init(vectorSize);
             linearSystem.params.numIterations = options.poissonIterations;
             linearSystem.params.id = i;
-            linearSystem.constants.gridSize = glm::uvec2(_gridSize);
+            linearSystem.constants.gridSize = glm::uvec3(_gridSize);
         }
 
         meanDriftBuffer = device->createBuffer(
@@ -463,7 +476,7 @@ namespace eular {
         }
 
         glm::vec2 emptyVelocity{0.0f};
-        textures::create(*device, _zeroColliderVelocityTexture, VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32_SFLOAT,
+        textures::create(*device, _zeroColliderVelocityTexture, _imageType, VK_FORMAT_R32G32_SFLOAT,
                          &emptyVelocity, {1u, 1u, 1u}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(glm::vec2));
         device->setName<VK_OBJECT_TYPE_IMAGE>("fluid_solver_zero_collider_velocity_texture",
                                               _zeroColliderVelocityTexture.image.image);
@@ -565,19 +578,21 @@ namespace eular {
     void FluidSolver::createDefaultColliderFields() {
         const auto width = static_cast<uint32_t>(_gridSize.x);
         const auto height = static_cast<uint32_t>(_gridSize.y);
+        const auto depth = static_cast<uint32_t>(_gridSize.z);
+        const auto cellCount = width * height * depth;
 
         _colliderField.name = "fluid_solver_collider";
         _colliderVelocityField.name = "fluid_solver_collider_velocity";
 
         std::vector<glm::vec2> colliderData(
-            width * height,
+            cellCount,
             glm::vec2{1.0f, colliderTypeValue(ColliderType::Wall)});
-        std::vector<glm::vec2> colliderVelocity(width * height, glm::vec2{0.0f});
+        std::vector<glm::vec2> colliderVelocity(cellCount, glm::vec2{0.0f});
         for(auto i = 0u; i < 2; ++i) {
-            textures::create(*device, _colliderField[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32_SFLOAT,
-                             colliderData.data(), {width, height, 1u}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(glm::vec2));
-            textures::create(*device, _colliderVelocityField[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R32G32_SFLOAT,
-                             colliderVelocity.data(), {width, height, 1u}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(glm::vec2));
+            textures::create(*device, _colliderField[i], _imageType, VK_FORMAT_R32G32_SFLOAT,
+                             colliderData.data(), {width, height, depth}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(glm::vec2));
+            textures::create(*device, _colliderVelocityField[i], _imageType, VK_FORMAT_R32G32_SFLOAT,
+                             colliderVelocity.data(), {width, height, depth}, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, sizeof(glm::vec2));
             _colliderField[i].image.transitionLayout(device->graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
             _colliderVelocityField[i].image.transitionLayout(device->graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);
 
@@ -682,7 +697,7 @@ namespace eular {
                     .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\vorticity.comp.spv)",
                     .layouts =  {
                             &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                            &_fieldDescriptorSetLayout, &_colliderDescriptorSetLayout
+                            &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_colliderDescriptorSetLayout
                       }
                 },
                 {
@@ -722,7 +737,8 @@ namespace eular {
                     .name = "constrain_velocity",
                     .shadePath = R"(C:\Users\joebh\CLionProjects\vglib\dependencies\vglib.github.io\data\shaders\fluid_2d\constrain_velocity.comp.spv)",
                     .layouts = { &uniformsSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
-                                &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_colliderDescriptorSetLayout },
+                                &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout, &_fieldDescriptorSetLayout,
+                                &_fieldDescriptorSetLayout, &_colliderDescriptorSetLayout },
                 },
         };
     }
@@ -815,6 +831,9 @@ namespace eular {
         VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, diffuse);
         diffuse(commandBuffer, vf.u, options.viscosity/rho, 1);
         diffuse(commandBuffer, vf.v, options.viscosity/rho, 2);
+        if(_dimension == 3u) {
+            diffuse(commandBuffer, vf.w, options.viscosity/rho, 3);
+        }
         project(commandBuffer);
     }
 
@@ -860,20 +879,22 @@ namespace eular {
 
     void FluidSolver::constrainVelocity(VkCommandBuffer commandBuffer) {
         auto& vf = vectorField();
-        static std::array<VkDescriptorSet, 6> sets;
+        static std::array<VkDescriptorSet, 8> sets;
 
         sets[0] = uniformDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = vf.u.descriptorSet[out];
-        sets[4] = vf.v.descriptorSet[out];
-        sets[5] = _colliderDescriptorSet;
+        sets[3] = vf.w.descriptorSet[in];
+        sets[4] = vf.u.descriptorSet[out];
+        sets[5] = vf.v.descriptorSet[out];
+        sets[6] = vf.w.descriptorSet[out];
+        sets[7] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("constrain_velocity"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("constrain_velocity"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
         vkCmdDispatch(commandBuffer, _groupCount.x, _groupCount.y, _groupCount.z);
 
-        addComputeBarrier(commandBuffer, {&vf.u[out], &vf.v[out]});
+        addComputeBarrier(commandBuffer, {&vf.u[out], &vf.v[out], &vf.w[out]});
         vf.swap();
     }
 
@@ -966,7 +987,8 @@ namespace eular {
         const auto rateTime = options.timeStep * rate;
         constants.alpha = {
             rateTime / (_delta.x * _delta.x),
-            rateTime / (_delta.y * _delta.y)
+            rateTime / (_delta.y * _delta.y),
+            _dimension == 3u ? rateTime / (_delta.z * _delta.z) : 0.0f
         };
     }
 
@@ -976,7 +998,8 @@ namespace eular {
         constants.vectorFieldComponent = 0;
         constants.alpha = {
             _delta.y * _delta.y,
-            _delta.x * _delta.x
+            _delta.x * _delta.x,
+            _dimension == 3u ? _delta.z * _delta.z : 0.0f
         };
     }
 
@@ -1013,7 +1036,7 @@ namespace eular {
         region.imageSubresource.baseArrayLayer = 0;
         region.imageSubresource.layerCount = 1;
         region.imageOffset = {0, 0, 0};
-        region.imageExtent = {from.width, from.height, 1};
+        region.imageExtent = {from.width, from.height, from.depth};
 
         vkCmdCopyImageToBuffer(commandBuffer, from.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, to, 1, &region);
 
@@ -1032,7 +1055,7 @@ namespace eular {
     void FluidSolver::assignScaled(VkCommandBuffer commandBuffer, Field& from, VulkanBuffer& to, VkDescriptorSet toDescriptorSet, float scale) {
         const ScaledFieldCopyConstants constants{
             .scale = scale,
-            .count = static_cast<uint32_t>(_gridSize.x * _gridSize.y)
+            .count = static_cast<uint32_t>(_gridSize.x * _gridSize.y * _gridSize.z)
         };
         const std::array<VkDescriptorSet, 2> sets{from.descriptorSet[in], toDescriptorSet};
 
@@ -1080,7 +1103,7 @@ namespace eular {
         region.imageSubresource.baseArrayLayer = 0;
         region.imageSubresource.layerCount = 1;
         region.imageOffset = {0, 0, 0};
-        region.imageExtent = {to.width, to.height, 1};
+        region.imageExtent = {to.width, to.height, to.depth};
 
         vkCmdCopyBufferToImage(commandBuffer, from, to.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
@@ -1115,7 +1138,8 @@ namespace eular {
         const auto dt = options.timeStep;
         constexpr auto index = 0u;
         auto& linearSystem = _linearSystems[index];
-        const auto pressureScale = -(rho * _delta.x * _delta.x * _delta.y * _delta.y) / dt;
+        const auto pressureScale = -(rho * _delta.x * _delta.x * _delta.y * _delta.y *
+                                     (_dimension == 3u ? _delta.z * _delta.z : 1.0f)) / dt;
 
         assignScaled(commandBuffer, _vectorGrid->divergenceField(), linearSystem.params.solution, linearSystem.rhsDescriptorSet, pressureScale);
         assign(commandBuffer, _pressureField[in], linearSystem.params.unknown);
@@ -1130,7 +1154,7 @@ namespace eular {
         VULKAN_COMMAND_BUFFER_SECTION(device, commandBuffer, subtract_mean_drift);
 
         const MeanDriftConstants constants{
-            .count = static_cast<uint32_t>(_gridSize.x * _gridSize.y)
+            .count = static_cast<uint32_t>(_gridSize.x * _gridSize.y * _gridSize.z)
         };
 
         vkCmdFillBuffer(commandBuffer, meanDriftBuffer, 0, VK_WHOLE_SIZE, 0);
@@ -1245,13 +1269,14 @@ namespace eular {
     }
 
     void FluidSolver::computeVorticity(VkCommandBuffer commandBuffer) {
-        static std::array<VkDescriptorSet, 5> sets;
+        static std::array<VkDescriptorSet, 6> sets;
         auto& vf = _vectorGrid->vectorField();
         sets[0] = uniformDescriptorSet;
         sets[1] = vf.u.descriptorSet[in];
         sets[2] = vf.v.descriptorSet[in];
-        sets[3] = _vorticityField.descriptorSet[in];
-        sets[4] = _colliderDescriptorSet;
+        sets[3] = vf.w.descriptorSet[in];
+        sets[4] = _vorticityField.descriptorSet[in];
+        sets[5] = _colliderDescriptorSet;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline("vorticity"));
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout("vorticity"), 0, COUNT(sets), sets.data(), 0, VK_NULL_HANDLE);
@@ -1362,6 +1387,9 @@ namespace eular {
 
     FluidSolver& FluidSolver::openBoundaryEdges(uint32_t flags) {
         options.openBoundaryEdges = flags;
+        if(globalConstants.cpu) {
+            globalConstants.cpu->open_boundary_edges = flags;
+        }
         return *this;
     }
 
@@ -1399,7 +1427,27 @@ namespace eular {
     }
 
     FluidSolver::Builder& FluidSolver::Builder::generate(const VectorFieldFunc2D& func) {
-        _generator = func;
+        return generate2D(func);
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::generate(const VectorFieldFunc3D& func) {
+        return generate3D(func);
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::generate2D(const VectorFieldFunc2D& func) {
+        _generator2D = func;
+        _generator3D.reset();
+        _dimension = 2;
+        _imageType = VK_IMAGE_TYPE_3D;
+        gridSize2D(glm::vec2(_gridSize));
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::generate3D(const VectorFieldFunc3D& func) {
+        _generator3D = func;
+        _generator2D.reset();
+        _dimension = 3;
+        _imageType = VK_IMAGE_TYPE_3D;
         return *this;
     }
 
@@ -1435,7 +1483,24 @@ namespace eular {
     }
 
     FluidSolver::Builder& FluidSolver::Builder::gridSize(glm::vec2 size) {
+        return gridSize2D(size);
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::gridSize(glm::vec3 size) {
+        return gridSize3D(size);
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::gridSize2D(glm::vec2 size) {
+        _gridSize = glm::vec3(size, 1.0f);
+        _dimension = 2;
+        _imageType = VK_IMAGE_TYPE_3D;
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::gridSize3D(glm::vec3 size) {
         _gridSize = size;
+        _dimension = 3;
+        _imageType = VK_IMAGE_TYPE_3D;
         return *this;
     }
 
@@ -1515,7 +1580,27 @@ namespace eular {
     }
 
     FluidSolver::Builder & FluidSolver::Builder::vectorField(std::span<glm::vec2> field) {
-        _data = { field.begin(), field.end() };
+        return vectorField2D(field);
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::vectorField(std::span<glm::vec3> field) {
+        return vectorField3D(field);
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::vectorField2D(std::span<glm::vec2> field) {
+        _data2D = { field.begin(), field.end() };
+        _data3D.clear();
+        _dimension = 2;
+        _imageType = VK_IMAGE_TYPE_3D;
+        gridSize2D(glm::vec2(_gridSize));
+        return *this;
+    }
+
+    FluidSolver::Builder& FluidSolver::Builder::vectorField3D(std::span<glm::vec3> field) {
+        _data3D = { field.begin(), field.end() };
+        _data2D.clear();
+        _dimension = 3;
+        _imageType = VK_IMAGE_TYPE_3D;
         return *this;
     }
 
@@ -1542,13 +1627,13 @@ namespace eular {
     }
 
     std::unique_ptr<FluidSolver> FluidSolver::Builder::build() {
-        assert(_gridSize.x > 0 && _gridSize.y > 0);
+        assert(_gridSize.x > 0 && _gridSize.y > 0 && _gridSize.z > 0);
         assert(_poissonIterations > 0);
         assert(_density >= 1);
         assert(_dt > 0);
         assert(_viscosity >= 0);
 
-        auto solver = std::make_unique<FluidSolver>(_device, _descriptorPool, _gridSize);
+        auto solver = std::make_unique<FluidSolver>(_device, _descriptorPool, _gridSize, _dimension);
         solver->options.advectVField = _advectVField;
         solver->options.project = _project;
         solver->options.wrappingEnabled = _wrappingEnabled;
@@ -1560,7 +1645,8 @@ namespace eular {
         solver->options.density = _density;
         solver->options.timeStep = _dt;
         solver->linearSolverStrategy = _linearSolverStrategy;
-        solver->_gridSize = glm::vec3(_gridSize, 1);
+        solver->_gridSize = _gridSize;
+        solver->_dimension = _dimension;
         solver->_colliders = _colliders;
         solver->_activeColliderCount = static_cast<uint32_t>(solver->_colliders.size());
 
@@ -1573,10 +1659,16 @@ namespace eular {
     }
 
     void FluidSolver::Builder::generateVectorField(FluidSolver& solver) {
-        if(_generator.has_value()) {
-            solver._vectorGrid->generate(*_generator);
-        } else if (!_data.empty()) {
-            solver._vectorGrid->fill(_data);
+        if(_generator3D.has_value()) {
+            solver._vectorGrid->generate(*_generator3D);
+        } else if(_generator2D.has_value()) {
+            solver._vectorGrid->generate(*_generator2D);
+        } else if(!_data3D.empty()) {
+            solver._vectorGrid->fill(_data3D);
+        } else if(!_data2D.empty()) {
+            solver._vectorGrid->fill(_data2D);
+        } else if(solver._dimension == 3u) {
+            solver._vectorGrid->fill(glm::vec3{0});
         }else {
             solver._vectorGrid->fill(glm::vec2{0});
         }
@@ -1617,9 +1709,9 @@ namespace eular {
         std::vector<std::byte> sourceData(data.size(), std::byte{0});
         auto addressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         for(auto i = 0u; i < 2; ++i) {
-            textures::create(*solver.device, quantity.field[i], VK_IMAGE_TYPE_2D, format,
+            textures::create(*solver.device, quantity.field[i], solver._imageType, format,
                              const_cast<std::byte*>(data.data()), dimensions, addressMode, sizeof(float));
-            textures::create(*solver.device, quantity.source[i], VK_IMAGE_TYPE_2D, format,
+            textures::create(*solver.device, quantity.source[i], solver._imageType, format,
                              sourceData.data(), dimensions, addressMode, sizeof(float));
 
             quantity.field[i].image.transitionLayout(solver.device->graphicsCommandPool(), VK_IMAGE_LAYOUT_GENERAL);

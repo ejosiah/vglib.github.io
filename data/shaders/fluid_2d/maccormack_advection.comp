@@ -5,52 +5,63 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-#define BOUNDARY_SET 7
+#define COLLISION_SET 8
 #include "common.glsl"
 
-layout(set = 1, binding = 0) uniform sampler2D vector_field_u;
-layout(set = 2, binding = 0) uniform sampler2D vector_field_v;
-layout(set = 3, binding = 0) uniform sampler2D ph1_n1_texture;
-layout(set = 4, binding = 0) uniform sampler2D ph1_n_texture;
-layout(set = 5, binding = 0) uniform sampler2D quantity;
-layout(set = 6, binding = 2) uniform writeonly image2D quantity_out;
+layout(set = 1, binding = 0) uniform sampler3D vector_field_u;
+layout(set = 2, binding = 0) uniform sampler3D vector_field_v;
+layout(set = 3, binding = 0) uniform sampler3D vector_field_w;
+layout(set = 4, binding = 0) uniform sampler3D ph1_n1_texture;
+layout(set = 5, binding = 0) uniform sampler3D ph1_n_texture;
+layout(set = 6, binding = 0) uniform sampler3D quantity;
+layout(set = 7, binding = 2) uniform writeonly image3D quantity_out;
 
 layout(push_constant) uniform Constants {
     float time_sign;
     uint boundary_mode;
 };
 
-vec2 loadVectorField(vec2 uv) {
-    vec2 u;
+vec3 loadVectorField(vec3 uv) {
+    vec3 u;
     u.x = texture(vector_field_u, uv).x;
     u.y = texture(vector_field_v, uv).x;
+    u.z = is3D ? texture(vector_field_w, uv).x : 0.0;
 
     return u;
 }
 
 void updateQuantity(vec4 q) {
-    imageStore(quantity_out, gid, q);
+    imageStore(quantity_out, gid3, q);
 }
 
-vec4 sampleField(sampler2D field, vec2 sampleUv) {
+vec4 sampleField(sampler3D field, vec3 sampleUv) {
+    if(outOfBoundsThroughOpenEdge(sampleUv)) {
+        return vec4(0.0);
+    }
+
     return texture(field, sampleUv);
 }
 
 void main() {
     if(outOfBounds()) return;
 
-    vec2 uv = get_uv();
+    vec3 uv = get_uvw();
 
-    vec2 u = loadVectorField(uv);
+    vec3 u = loadVectorField(uv);
 
-    vec2 rawP = uv - dt * u;
-    vec2 p = rawP;
+    vec3 rawP = uv - dt * u;
+    vec3 p = rawP;
 
-    vec2 p0 = floor(p/(dx + dy) - 0.5) + 0.5;
-    p0  = p0 * (dx + dy);
-    vec2 p1 = p0 + dx;
-    vec2 p2 = p0 + dy;
-    vec2 p3 = p1 + dy;
+    vec3 cellSize = vec3(dx.x, dy.y, is3D ? dz.z : 1.0);
+    vec3 p0 = floor(p/cellSize - 0.5) + 0.5;
+    p0  = p0 * cellSize;
+    vec3 p1 = p0 + dx;
+    vec3 p2 = p0 + dy;
+    vec3 p3 = p1 + dy;
+    vec3 p4 = p0 + dz;
+    vec3 p5 = p1 + dz;
+    vec3 p6 = p2 + dz;
+    vec3 p7 = p3 + dz;
 
     vec4 q0 = sampleField(quantity, p0);
     vec4 q1 = sampleField(quantity, p1);
@@ -59,6 +70,14 @@ void main() {
 
     vec4 qMin = min(min(q0, q1), min(q2, q3));
     vec4 qMax = max(max(q0, q1), max(q2, q3));
+    if(is3D) {
+        vec4 q4 = sampleField(quantity, p4);
+        vec4 q5 = sampleField(quantity, p5);
+        vec4 q6 = sampleField(quantity, p6);
+        vec4 q7 = sampleField(quantity, p7);
+        qMin = min(qMin, min(min(q4, q5), min(q6, q7)));
+        qMax = max(qMax, max(max(q4, q5), max(q6, q7)));
+    }
 
     vec4 ph1_n1h = sampleField(ph1_n1_texture, uv);
     vec4 ph1_nh = sampleField(ph1_n_texture, rawP);
