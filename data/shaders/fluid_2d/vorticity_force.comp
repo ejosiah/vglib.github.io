@@ -40,8 +40,8 @@ void main(){
     n = n * inversesqrt(magSqr);
 
     float vc = vort(uv, uv);
-    vec2 eps = vec2(dx.x, dy.y) * csCale;
-    vec2 force = eps * vc * n * vec2(1, -1) + accumForce(uv);
+    float cellSize = min(dx.x, dy.y);
+    vec2 force = csCale * cellSize * vc * vec2(n.y, -n.x) + accumForce(uv);
 
     imageStore(force_field_out, gid3, vec4(force, 0, 0));
 }
