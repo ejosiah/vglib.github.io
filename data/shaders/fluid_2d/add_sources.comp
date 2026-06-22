@@ -8,7 +8,7 @@
 #define COLLISION_SET 4
 #include "common.glsl"
 
-layout(local_size_x = 32, local_size_y = 32) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 1, binding = 0) uniform sampler3D source_field;
 layout(set = 2, binding = 0) uniform sampler3D accumulated_field;

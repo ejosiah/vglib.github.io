@@ -618,10 +618,11 @@ void VulkanBaseApp::calculateFPS(float dt) {
 }
 
 void VulkanBaseApp::recreateSwapChain() {
-    do{
-        glfwGetFramebufferSize(window, &width, &height);
+    glfwGetFramebufferSize(window, &width, &height);
+    while(width == 0 || height == 0) {
         glfwWaitEvents();
-    }while(width == 0 && height == 0);
+        glfwGetFramebufferSize(window, &width, &height);
+    }
 
     waitForInFlightFrames();
     vkDeviceWaitIdle(device);
@@ -631,6 +632,7 @@ void VulkanBaseApp::recreateSwapChain() {
     swapChainImageCount = swapChain.imageCount();
     inFlightImages.assign(swapChainImageCount, nullptr);
     swapChainInvalidated = false;
+    resized = false;
 
     if(settings.depthTest){
         createDepthBuffer();

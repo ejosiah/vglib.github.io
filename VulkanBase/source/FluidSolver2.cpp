@@ -25,7 +25,7 @@ namespace eular {
         , _gridSize(gridSize)
         , _delta(1.f / gridSize)
         , _dimension(glm::clamp(dimension, 2u, 3u)) {
-        _groupCount = glm::uvec3(glm::ceil(gridSize / 32.f));
+        _groupCount = glm::uvec3(glm::ceil(gridSize / 8.f));
         _groupCount.z = _dimension == 3u ? static_cast<uint32_t>(gridSize.z) : 1u;
     }
 

@@ -20,7 +20,7 @@ namespace eular {
         , _dimension(glm::clamp(params.dimension, 2u, 3u))
         , _macCormackAdvection(params.macCormackAdvection)
         , _wrappingEnabled(params.wrappingEnabled) {
-        _groupCount = glm::uvec3(glm::ceil(params.gridSize / 32.0f));
+        _groupCount = glm::uvec3(glm::ceil(params.gridSize / 8.0f));
         _groupCount.z = _dimension == 3u ? static_cast<uint32_t>(params.gridSize.z) : 1u;
     }
 
