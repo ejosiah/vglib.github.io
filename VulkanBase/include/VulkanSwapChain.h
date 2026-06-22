@@ -65,14 +65,20 @@ struct VulkanSwapChain{
     VulkanSwapChain& operator=(const VulkanSwapChain&) = delete;
 
     VulkanSwapChain& operator=(VulkanSwapChain&& source) noexcept {
+        if(this == &source) {
+            return *this;
+        }
         this->swapChain = source.swapChain;
         this->format = source.format;
         this->extent = source.extent;
         this->device = source.device;
+        this->preferredSurfaceFormat = source.preferredSurfaceFormat;
+        this->state = source.state;
         this->images = std::move(source.images);
         this->imageViews = std::move(source.imageViews);
 
         source.swapChain = VK_NULL_HANDLE;
+        source.state = VK_SUCCESS;
 
         return *this;
     }
