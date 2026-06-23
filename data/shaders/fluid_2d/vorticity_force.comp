@@ -16,21 +16,26 @@ layout(push_constant) uniform Constants{
     float csCale;
 };
 
-float vort(vec3 centerUv, vec3 coord) {
+float vort(vec3 coord) {
     return texture(vorticity_field, coord).x;
 }
 
-vec2 accumForce(vec3 coord){
-    return texture(force_field, coord).xy;
+vec3 vort3(vec3 coord) {
+    return texture(vorticity_field, coord).xyz;
 }
 
-void main(){
-    if(outOfBounds()) return;
+float vortMag(vec3 coord) {
+    return is3D ? length(vort3(coord)) : abs(vort(coord));
+}
 
-    vec3 uv = get_uvw();
+vec3 accumForce(vec3 coord){
+    vec4 force = texture(force_field, coord);
+    return vec3(force.xy, is3D ? force.z : 0.0);
+}
 
-    float dudx = (abs(vort(uv, uv + dx)) - abs(vort(uv, uv - dx)))/(2*dx.x);
-    float dudy = (abs(vort(uv, uv + dy)) - abs(vort(uv, uv - dy)))/(2*dy.y);
+void applyVorticity2D(vec3 uv) {
+    float dudx = (vortMag(uv + dx) - vortMag(uv - dx))/(2*dx.x);
+    float dudy = (vortMag(uv + dy) - vortMag(uv - dy))/(2*dy.y);
 
     vec2 n = vec2(dudx, dudy);
 
@@ -39,9 +44,39 @@ void main(){
     float magSqr = max(epsilon, dot(n, n));
     n = n * inversesqrt(magSqr);
 
-    float vc = vort(uv, uv);
+    float vc = vort(uv);
     float cellSize = min(dx.x, dy.y);
-    vec2 force = csCale * cellSize * vc * vec2(n.y, -n.x) + accumForce(uv);
+    vec2 force = csCale * cellSize * vc * vec2(n.y, -n.x) + accumForce(uv).xy;
 
     imageStore(force_field_out, gid3, vec4(force, 0, 0));
+}
+
+void applyVorticity3D(vec3 uv) {
+    float dwdx = (vortMag(uv + dx) - vortMag(uv - dx))/(2*dx.x);
+    float dwdy = (vortMag(uv + dy) - vortMag(uv - dy))/(2*dy.y);
+    float dwdz = (vortMag(uv + dz) - vortMag(uv - dz))/(2*dz.z);
+
+    vec3 n = vec3(dwdx, dwdy, dwdz);
+
+    // safe normalize
+    float epsilon = 2.4414e-4;
+    float magSqr = max(epsilon, dot(n, n));
+    n = n * inversesqrt(magSqr);
+
+    float cellSize = max(dx.x, max(dy.y, dz.z));
+    vec3 force = accumForce(uv) + cellSize * csCale * cross(n, vort3(uv));
+
+    imageStore(force_field_out, gid3, vec4(force, 0));
+}
+
+void main(){
+    if(outOfBounds()) return;
+
+    vec3 uv = get_uvw();
+
+    if(is3D) {
+        applyVorticity3D(uv);
+    } else {
+        applyVorticity2D(uv);
+    }
 }
