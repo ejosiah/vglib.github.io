@@ -257,7 +257,7 @@ namespace eular {
                 .binding(0)
                     .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
-                    .shaderStages(VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .shaderStages(VK_SHADER_STAGE_ALL)
                     .immutableSamplers(_linearSampler)
                 .binding(1)
                     .descriptorType(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)

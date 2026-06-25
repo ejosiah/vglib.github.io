@@ -1,0 +1,47 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+#define BOUNDARY_SET 4
+#include "common_new.glsl"
+
+layout(set = 1, binding = 0) uniform sampler2D solution;
+layout(set = 2, binding = 0) uniform sampler2D unknown_tex;
+layout(set = 3, binding = 2) uniform writeonly image2D unknow_image;
+
+layout(push_constant, scalar) uniform Constants {
+    float alpha;
+    float rBeta;
+    uint is_vector_field;
+    uint pass;
+};
+
+vec4 b(vec2 coord){
+    vec4 _b = texture(solution, coord);
+    return _b;
+}
+
+vec4 x0(vec2 centerUv, vec2 coord){
+    return texture(unknown_tex, st(coord));
+}
+
+void main() {
+    if(outOfBounds()) return;
+
+    vec2 uv = get_uv();
+
+    uint parity = uint((gid.x + gid.y) & 1);
+    if((pass == 0u && parity == 1u) || (pass == 1u && parity == 0u)){
+        imageStore(unknow_image, gid, texture(unknown_tex, uv));
+        return;
+    }
+
+    float dx2 = dx.x * dx.x;
+    float dy2 = dy.y * dy.y;
+    vec4 x =  ((x0(uv, uv + dx) + x0(uv, uv - dx)) * dy2 + (x0(uv, uv + dy) + x0(uv, uv - dy)) * dx2 + alpha * b(uv)) * rBeta;
+
+    imageStore(unknow_image, gid, x);
+}
